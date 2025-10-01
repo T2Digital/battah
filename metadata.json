@@ -1,0 +1,5 @@
+{
+  "name": "Battah System",
+  "description": "An integrated management system for Batah Auto Parts Company. This progressive web application helps manage employees, payroll, expenses, suppliers, sales, and daily operations with a comprehensive dashboard and reporting features.",
+  "requestFramePermissions": []
+}
