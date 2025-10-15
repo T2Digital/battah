@@ -1,8 +1,6 @@
-
 import React from 'react';
 import SectionHeader from '../shared/SectionHeader';
-import { AppData } from '../../types';
-import { formatCurrency, formatDate } from '../../lib/utils';
+import useStore from '../../lib/store';
 import { 
     generateEmployeesReportContent,
     generateAdvancesReportContent,
@@ -13,10 +11,13 @@ import {
 } from '../../lib/reportTemplates';
 
 interface ReportsProps {
-    appData: AppData
+    setActiveReport: (report: string | null) => void;
 }
 
-const Reports: React.FC<ReportsProps> = ({ appData }) => {
+const Reports: React.FC<ReportsProps> = ({ setActiveReport }) => {
+    const appData = useStore(state => state.appData);
+
+    if (!appData) return <div>Loading report data...</div>;
     
     const openReportWindow = (title: string, content: string) => {
         const reportWindow = window.open('', '_blank');
@@ -44,6 +45,7 @@ const Reports: React.FC<ReportsProps> = ({ appData }) => {
         <div className="animate-fade-in">
             <SectionHeader icon="fa-file-alt" title="التقارير" />
              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <ReportCard icon="fa-warehouse" title="تقارير المخزون" description="حركة الأصناف، حد الطلب، تحليل المبيعات" onClick={() => setActiveReport('inventory')} />
                 <ReportCard icon="fa-users" title="تقرير الموظفين" description="بيانات شاملة لجميع الموظفين" onClick={() => openReportWindow('تقرير الموظفين', generateEmployeesReportContent(appData))} />
                 <ReportCard icon="fa-hand-holding-usd" title="تقرير السلف" description="سلف الموظفين والمتبقي منها" onClick={() => openReportWindow('تقرير السلف', generateAdvancesReportContent(appData))} />
                 <ReportCard icon="fa-clock" title="تقرير الحضور" description="حضور وانصراف الموظفين" onClick={() => openReportWindow('تقرير الحضور', generateAttendanceReportContent(appData))} />

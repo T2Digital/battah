@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { DailyReview as DailyReviewType } from '../../types';
 import SectionHeader from '../shared/SectionHeader';
@@ -13,19 +12,21 @@ interface DailyReviewProps {
 const DailyReviewModal: React.FC<{
     isOpen: boolean; onClose: () => void; onSave: (r: Omit<DailyReviewType, 'id'> & { id?: number }) => void; reviewToEdit: DailyReviewType | null;
 }> = ({ isOpen, onClose, onSave, reviewToEdit }) => {
-    const [formData, setFormData] = useState({ date: new Date().toISOString().split('T')[0], branch: 'مركز الصيانة', salesCash: 0, salesElectronic: 0, salesParts: 0, salesAccessories: 0, drawerBalance: 0, notes: '' });
+    const [formData, setFormData] = useState<Omit<DailyReviewType, 'id' | 'totalSales'>>({ date: new Date().toISOString().split('T')[0], branch: 'main', salesCash: 0, salesElectronic: 0, salesParts: 0, salesAccessories: 0, drawerBalance: 0, notes: '' });
+    
     React.useEffect(() => {
-        // FIX: Handle optional 'notes' property from reviewToEdit.
         if (reviewToEdit) {
             setFormData({ ...reviewToEdit, notes: reviewToEdit.notes || '' });
         } else {
-            setFormData({ date: new Date().toISOString().split('T')[0], branch: 'مركز الصيانة', salesCash: 0, salesElectronic: 0, salesParts: 0, salesAccessories: 0, drawerBalance: 0, notes: '' });
+            setFormData({ date: new Date().toISOString().split('T')[0], branch: 'main', salesCash: 0, salesElectronic: 0, salesParts: 0, salesAccessories: 0, drawerBalance: 0, notes: '' });
         }
     }, [reviewToEdit, isOpen]);
+    
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
-        setFormData(p => ({ ...p, [name]: (e.target.type === 'number') ? Number(value) : value }));
+        setFormData(p => ({ ...p, [name]: (e.target.type === 'number') ? Number(value) : value as any }));
     };
+    
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         onSave(reviewToEdit ? { ...formData, id: reviewToEdit.id } : formData);
@@ -38,9 +39,10 @@ const DailyReviewModal: React.FC<{
                 <div>
                     <label>الفرع *</label>
                     <select name="branch" value={formData.branch} onChange={handleChange} required className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700">
-                        <option>مركز الصيانة</option>
-                        <option>الأصلي</option>
-                        <option>فرع ٣</option>
+                        <option value="main">المخزن الرئيسي</option>
+                        <option value="branch1">فرع 1</option>
+                        <option value="branch2">فرع 2</option>
+                        <option value="branch3">فرع 3</option>
                     </select>
                 </div>
                 <div><label>المبيعات النقدية *</label><input type="number" name="salesCash" value={formData.salesCash} onChange={handleChange} required className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700" /></div>
@@ -79,6 +81,13 @@ const DailyReview: React.FC<DailyReviewProps> = ({ dailyReviews, setDailyReviews
         return [...dailyReviews].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     }, [dailyReviews]);
 
+    const branchNames = {
+        main: 'المخزن الرئيسي',
+        branch1: 'فرع 1',
+        branch2: 'فرع 2',
+        branch3: 'فرع 3',
+    };
+
     return (
         <div className="animate-fade-in space-y-6">
             <SectionHeader icon="fa-chart-line" title="مراجعة اليوميات">
@@ -103,7 +112,7 @@ const DailyReview: React.FC<DailyReviewProps> = ({ dailyReviews, setDailyReviews
                         {sortedReviews.map(r => (
                             <tr key={r.id} className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
                                 <td className="px-6 py-4">{formatDate(r.date)}</td>
-                                <td className="px-6 py-4 font-medium text-gray-900 dark:text-white">{r.branch}</td>
+                                <td className="px-6 py-4 font-medium text-gray-900 dark:text-white">{branchNames[r.branch] || r.branch}</td>
                                 <td className="px-6 py-4">{formatCurrency(r.salesCash)}</td>
                                 <td className="px-6 py-4">{formatCurrency(r.salesElectronic)}</td>
                                 <td className="px-6 py-4 font-bold text-green-600 dark:text-green-400">{formatCurrency(r.drawerBalance)}</td>

@@ -1,30 +1,27 @@
-
 export enum Section {
-    Dashboard = 'dashboard',
-    Employees = 'employees',
-    Advances = 'advances',
-    Attendance = 'attendance',
-    Payroll = 'payroll',
-    Suppliers = 'suppliers',
-    Expenses = 'expenses',
-    DailyReview = 'daily-review',
-    Reports = 'reports',
-    DailySales = 'daily-sales',
+    Dashboard = 'Dashboard',
+    Treasury = 'Treasury',
+    DailySales = 'DailySales',
+    Inventory = 'Inventory',
+    Purchasing = 'Purchasing',
+    Employees = 'Employees',
+    Advances = 'Advances',
+    Attendance = 'Attendance',
+    Payroll = 'Payroll',
+    Suppliers = 'Suppliers',
+    Expenses = 'Expenses',
+    DailyReview = 'DailyReview',
+    Reports = 'Reports',
 }
 
 export enum Role {
     Admin = 'admin',
-    BranchManager = 'branchManager',
+    BranchManager = 'manager',
     Accountant = 'accountant',
     Seller = 'seller',
 }
 
-export const ROLES: Record<Role, string[]> = {
-    [Role.Admin]: ['*'],
-    [Role.BranchManager]: [Section.Dashboard, Section.DailySales, Section.DailyReview, Section.Reports],
-    [Role.Accountant]: [Section.Dashboard, Section.Employees, Section.Advances, Section.Attendance, Section.Payroll, Section.Expenses, Section.Reports],
-    [Role.Seller]: [Section.Dashboard, Section.DailySales],
-};
+export type Branch = 'main' | 'branch1' | 'branch2' | 'branch3';
 
 export interface User {
     id: number;
@@ -32,8 +29,69 @@ export interface User {
     password?: string;
     name: string;
     role: Role;
-    branch: string | null;
+    branch: Branch;
+    permissions: Section[];
     active: boolean;
+    phone?: string;
+}
+
+export interface Stock {
+    main: number;
+    branch1: number;
+    branch2: number;
+    branch3: number;
+}
+
+export type MainCategory = 'قطع غيار' | 'ميكانيكا' | 'كماليات';
+
+export interface Compatibility {
+    make: string;
+    model: string;
+    years: number[];
+}
+
+export interface Product {
+    id: number;
+    name: string;
+    sku: string;
+    mainCategory: MainCategory;
+    category: string;
+    brand: string;
+    purchasePrice: number;
+    sellingPrice: number;
+    stock: Stock;
+    reorderPoint?: number;
+    description?: string;
+    images: string[];
+    compatibility: Compatibility[];
+    featured?: boolean;
+}
+
+export interface DailySale {
+    id: number;
+    date: string;
+    invoiceNumber: string;
+    sellerName: string;
+    sellerId: number;
+    source: 'المحل' | 'أونلاين';
+    productId: number;
+    branchSoldFrom: Branch;
+    itemType: string;
+    direction: 'بيع' | 'مرتجع' | 'تبديل' | 'ضمان';
+    quantity: number;
+    unitPrice: number;
+    totalAmount: number;
+    notes?: string;
+}
+
+export interface TreasuryTransaction {
+    id: number;
+    date: string;
+    type: 'إيراد مبيعات' | 'مرتجع مبيعات' | 'مصروف' | 'راتب' | 'دفعة لمورد' | 'سلفة' | 'رصيد افتتاحي';
+    description: string;
+    amountIn: number;
+    amountOut: number;
+    relatedId?: number; // e.g., saleId, expenseId
 }
 
 export interface Employee {
@@ -42,8 +100,8 @@ export interface Employee {
     position: string;
     basicSalary: number;
     hireDate: string;
-    phone?: string;
-    address?: string;
+    phone: string;
+    address: string;
 }
 
 export interface Advance {
@@ -88,6 +146,7 @@ export interface Payment {
     invoiceTotal: number;
     returnedItems?: string;
     notes?: string;
+    purchaseOrderId?: number;
 }
 
 export interface Expense {
@@ -102,32 +161,42 @@ export interface Expense {
 export interface DailyReview {
     id: number;
     date: string;
-    branch: string;
+    branch: Branch;
     salesCash: number;
     salesElectronic: number;
-    salesParts: number;
-    salesAccessories: number;
+    salesParts?: number;
+    salesAccessories?: number;
     drawerBalance: number;
     notes?: string;
 }
 
-export interface DailySale {
-    id: number;
-    date: string;
-    invoiceNumber: string;
-    sellerId: number;
-    sellerName: string;
-    source: 'المحل' | 'أونلاين' | 'تلفون' | 'زيارة' | 'معرض';
-    itemName: string;
-    itemType: 'قطع غيار أصلية' | 'قطع غيار تجارية' | 'زيوت وشحوم' | 'إطارات' | 'بطاريات' | 'إكسسوارات' | 'أدوات' | 'أخرى';
-    direction: 'بيع' | 'مرتجع' | 'تبديل' | 'ضمان';
+export interface PurchaseOrderItem {
+    productId: number;
     quantity: number;
-    unitPrice: number;
+    purchasePrice: number;
+}
+
+export interface PurchaseOrder {
+    id: number;
+    supplierId: number;
+    orderDate: string;
+    status: 'معلق' | 'مكتمل' | 'ملغي';
+    items: PurchaseOrderItem[];
     totalAmount: number;
     notes?: string;
 }
 
+export interface CartItem {
+    product: Product;
+    quantity: number;
+}
+
+
 export interface AppData {
+    users: User[];
+    products: Product[];
+    dailySales: DailySale[];
+    treasury: TreasuryTransaction[];
     employees: Employee[];
     advances: Advance[];
     attendance: Attendance[];
@@ -136,6 +205,6 @@ export interface AppData {
     payments: Payment[];
     expenses: Expense[];
     dailyReview: DailyReview[];
-    dailySales: DailySale[];
-    users: User[];
+    purchaseOrders: PurchaseOrder[];
+    categories: { id: number; name: string; icon: string; description: string }[];
 }

@@ -1,169 +1,160 @@
+import React, { useState, useEffect } from 'react';
+import { onAuthStateChanged } from "firebase/auth";
+import { auth } from './lib/firebase';
+import { Section, Role } from './types';
+import useStore from './lib/store';
 
-
-import React, { useState, useEffect, useCallback } from 'react';
-import { Section, User, Role, ROLES, AppData } from './types';
-import { initialData } from './constants';
-import Header from './components/Header';
 import Sidebar from './components/Sidebar';
-import Dashboard from './components/dashboard/Dashboard';
-import Employees from './components/employees/Employees';
-import DailySales from './components/sales/DailySales';
+import Header from './components/Header';
 import LoginModal from './components/LoginModal';
-import Expenses from './components/expenses/Expenses';
-import Suppliers from './components/suppliers/Suppliers';
+import Dashboard from './components/dashboard/Dashboard';
+import Treasury from './components/treasury/Treasury';
+import DailySales from './components/sales/DailySales';
+import Inventory from './components/inventory/Inventory';
+import Purchasing from './components/purchasing/Purchasing';
+import Employees from './components/employees/Employees';
 import Advances from './components/advances/Advances';
-import Payroll from './components/payroll/Payroll';
 import Attendance from './components/attendance/Attendance';
+import Payroll from './components/payroll/Payroll';
+import Suppliers from './components/suppliers/Suppliers';
+import Expenses from './components/expenses/Expenses';
 import DailyReview from './components/daily-review/DailyReview';
 import Reports from './components/reports/Reports';
+import InventoryReports from './components/reports/InventoryReports';
+import Storefront from './components/store/Storefront';
+import AIChatbot from './components/shared/AIChatbot';
+import SeedData from './lib/seed';
+
+
+type ViewMode = 'admin' | 'store';
 
 const App: React.FC = () => {
-  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
-    return (localStorage.getItem('theme') as 'light' | 'dark') || 'light';
-  });
-  const [isSidebarOpen, setSidebarOpen] = useState(true);
-  const [activeSection, setActiveSection] = useState<Section>(Section.Dashboard);
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+    const { 
+      currentUser, 
+      isInitialized, 
+      isLoading,
+      appData,
+      fetchInitialData,
+      setCurrentUser,
+      clearCurrentUser,
+      isSeeded,
+      checkIfSeeded
+    } = useStore();
 
-  // State for all application data
-  const [data, setData] = useState<AppData>(() => {
-    try {
-      const savedData = localStorage.getItem('battahSystemData');
-      if (savedData) {
-        console.log("📥 Loading data from localStorage.");
-        return JSON.parse(savedData);
-      }
-    } catch (error) {
-      console.error("Failed to parse data from localStorage", error);
+    const [viewMode, setViewMode] = useState<ViewMode>('store');
+    const [activeSection, setActiveSection] = useState<Section>(Section.Dashboard);
+    const [isSidebarOpen, setSidebarOpen] = useState(true);
+    const [activeReport, setActiveReport] = useState<string | null>(null);
+
+    // Check Firebase Auth state on mount
+    useEffect(() => {
+        const unsubscribe = onAuthStateChanged(auth, async (user) => {
+            if (user && user.email) {
+                // When auth state is confirmed, fetch all app data
+                if (!isInitialized) {
+                    await fetchInitialData();
+                }
+                // After data is fetched, set the current user from our DB
+                const appUser = useStore.getState().appData?.users.find(u => u.username.toLowerCase() === user.email?.toLowerCase());
+                if (appUser) {
+                  setCurrentUser(appUser);
+                } else {
+                  // User exists in Auth but not in our DB, log them out
+                  clearCurrentUser();
+                }
+            } else {
+                // No user logged in Firebase Auth
+                clearCurrentUser();
+                if (!isInitialized) {
+                  await fetchInitialData(); // Still fetch public data like products
+                }
+            }
+        });
+        return () => unsubscribe();
+    }, [isInitialized, fetchInitialData, setCurrentUser, clearCurrentUser]);
+
+    // Check if DB is seeded
+     useEffect(() => {
+        checkIfSeeded();
+    }, [checkIfSeeded]);
+
+
+    const toggleSidebar = () => setSidebarOpen(!isSidebarOpen);
+    
+    const hasPermission = (permission: Section): boolean => {
+        if (currentUser?.role === Role.Admin) return true;
+        return currentUser?.permissions.includes(permission) || false;
+    };
+    
+    const renderAdminContent = () => {
+        if (!appData || !currentUser) return null;
+        if (activeReport === 'inventory') {
+            return <InventoryReports setActiveReport={setActiveReport} />;
+        }
+        switch (activeSection) {
+            case Section.Dashboard: return <Dashboard />;
+            case Section.Treasury: return <Treasury />;
+            case Section.DailySales: return <DailySales />;
+            case Section.Inventory: return <Inventory />;
+            case Section.Purchasing: return <Purchasing />;
+            case Section.Employees: return <Employees />;
+            case Section.Advances: return <Advances />;
+            case Section.Attendance: return <Attendance />;
+            case Section.Payroll: return <Payroll />;
+            case Section.Suppliers: return <Suppliers />;
+            case Section.Expenses: return <Expenses />;
+            case Section.DailyReview: return <DailyReview />;
+            case Section.Reports: return <Reports setActiveReport={setActiveReport} />;
+            default: return <Dashboard />;
+        }
+    };
+    
+    // MAIN RENDER LOGIC
+    if (!isSeeded) {
+        return <SeedData />;
     }
-    return initialData;
-  });
 
-  // Effect to sync state with localStorage
-  useEffect(() => {
-    try {
-      localStorage.setItem('battahSystemData', JSON.stringify(data));
-    } catch (error) {
-      console.error("Failed to save data to localStorage", error);
+    if (isLoading && !isInitialized) {
+        return <div className="flex justify-center items-center min-h-screen">جاري تحميل النظام...</div>;
     }
-  }, [data]);
-
-
-  useEffect(() => {
-    if (theme === 'dark') {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
+    
+    if (!appData) {
+        return <div className="flex justify-center items-center min-h-screen">حدث خطأ أثناء تحميل البيانات.</div>;
     }
-    localStorage.setItem('theme', theme);
-  }, [theme]);
 
-  const toggleTheme = () => {
-    setTheme(prevTheme => (prevTheme === 'light' ? 'dark' : 'light'));
-  };
-
-  const handleLogin = (user: User) => {
-    setCurrentUser(user);
-    setActiveSection(Section.Dashboard);
-  };
-
-  const hasPermission = useCallback((permission: Section) => {
-    if (!currentUser) return false;
-    const userPermissions = ROLES[currentUser.role];
-    if (userPermissions.includes('*')) return true;
-    return userPermissions.includes(permission);
-  }, [currentUser]);
-
-
-  const renderContent = () => {
-    if (!currentUser) return null;
-
-    switch (activeSection) {
-      case Section.Dashboard:
-        return <Dashboard 
-          employees={data.employees} 
-          advances={data.advances}
-          expenses={data.expenses}
-          dailyReview={data.dailyReview}
-        />;
-      case Section.Employees:
-        return <Employees employees={data.employees} setEmployees={(d) => setData(p => ({...p, employees: d}))} />;
-      case Section.DailySales:
-        return <DailySales 
-          dailySales={data.dailySales} 
-          // FIX: Handle function updates for SetStateAction to resolve type incompatibility.
-          setDailySales={(d) => setData(p => ({...p, dailySales: typeof d === 'function' ? d(p.dailySales) : d}))}
-          currentUser={currentUser}
-        />;
-      case Section.Advances:
-        return <Advances 
-          advances={data.advances} 
-          setAdvances={(d) => setData(p => ({...p, advances: d}))}
-          employees={data.employees}
-        />;
-      case Section.Attendance:
-        return <Attendance 
-          attendance={data.attendance}
-          setAttendance={(d) => setData(p => ({...p, attendance: d}))}
-          employees={data.employees}
-        />;
-      case Section.Payroll:
-        return <Payroll 
-          payroll={data.payroll}
-          setPayroll={(d) => setData(p => ({...p, payroll: d}))}
-          employees={data.employees}
-        />;
-      case Section.Suppliers:
-        return <Suppliers 
-          suppliers={data.suppliers}
-          setSuppliers={(d) => setData(p => ({...p, suppliers: d}))}
-          payments={data.payments}
-          setPayments={(d) => setData(p => ({...p, payments: d}))}
-        />;
-      case Section.Expenses:
-        return <Expenses expenses={data.expenses} setExpenses={(d) => setData(p => ({...p, expenses: d}))} />;
-      case Section.DailyReview:
-        return <DailyReview 
-          dailyReviews={data.dailyReview}
-          setDailyReviews={(d) => setData(p => ({...p, dailyReview: d}))}
-        />;
-      case Section.Reports:
-        return <Reports appData={data}/>;
-      default:
-        return <Dashboard 
-          employees={data.employees} 
-          advances={data.advances}
-          expenses={data.expenses}
-          dailyReview={data.dailyReview}
-        />;
+    if (viewMode === 'store') {
+        return (
+            <>
+                <Storefront 
+                    setViewMode={setViewMode}
+                />
+                <AIChatbot />
+            </>
+        );
     }
-  };
 
-  return (
-    <div className={`min-h-screen transition-colors duration-300 ${isSidebarOpen ? 'lg:pr-72' : 'lg:pr-20'}`}>
-      {!currentUser && <LoginModal users={data.users} onLogin={handleLogin} />}
-      {currentUser && (
-        <>
-          <Header
-            theme={theme}
-            toggleTheme={toggleTheme}
-            currentUser={currentUser}
-            isSidebarOpen={isSidebarOpen}
-            setSidebarOpen={setSidebarOpen}
-          />
-          <Sidebar
-            isOpen={isSidebarOpen}
-            activeSection={activeSection}
-            setActiveSection={setActiveSection}
-            hasPermission={hasPermission}
-          />
-          <main className="pt-24 px-4 sm:px-6 lg:px-8 pb-8">
-            {renderContent()}
-          </main>
-        </>
-      )}
-    </div>
-  );
+    if (!currentUser) {
+        return <LoginModal />;
+    }
+
+    return (
+        <div className="bg-slate-100 dark:bg-gray-900 min-h-screen font-cairo">
+            <Header
+                toggleSidebar={toggleSidebar}
+                isSidebarOpen={isSidebarOpen}
+                setViewMode={setViewMode}
+            />
+            <Sidebar
+                isOpen={isSidebarOpen}
+                activeSection={activeSection}
+                setActiveSection={setActiveSection}
+                hasPermission={hasPermission}
+            />
+            <main className={`transition-all duration-300 ease-in-out pt-24 pb-8 px-4 sm:px-8 ${isSidebarOpen ? 'lg:mr-72' : 'lg:mr-20'}`}>
+                {renderAdminContent()}
+            </main>
+        </div>
+    );
 };
 
 export default App;

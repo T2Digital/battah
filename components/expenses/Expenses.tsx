@@ -1,6 +1,5 @@
-
 import React, { useState, useMemo } from 'react';
-import { Expense } from '../../types';
+import { Expense, TreasuryTransaction } from '../../types';
 import SectionHeader from '../shared/SectionHeader';
 import Modal from '../shared/Modal';
 import { formatDate, formatCurrency } from '../../lib/utils';
@@ -8,6 +7,7 @@ import { formatDate, formatCurrency } from '../../lib/utils';
 interface ExpensesProps {
     expenses: Expense[];
     setExpenses: (expenses: Expense[]) => void;
+    addTreasuryTransaction: (transaction: Omit<TreasuryTransaction, 'id'>) => void;
 }
 
 const ExpenseModal: React.FC<{
@@ -51,23 +51,37 @@ const ExpenseModal: React.FC<{
     );
 };
 
-const Expenses: React.FC<ExpensesProps> = ({ expenses, setExpenses }) => {
+const Expenses: React.FC<ExpensesProps> = ({ expenses, setExpenses, addTreasuryTransaction }) => {
     const [isModalOpen, setModalOpen] = useState(false);
     const [expenseToEdit, setExpenseToEdit] = useState<Expense | null>(null);
     const [filters, setFilters] = useState({ search: '', type: '', date: '' });
     
     const handleSave = (expense: Omit<Expense, 'id'> & { id?: number }) => {
+        let newId = expense.id;
         if (expense.id) {
             setExpenses(expenses.map(e => e.id === expense.id ? { ...e, ...expense } : e));
         } else {
-            const newId = Math.max(0, ...expenses.map(e => e.id)) + 1;
+            newId = Math.max(0, ...expenses.map(e => e.id)) + 1;
             setExpenses([...expenses, { ...expense, id: newId }]);
+
+            // Add to treasury only when creating a new expense
+            if (expense.amount > 0) {
+                addTreasuryTransaction({
+                    date: expense.date,
+                    type: 'مصروف',
+                    description: expense.name,
+                    amountIn: 0,
+                    amountOut: expense.amount,
+                    relatedId: newId
+                });
+            }
         }
         setModalOpen(false);
     };
 
     const handleDelete = (id: number) => {
         if (window.confirm('هل أنت متأكد من حذف هذا المصروف؟')) {
+            // TODO: Handle reversing treasury transaction
             setExpenses(expenses.filter(e => e.id !== id));
         }
     };

@@ -1,6 +1,5 @@
-
 import React, { useState, useMemo } from 'react';
-import { Advance, Employee } from '../../types';
+import { Advance, Employee, TreasuryTransaction } from '../../types';
 import SectionHeader from '../shared/SectionHeader';
 import Modal from '../shared/Modal';
 import { formatCurrency, formatDate } from '../../lib/utils';
@@ -9,6 +8,7 @@ interface AdvancesProps {
     advances: Advance[];
     setAdvances: (advances: Advance[]) => void;
     employees: Employee[];
+    addTreasuryTransaction: (transaction: Omit<TreasuryTransaction, 'id'>) => void;
 }
 
 
@@ -91,7 +91,7 @@ const AdvanceModal: React.FC<{
 };
 
 
-const Advances: React.FC<AdvancesProps> = ({ advances, setAdvances, employees }) => {
+const Advances: React.FC<AdvancesProps> = ({ advances, setAdvances, employees, addTreasuryTransaction }) => {
     const [isModalOpen, setModalOpen] = useState(false);
     const [advanceToEdit, setAdvanceToEdit] = useState<Advance | null>(null);
     
@@ -109,16 +109,28 @@ const Advances: React.FC<AdvancesProps> = ({ advances, setAdvances, employees })
 
     const handleDelete = (id: number) => {
         if (window.confirm('هل أنت متأكد من حذف هذه السلفة؟')) {
+            // TODO: In a real app, handle reversing the treasury transaction
             setAdvances(advances.filter(a => a.id !== id));
         }
     };
 
     const handleSave = (advance: Omit<Advance, 'id'> & { id?: number }) => {
+        let newId = advance.id;
         if (advance.id) {
             setAdvances(advances.map(a => a.id === advance.id ? { ...a, ...advance } : a));
         } else {
-            const newId = Math.max(0, ...advances.map(a => a.id)) + 1;
+            newId = Math.max(0, ...advances.map(a => a.id)) + 1;
             setAdvances([...advances, { ...advance, id: newId }]);
+
+            // Add to treasury only when creating a new advance
+            addTreasuryTransaction({
+                date: advance.date,
+                type: 'سلفة',
+                description: `سلفة لـ ${getEmployeeName(advance.employeeId)}`,
+                amountIn: 0,
+                amountOut: advance.amount,
+                relatedId: newId
+            });
         }
         setModalOpen(false);
     };
@@ -133,7 +145,7 @@ const Advances: React.FC<AdvancesProps> = ({ advances, setAdvances, employees })
 
     return (
         <div className="animate-fade-in space-y-6">
-            <SectionHeader icon="fa-hand-holding-usd" title="سلف الموظفين">
+            <SectionHeader icon="fa-file-invoice-dollar" title="سلف الموظفين">
                  <button onClick={handleAdd} className="px-4 py-2 bg-primary text-white rounded-lg flex items-center gap-2 hover:bg-primary-dark transition shadow-md">
                     <i className="fas fa-plus"></i>
                     إضافة سلفة

@@ -1,13 +1,10 @@
-
 import React from 'react';
-// FIX: Imported ROLES to resolve "Cannot find name" error.
-import { Section, ROLES } from '../types';
+import { Section } from '../types';
 
 interface SidebarProps {
     isOpen: boolean;
     activeSection: Section;
     setActiveSection: (section: Section) => void;
-    // FIX: Corrected the type signature for hasPermission to match the fix in App.tsx.
     hasPermission: (permission: Section) => boolean;
 }
 
@@ -19,10 +16,13 @@ interface NavItem {
 
 const navItems: NavItem[] = [
     { section: Section.Dashboard, icon: 'fa-tachometer-alt', label: 'لوحة التحكم' },
-    { section: Section.DailySales, icon: 'fa-cash-register', label: 'مبيعات اليوم' },
+    { section: Section.Treasury, icon: 'fa-cash-register', label: 'الخزينة' },
+    { section: Section.DailySales, icon: 'fa-hand-holding-usd', label: 'مبيعات اليوم' },
+    { section: Section.Inventory, icon: 'fa-warehouse', label: 'إدارة المخزون' },
+    { section: Section.Purchasing, icon: 'fa-shopping-cart', label: 'المشتريات' },
     { section: Section.Employees, icon: 'fa-users', label: 'إدارة الموظفين' },
-    { section: Section.Advances, icon: 'fa-hand-holding-usd', label: 'سلف الموظفين' },
-    { section: Section.Attendance, icon: 'fa-clock', label: 'الحضور والانصراف' },
+    { section: Section.Advances, icon: 'fa-file-invoice-dollar', label: 'سلف الموظفين' },
+    { section: Section.Attendance, icon: 'fa-clock', label: 'الحاضر والانصراف' },
     { section: Section.Payroll, icon: 'fa-money-check-alt', label: 'القبض والمرتبات' },
     { section: Section.Suppliers, icon: 'fa-truck', label: 'الموردين والدفعات' },
     { section: Section.Expenses, icon: 'fa-receipt', label: 'المصاريف' },

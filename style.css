@@ -1,0 +1,141 @@
+/* Global Styles & Animations */
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800&display=swap');
+
+body {
+    font-family: 'Cairo', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+@keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+@keyframes fade-in-down {
+    from { opacity: 0; transform: translateY(-20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in { animation: fade-in 0.5s ease-out forwards; }
+.animate-fade-in-down { animation: fade-in-down 0.5s ease-out forwards; }
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+::-webkit-scrollbar-track {
+    background: #f1f5f9;
+}
+.dark ::-webkit-scrollbar-track {
+    background: #1f2937;
+}
+::-webkit-scrollbar-thumb {
+    background: #9ca3af;
+    border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: #6b7280;
+}
+
+/* Base button style (for non-tailwind components) */
+.btn {
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: all 0.2s;
+    cursor: pointer;
+    border: 1px solid transparent;
+}
+.btn-primary {
+    background-color: #1e40af;
+    color: white;
+}
+.btn-primary:hover {
+    background-color: #1d4ed8;
+}
+
+/* Base Modal styles */
+.modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background-color: rgba(17, 24, 39, 0.8);
+    backdrop-filter: blur(4px);
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Base Table styles */
+.base-table {
+    width: 100%;
+    text-align: right;
+    font-size: 0.875rem;
+}
+.base-table thead {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    background-color: #f9fafb;
+}
+.dark .base-table thead {
+    background-color: #374151;
+}
+.base-table th, .base-table td {
+    padding: 0.75rem 1.5rem;
+}
+.base-table tbody tr {
+    border-bottom-width: 1px;
+}
+.dark .base-table tbody tr {
+    border-color: #374151;
+}
+.base-table tbody tr:hover {
+    background-color: #f9fafb;
+}
+.dark .base-table tbody tr:hover {
+    background-color: #374151;
+}
+
+/* Storefront specific styles */
+.product-card-store {
+    transition: all 0.3s ease-in-out;
+}
+.product-card-store:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+}
+.product-card-store .product-image-store {
+    transition: transform 0.3s ease-in-out;
+}
+.product-card-store:hover .product-image-store {
+    transform: scale(1.05);
+}
+
+.category-card-store {
+    transition: all 0.3s ease-in-out;
+    position: relative;
+    overflow: hidden;
+}
+
+.category-card-store:hover {
+    transform: translateY(-8px);
+    box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+}
+
+.category-card-store::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(59, 130, 246, 0.1), transparent);
+  transition: left 0.5s ease;
+}
+
+.category-card-store:hover::before {
+  left: 100%;
+}

@@ -1,6 +1,5 @@
-
 import React, { useState, useMemo } from 'react';
-import { Payroll as PayrollType, Employee } from '../../types';
+import { Payroll as PayrollType, Employee, TreasuryTransaction } from '../../types';
 import SectionHeader from '../shared/SectionHeader';
 import Modal from '../shared/Modal';
 import { formatDate, formatCurrency } from '../../lib/utils';
@@ -9,6 +8,7 @@ interface PayrollProps {
     payroll: PayrollType[];
     setPayroll: (payroll: PayrollType[]) => void;
     employees: Employee[];
+    addTreasuryTransaction: (transaction: Omit<TreasuryTransaction, 'id'>) => void;
 }
 
 const PayrollModal: React.FC<{
@@ -93,7 +93,7 @@ const PayrollModal: React.FC<{
     );
 };
 
-const Payroll: React.FC<PayrollProps> = ({ payroll, setPayroll, employees }) => {
+const Payroll: React.FC<PayrollProps> = ({ payroll, setPayroll, employees, addTreasuryTransaction }) => {
     const [isModalOpen, setModalOpen] = useState(false);
     const [recordToEdit, setRecordToEdit] = useState<PayrollType | null>(null);
 
@@ -111,16 +111,30 @@ const Payroll: React.FC<PayrollProps> = ({ payroll, setPayroll, employees }) => 
 
     const handleDelete = (id: number) => {
         if (window.confirm('هل أنت متأكد من حذف هذا السجل؟')) {
+            // TODO: Handle reversing treasury transaction
             setPayroll(payroll.filter(p => p.id !== id));
         }
     };
     
     const handleSave = (record: Omit<PayrollType, 'id'> & { id?: number }) => {
+        let newId = record.id;
         if (record.id) {
             setPayroll(payroll.map(p => p.id === record.id ? { ...p, ...record } : p));
         } else {
-            const newId = Math.max(0, ...payroll.map(p => p.id)) + 1;
+            newId = Math.max(0, ...payroll.map(p => p.id)) + 1;
             setPayroll([...payroll, { ...record, id: newId }]);
+
+            // Add to treasury only when creating a new payroll record
+            if (record.disbursed > 0) {
+                addTreasuryTransaction({
+                    date: record.date,
+                    type: 'راتب',
+                    description: `راتب لـ ${getEmployeeName(record.employeeId)}`,
+                    amountIn: 0,
+                    amountOut: record.disbursed,
+                    relatedId: newId
+                });
+            }
         }
         setModalOpen(false);
     };

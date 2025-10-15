@@ -1,60 +1,44 @@
-
-import React, { useState, useEffect } from 'react';
-import { User } from '../types';
+import React from 'react';
+import useStore from '../lib/store';
 
 interface HeaderProps {
-    theme: 'light' | 'dark';
-    toggleTheme: () => void;
-    currentUser: User;
+    toggleSidebar: () => void;
     isSidebarOpen: boolean;
-    setSidebarOpen: React.Dispatch<React.SetStateAction<boolean>>;
+    setViewMode: (mode: 'admin' | 'store') => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ theme, toggleTheme, currentUser, isSidebarOpen, setSidebarOpen }) => {
-    const [currentDate, setCurrentDate] = useState('');
+const Header: React.FC<HeaderProps> = ({ toggleSidebar, setViewMode }) => {
+    const { currentUser, logout } = useStore();
 
-    useEffect(() => {
-        const updateDate = () => {
-            const now = new Date();
-            const formattedDate = now.toLocaleDateString('ar-EG', {
-                weekday: 'long',
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric'
-            });
-            setCurrentDate(formattedDate);
-        };
-        updateDate();
-        const timer = setInterval(updateDate, 60000);
-        return () => clearInterval(timer);
-    }, []);
+    if (!currentUser) return null;
 
     return (
-        <header className="fixed top-0 left-0 right-0 h-20 bg-gradient-to-r from-primary-dark via-primary to-primary-light text-white shadow-lg z-40 transition-all duration-300">
-            <div className="h-full flex justify-between items-center px-4 sm:px-6 lg:px-8">
-                <div className="flex items-center gap-4">
-                    <i className="fas fa-car text-4xl text-accent-light animate-pulse"></i>
-                    <div className="hidden md:block">
-                        <h1 className="text-2xl font-bold">شركة بطاح لقطع غيار السيارات</h1>
-                        <p className="text-sm opacity-90">نظام الإدارة المتكامل</p>
-                    </div>
+        <header className="fixed top-0 left-0 right-0 bg-white dark:bg-gray-800 shadow-md h-20 flex items-center justify-between px-6 z-40" style={{ right: 0 }}>
+            <div className="flex items-center gap-4">
+                 <div className="flex items-center gap-3">
+                     <i className="fas fa-car-battery text-3xl text-primary-dark"></i>
+                     <h1 className="text-xl font-bold text-gray-800 dark:text-white">نظام بطاح</h1>
                 </div>
-                <div className="flex items-center gap-2 sm:gap-4">
-                    <div className="hidden lg:flex items-center gap-2 bg-white/10 backdrop-blur-sm p-2 rounded-lg text-sm">
-                        <i className="fas fa-calendar-alt"></i>
-                        <span>{currentDate}</span>
-                    </div>
-                    <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm p-2 rounded-lg text-sm">
-                        <i className="fas fa-user-circle"></i>
-                        <span className='hidden sm:inline'>{currentUser.name}</span>
-                    </div>
-                    <button onClick={toggleTheme} className="w-10 h-10 flex justify-center items-center bg-white/10 backdrop-blur-sm rounded-full hover:bg-white/20 transition">
-                        <i className={`fas ${theme === 'light' ? 'fa-moon' : 'fa-sun'}`}></i>
-                    </button>
-                    <button onClick={() => setSidebarOpen(!isSidebarOpen)} className="w-10 h-10 flex justify-center items-center bg-white/10 backdrop-blur-sm rounded-full hover:bg-white/20 transition lg:hidden">
-                        <i className="fas fa-bars"></i>
-                    </button>
+                 <button 
+                    onClick={() => setViewMode('store')}
+                    className="hidden sm:flex items-center gap-2 px-3 py-2 bg-secondary text-white rounded-lg hover:bg-green-700 transition-colors"
+                >
+                    <i className="fas fa-store"></i>
+                    <span>عرض المتجر</span>
+                </button>
+            </div>
+            <div className="flex items-center gap-6">
+                <div className="text-right">
+                    <p className="font-semibold text-gray-800 dark:text-white">{currentUser.name}</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">{currentUser.role}</p>
                 </div>
+                <button onClick={logout} className="flex items-center gap-2 text-gray-500 hover:text-red-500 dark:text-gray-400 dark:hover:text-red-400 transition">
+                    <i className="fas fa-sign-out-alt text-xl"></i>
+                    <span className="hidden sm:inline">تسجيل الخروج</span>
+                </button>
+                 <button onClick={toggleSidebar} className="text-gray-600 dark:text-gray-300 hover:text-primary dark:hover:text-primary-light">
+                    <i className="fas fa-bars text-2xl"></i>
+                </button>
             </div>
         </header>
     );
