@@ -13,6 +13,7 @@ import NewArrivalsSection from './NewArrivalsSection';
 import PromotionBanner from './PromotionBanner';
 import CustomerNotifications from './CustomerNotifications';
 import CategoryHighlights from './CategoryHighlights';
+import AIChatbot from '../shared/AIChatbot';
 
 interface StorefrontProps {
     setViewMode: (mode: 'admin' | 'store') => void;
@@ -32,10 +33,35 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
     const [notification, setNotification] = useState('');
     const [filters, setFilters] = useState({ category: 'all', brand: 'all', search: '' });
 
+    // Load cart from localStorage on initial render
+    useEffect(() => {
+        try {
+            const savedCart = localStorage.getItem('battahCart');
+            if (savedCart) {
+                const parsedCart: {productId: number, quantity: number}[] = JSON.parse(savedCart);
+                // Reconstruct cart with full product objects
+                const reconstructedCart: CartItem[] = parsedCart.map(item => {
+                    const product = products.find(p => p.id === item.productId);
+                    return product ? { product, quantity: item.quantity } : null;
+                }).filter((item): item is CartItem => item !== null);
+                 setCartItems(reconstructedCart);
+            }
+        } catch (error) {
+            console.error("Failed to parse cart from localStorage", error);
+        }
+    }, [products]); // Depend on products to reconstruct cart once they are loaded
+
+    // Save cart to localStorage whenever it changes
+    useEffect(() => {
+        // Save a lightweight version of the cart to avoid storing large product objects
+        const lightCart = cartItems.map(item => ({ productId: item.product.id, quantity: item.quantity }));
+        localStorage.setItem('battahCart', JSON.stringify(lightCart));
+    }, [cartItems]);
+
 
     useEffect(() => {
         if (notification) {
-            const timer = setTimeout(() => setNotification(''), 3000);
+            const timer = setTimeout(() => setNotification(''), 4000);
             return () => clearTimeout(timer);
         }
     }, [notification]);
@@ -79,7 +105,7 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
             await createOrder(customerDetails, orderItems, totalAmount, paymentMethod, paymentProof);
             setCartItems([]);
             setCheckoutOpen(false);
-            setNotification('تم إرسال طلبك بنجاح! سنتواصل معك قريباً.');
+            setNotification('تم إرسال طلبك بنجاح! سيتم التواصل معك للتأكيد.');
         } catch (error) {
             console.error("Failed to create order:", error);
             alert("حدث خطأ أثناء إرسال الطلب. يرجى المحاولة مرة أخرى.");
@@ -145,6 +171,11 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
                 />
             )}
             <CustomerNotifications message={notification} />
+            <AIChatbot 
+                setSelectedProduct={setSelectedProduct}
+                addToCart={addToCart}
+                openCart={() => setCartOpen(true)}
+            />
         </div>
     );
 };

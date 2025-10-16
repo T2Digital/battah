@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { onAuthStateChanged } from "firebase/auth";
 import { auth } from './lib/firebase';
@@ -23,7 +22,6 @@ import DailyReview from './components/daily-review/DailyReview';
 import Reports from './components/reports/Reports';
 import InventoryReports from './components/reports/InventoryReports';
 import Storefront from './components/store/Storefront';
-import AIChatbot from './components/shared/AIChatbot';
 import SeedData from './lib/seed';
 import Orders from './components/orders/Orders';
 import AdminAIChatbot from './components/admin/AdminAIChatbot';
@@ -143,12 +141,9 @@ const App: React.FC = () => {
 
     if (viewMode === 'store') {
         return (
-            <>
-                <Storefront 
-                    setViewMode={setViewMode}
-                />
-                <AIChatbot />
-            </>
+            <Storefront 
+                setViewMode={setViewMode}
+            />
         );
     }
 

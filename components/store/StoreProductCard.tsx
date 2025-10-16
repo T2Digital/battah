@@ -9,23 +9,40 @@ interface StoreProductCardProps {
 }
 
 const StoreProductCard: React.FC<StoreProductCardProps> = ({ product, onProductClick, onAddToCart }) => {
-    const [quantity, setQuantity] = useState(1);
+    const [quantity, setQuantity] = useState<number | ''>(1);
 
     const handleQuantityChange = (e: React.MouseEvent, amount: number) => {
         e.stopPropagation();
-        setQuantity(prev => Math.max(1, prev + amount));
+        setQuantity(prev => Math.max(1, Number(prev) + amount));
     };
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         e.stopPropagation();
-        const val = parseInt(e.target.value, 10);
-        setQuantity(isNaN(val) || val < 1 ? 1 : val);
+        const val = e.target.value;
+        if (val === '') {
+            setQuantity('');
+        } else {
+            const num = parseInt(val, 10);
+            if (!isNaN(num) && num > 0) {
+                setQuantity(num);
+            }
+        }
+    }
+
+    const handleInputBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+        e.stopPropagation();
+        if (quantity === '' || Number(quantity) < 1) {
+            setQuantity(1);
+        }
     }
 
     const handleAddToCartClick = (e: React.MouseEvent) => {
         e.stopPropagation();
-        onAddToCart(product, quantity);
-        setQuantity(1); // Reset after adding
+        const finalQuantity = Number(quantity);
+        if (finalQuantity > 0) {
+            onAddToCart(product, finalQuantity);
+            setQuantity(1); // Reset after adding
+        }
     };
 
     return (
@@ -45,9 +62,11 @@ const StoreProductCard: React.FC<StoreProductCardProps> = ({ product, onProductC
                         <div className="flex items-center border rounded-md dark:border-gray-600">
                             <button onClick={(e) => handleQuantityChange(e, -1)} className="px-2 py-1 transition-colors hover:bg-gray-100 dark:hover:bg-gray-700 font-bold">-</button>
                             <input
-                                type="number"
+                                type="text" // Use text to allow empty string
+                                inputMode="numeric" // for mobile numeric keyboard
                                 value={quantity}
                                 onChange={handleInputChange}
+                                onBlur={handleInputBlur}
                                 onClick={(e) => e.stopPropagation()}
                                 className="w-12 text-center border-x dark:border-gray-600 dark:bg-gray-800 p-0"
                                 min="1"
@@ -56,7 +75,8 @@ const StoreProductCard: React.FC<StoreProductCardProps> = ({ product, onProductC
                         </div>
                         <button 
                             onClick={handleAddToCartClick}
-                            className="py-2 px-4 bg-primary text-white font-semibold rounded-lg hover:bg-primary-dark transition-colors"
+                            disabled={Number(quantity) < 1}
+                            className="py-2 px-4 bg-primary text-white font-semibold rounded-lg hover:bg-primary-dark transition-colors disabled:bg-gray-400"
                         >
                             إضافة
                         </button>

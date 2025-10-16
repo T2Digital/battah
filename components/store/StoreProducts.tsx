@@ -15,8 +15,8 @@ const StoreProducts: React.FC<StoreProductsProps> = ({ products, onProductClick,
 
     const filteredProducts = products.filter(p => {
         const matchesCategory = filters.category === 'all' || p.mainCategory === filters.category;
-        const matchesBrand = filters.brand === 'all' || p.brand === filters.brand;
-        const matchesSearch = p.name.toLowerCase().includes(filters.search.toLowerCase());
+        const matchesBrand = filters.brand === 'all' || (p.compatibility && p.compatibility.some(c => c.toLowerCase().startsWith(filters.brand.toLowerCase())));
+        const matchesSearch = p.name.toLowerCase().includes(filters.search.toLowerCase()) || p.sku.toLowerCase().includes(filters.search.toLowerCase());
         return matchesCategory && matchesBrand && matchesSearch;
     });
 
@@ -35,7 +35,11 @@ const StoreProducts: React.FC<StoreProductsProps> = ({ products, onProductClick,
                                 onAddToCart={addToCart}
                             />
                         )) : (
-                            <p className="sm:col-span-2 md:col-span-3 xl:col-span-4 text-center text-gray-500">لا توجد منتجات تطابق هذا الفلتر.</p>
+                            <div className="sm:col-span-2 md:col-span-3 xl:col-span-4 text-center text-gray-500 py-16">
+                                <i className="fas fa-search text-4xl mb-4 text-gray-400"></i>
+                                <h4 className="font-bold text-lg">لا توجد منتجات تطابق بحثك</h4>
+                                <p>حاول تعديل الفلاتر أو استخدام كلمات بحث مختلفة.</p>
+                            </div>
                         )}
                     </div>
                 </div>

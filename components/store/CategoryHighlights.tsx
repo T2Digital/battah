@@ -6,14 +6,16 @@ interface CategoryHighlightsProps {
 
 const categories = [
     { name: 'قطع غيار', icon: 'fa-cogs', filterValue: 'قطع غيار' },
-    { name: 'ميكانيكا', icon: 'fa-wrench', filterValue: 'قطع غيار' }, // Mapping 'Mechanics' to filter 'Spare Parts' as per user intent
+    { name: 'ميكانيكا', icon: 'fa-wrench', filterValue: 'قطع غيار' },
     { name: 'كماليات', icon: 'fa-star', filterValue: 'كماليات' },
 ];
 
 const CategoryHighlights: React.FC<CategoryHighlightsProps> = ({ setFilters }) => {
 
     const handleCategoryClick = (filterValue: string) => {
-        setFilters(prev => ({ ...prev, category: filterValue, brand: 'all', search: '' }));
+        // Reset other filters and apply the category filter
+        setFilters({ category: filterValue, brand: 'all', search: '' });
+        // Scroll to the products section for better UX
         document.getElementById('store-products')?.scrollIntoView({ behavior: 'smooth' });
     };
 
@@ -23,7 +25,7 @@ const CategoryHighlights: React.FC<CategoryHighlightsProps> = ({ setFilters }) =
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 text-center">
                     {categories.map(cat => (
                         <div 
-                            key={cat.name}
+                            key={cat.name} // Added key for React's reconciliation process
                             onClick={() => handleCategoryClick(cat.filterValue)}
                             className="bg-white dark:bg-gray-700 p-8 rounded-lg shadow-md cursor-pointer transform hover:scale-105 hover:shadow-xl transition-transform duration-300"
                         >

@@ -19,21 +19,32 @@ const AdminAIChatbot: React.FC<AdminAIChatbotProps> = ({ appData }) => {
         }
     }, [messages]);
 
-    const createDataSummary = () => {
-        const today = new Date().toISOString().split('T')[0];
-        const todaySales = appData.dailySales.filter(s => s.date === today);
-        const totalTodaySalesValue = todaySales.reduce((sum, s) => sum + (s.direction === 'بيع' ? s.totalAmount : -s.totalAmount), 0);
-
+    const createDataSummaryForAI = () => {
+        // Create a detailed, yet manageable, summary of the entire app data for the AI context.
         return {
-            product_count: appData.products.length,
-            employee_count: appData.employees.length,
-            supplier_count: appData.suppliers.length,
-            total_orders: appData.orders.length,
-            pending_orders: appData.orders.filter(o => o.status === 'pending').length,
-            low_stock_items: appData.products.filter(p => (p.stock.main + p.stock.branch1 + p.stock.branch2 + p.stock.branch3) <= (p.reorderPoint || 0)).length,
-            sales_today_count: todaySales.length,
-            sales_today_value: totalTodaySalesValue,
-            most_recent_expense: appData.expenses.slice(-1)[0],
+            products: appData.products.map(p => ({
+                name: p.name,
+                sku: p.sku,
+                mainCategory: p.mainCategory,
+                brand: p.brand,
+                sellingPrice: p.sellingPrice,
+                totalStock: Object.values(p.stock).reduce((a, b) => a + b, 0),
+            })),
+            dailySalesSummary: {
+                totalSalesToday: appData.dailySales
+                    .filter(s => s.date === new Date().toISOString().split('T')[0])
+                    .reduce((sum, s) => sum + (s.direction === 'بيع' ? s.totalAmount : -s.totalAmount), 0),
+                salesCountToday: appData.dailySales.filter(s => s.date === new Date().toISOString().split('T')[0]).length,
+            },
+            expensesSummary: {
+                totalExpenses: appData.expenses.reduce((sum, e) => sum + e.amount, 0),
+                expenseCount: appData.expenses.length,
+            },
+            employees: appData.employees.map(e => ({ name: e.name, position: e.position })),
+            ordersSummary: {
+                totalOrders: appData.orders.length,
+                pendingOrders: appData.orders.filter(o => o.status === 'pending').length,
+            },
         };
     };
 
@@ -48,20 +59,21 @@ const AdminAIChatbot: React.FC<AdminAIChatbotProps> = ({ appData }) => {
 
         try {
             const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
-            const dataSummary = createDataSummary();
+            const dataForAI = createDataSummaryForAI();
 
             const systemInstruction = `
                 أنت "AdminInsight"، محلل بيانات وخبير أعمال فائق الذكاء تعمل لدى المدير العام لشركة "بطاح" لقطع غيار السيارات.
-                مهمتك هي تحليل ملخص بيانات النظام التالي (بصيغة JSON) والإجابة على سؤال المدير بدقة وإيجاز باللغة العربية.
-                قدم رؤى قابلة للتنفيذ واستنتاجات مدعومة بالبيانات. كن محترفاً ومباشراً في إجاباتك.
-                لا تذكر أبداً أنك تعتمد على ملخص بيانات، بل تصرف كأنك تملك الوصول الكامل للبيانات الحية.
+                مهمتك هي تحليل بيانات النظام التالية (بصيغة JSON) والإجابة على سؤال المدير بدقة. يجب أن تبحث داخل البيانات للعثور على إجابات محددة.
+                تحدث باللهجة المصرية العامية بشكل احترافي وواضح.
+                قدم إجابات مباشرة مدعومة بالأرقام من البيانات. لا تخترع معلومات.
+                مثال: لو سألك المدير "عندنا كام فلتر زيت؟"، يجب أن تبحث في قائمة المنتجات وتعد المنتجات التي اسمها يحتوي على "فلتر زيت" وتعطي رقماً دقيقاً.
             `;
 
             const prompt = `
-                ملخص بيانات النظام:
-                ${JSON.stringify(dataSummary, null, 2)}
+                Data Context:
+                ${JSON.stringify(dataForAI, null, 2)}
 
-                سؤال المدير: "${input}"
+                Manager's Question: "${input}"
             `;
             
             const response = await ai.models.generateContent({
@@ -86,18 +98,18 @@ const AdminAIChatbot: React.FC<AdminAIChatbotProps> = ({ appData }) => {
         <>
             <button
                 onClick={() => setIsOpen(!isOpen)}
-                className="fixed bottom-6 left-6 w-16 h-16 bg-secondary-dark text-white rounded-full shadow-lg flex items-center justify-center text-3xl z-40 transform hover:scale-110 transition-transform"
+                className="fixed bottom-6 left-6 w-16 h-16 bg-primary-dark text-white rounded-full shadow-lg flex items-center justify-center text-3xl z-40 transform hover:scale-110 transition-transform"
                 aria-label="Open admin chatbot"
             >
                 <i className="fas fa-brain"></i>
             </button>
             <div className={`fixed bottom-24 left-6 w-96 h-[500px] bg-white dark:bg-gray-800 rounded-2xl shadow-2xl flex flex-col z-40 transition-all duration-300 ease-in-out ${isOpen ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'}`}>
-                <div className="p-4 bg-secondary-dark text-white rounded-t-2xl flex justify-between items-center">
+                <div className="p-4 bg-primary-dark text-white rounded-t-2xl flex justify-between items-center">
                     <h3 className="font-bold text-lg">مساعد المدير الذكي (AdminInsight)</h3>
                     <button onClick={() => setIsOpen(false)} className="text-white text-2xl">&times;</button>
                 </div>
                 <div ref={chatBodyRef} className="flex-grow p-4 overflow-y-auto space-y-4">
-                    {messages.length === 0 && <div className="text-center text-sm text-gray-500">أهلاً بك سيدي المدير. كيف يمكنني مساعدتك في تحليل بيانات النظام اليوم؟</div>}
+                    {messages.length === 0 && <div className="text-center text-sm text-gray-500">أهلاً بيك يا فندم. إزاي أقدر أساعدك في تحليل بيانات النظام النهاردة؟</div>}
                     {messages.map((msg, index) => (
                         <div key={index} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
                             <div className={`max-w-[85%] p-3 rounded-2xl whitespace-pre-wrap ${msg.sender === 'user' ? 'bg-blue-500 text-white rounded-br-none' : 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-bl-none'}`}>
@@ -119,10 +131,10 @@ const AdminAIChatbot: React.FC<AdminAIChatbotProps> = ({ appData }) => {
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
                         placeholder="اطلب تحليل أو تقرير..."
-                        className="flex-grow px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-full focus:outline-none focus:ring-2 focus:ring-secondary"
+                        className="flex-grow px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-full focus:outline-none focus:ring-2 focus:ring-primary"
                         disabled={isLoading}
                     />
-                    <button type="submit" disabled={isLoading || !input.trim()} className="w-10 h-10 bg-secondary-dark text-white rounded-full flex-shrink-0 disabled:bg-gray-400">
+                    <button type="submit" disabled={isLoading || !input.trim()} className="w-10 h-10 bg-primary-dark text-white rounded-full flex-shrink-0 disabled:bg-gray-400">
                         <i className="fas fa-paper-plane"></i>
                     </button>
                 </form>

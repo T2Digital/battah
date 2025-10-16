@@ -34,7 +34,8 @@ import {
     OrderItem,
     Order,
     StorefrontSettings,
-    Notification
+    Notification,
+    Role
 } from '../types';
 import { initialData } from './initialData'; // Assuming initialData.ts exists for seeding
 import { formatCurrency } from './utils';
@@ -316,10 +317,15 @@ const useStore = create<AppState & AppActions>((set, get) => ({
     },
 
     uploadImage: async (file, path) => {
-        const storageRef = ref(storage, path);
-        await uploadBytes(storageRef, file);
-        const downloadURL = await getDownloadURL(storageRef);
-        return downloadURL;
+        try {
+            const storageRef = ref(storage, path);
+            await uploadBytes(storageRef, file);
+            const downloadURL = await getDownloadURL(storageRef);
+            return downloadURL;
+        } catch (error) {
+            console.error("Image Upload Failed:", error);
+            throw new Error("Failed to upload image.");
+        }
     },
 
     createOrder: async (customerDetails, items, totalAmount, paymentMethod, paymentProof) => {
@@ -328,7 +334,12 @@ const useStore = create<AppState & AppActions>((set, get) => ({
 
         let imageUrl: string | undefined = undefined;
         if (paymentMethod === 'electronic' && paymentProof) {
-            imageUrl = await state.uploadImage(paymentProof, `paymentProofs/${Date.now()}_${paymentProof.name}`);
+            try {
+                imageUrl = await state.uploadImage(paymentProof, `paymentProofs/${Date.now()}_${paymentProof.name}`);
+            } catch(e) {
+                // Propagate the error to the UI
+                throw e;
+            }
         }
 
         const newId = (state.appData.orders.length > 0 ? Math.max(...state.appData.orders.map(o => o.id)) : 0) + 1;
@@ -371,16 +382,106 @@ const useStore = create<AppState & AppActions>((set, get) => ({
     },
     
     updateOrderStatus: async (orderId, status) => {
+        const state = get();
+        if (!state.appData) return;
+
+        const orderToUpdate = state.appData.orders.find(o => o.id === orderId);
+        if (!orderToUpdate) {
+            console.error("Order not found!");
+            return;
+        }
+        
+        const isAlreadyProcessed = orderToUpdate.status === 'confirmed' || orderToUpdate.status === 'shipped';
+        const isNowBeingProcessed = status === 'confirmed' || status === 'shipped';
+
+        // 1. Update order status in Firestore first
         await updateDoc(doc(db, "orders", String(orderId)), { status });
-        set(state => {
-            if (!state.appData) return {};
-            return {
-                appData: {
-                    ...state.appData,
-                    orders: state.appData.orders.map(o => o.id === orderId ? { ...o, status } : o),
+
+        // 2. Update local state for immediate UI feedback
+        const updatedOrders = state.appData.orders.map(o => o.id === orderId ? { ...o, status } : o);
+        let updatedAppData = { ...state.appData, orders: updatedOrders };
+        set({ appData: updatedAppData });
+        
+        // 3. If transitioning to a processed state for the first time, perform financial and inventory updates
+        if (isNowBeingProcessed && !isAlreadyProcessed) {
+            const batch = writeBatch(db);
+            
+            // a. Create DailySale records
+            let newDailySales = [...state.appData.dailySales];
+            let lastSaleId = (state.appData.dailySales.length > 0) ? Math.max(...state.appData.dailySales.map(s => s.id)) : 0;
+            const seller = state.appData.users.find(u => u.role === Role.Admin) || state.appData.users[0];
+
+            orderToUpdate.items.forEach(item => {
+                lastSaleId++;
+                const product = state.appData.products.find(p => p.id === item.productId);
+                // FIX: Map Product's MainCategory to DailySale's itemType, as they are not identical.
+                // For example, 'زيوت وشحومات' in MainCategory maps to 'زيوت' in itemType.
+                let itemTypeForSale: DailySale['itemType'] = 'أخرى';
+                if (product) {
+                    switch (product.mainCategory) {
+                        case 'قطع غيار':
+                            itemTypeForSale = 'قطع غيار';
+                            break;
+                        case 'كماليات':
+                            itemTypeForSale = 'كماليات';
+                            break;
+                        case 'زيوت وشحومات':
+                            itemTypeForSale = 'زيوت';
+                            break;
+                        case 'بطاريات':
+                            itemTypeForSale = 'بطاريات';
+                            break;
+                        // 'إطارات' is not in DailySale['itemType'], so it will fall through to default.
+                        default:
+                            itemTypeForSale = 'أخرى';
+                            break;
+                    }
                 }
+
+                const newSale: DailySale = {
+                    id: lastSaleId, date: orderToUpdate.date, invoiceNumber: `ONLINE-${orderToUpdate.id}`,
+                    sellerId: seller.id, sellerName: seller.name, source: 'أونلاين', productId: item.productId,
+                    branchSoldFrom: 'main', // Assume online orders are from main branch
+                    itemType: itemTypeForSale, 
+                    direction: 'بيع', quantity: item.quantity,
+                    unitPrice: item.unitPrice, totalAmount: item.quantity * item.unitPrice,
+                };
+                newDailySales.push(newSale);
+                batch.set(doc(db, "dailySales", String(newSale.id)), newSale);
+            });
+            updatedAppData.dailySales = newDailySales;
+
+            // b. Create Treasury Transaction
+            let lastTreasuryId = (state.appData.treasury.length > 0) ? Math.max(...state.appData.treasury.map(t => t.id)) : 0;
+            const newTransaction: TreasuryTransaction = {
+                id: ++lastTreasuryId, date: orderToUpdate.date, type: 'إيراد مبيعات',
+                description: `طلب أونلاين #${orderToUpdate.id} - ${orderToUpdate.customerName}`,
+                amountIn: orderToUpdate.totalAmount, amountOut: 0, relatedId: orderToUpdate.id,
             };
-        });
+            batch.set(doc(db, "treasury", String(newTransaction.id)), newTransaction);
+            updatedAppData.treasury = [...state.appData.treasury, newTransaction];
+            
+            // c. Decrement stock
+            let productUpdates = new Map<number, number>();
+            orderToUpdate.items.forEach(item => {
+                productUpdates.set(item.productId, (productUpdates.get(item.productId) || 0) + item.quantity);
+            });
+            
+            let updatedProducts = state.appData.products.map(p => {
+                if (productUpdates.has(p.id)) {
+                    const newStock = { ...p.stock, main: p.stock.main - (productUpdates.get(p.id) || 0) };
+                    const updatedProduct = { ...p, stock: newStock };
+                    batch.update(doc(db, "products", String(p.id)), { stock: newStock });
+                    return updatedProduct;
+                }
+                return p;
+            });
+            updatedAppData.products = updatedProducts;
+            
+            // Commit all changes
+            await batch.commit();
+            set({ appData: updatedAppData }); // Update state again with all changes
+        }
     },
     
     markNotificationAsRead: async (notificationId) => {

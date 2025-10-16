@@ -1,4 +1,3 @@
-
 import React, { useState, useRef } from 'react';
 import { CartItem, Order } from '../../types';
 import Modal from '../shared/Modal';
@@ -33,19 +32,33 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, cartItem
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (paymentMethod === 'electronic' && !paymentProof) {
-            alert('يرجى إرفاق إيصال الدفع.');
+            alert('يرجى إرفاق إيصال الدفع لإتمام الطلب الإلكتروني.');
             return;
         }
         setIsPlacingOrder(true);
-        await onPlaceOrder(customerDetails, paymentMethod, paymentProof || undefined);
-        setIsPlacingOrder(false);
+        try {
+            await onPlaceOrder(customerDetails, paymentMethod, paymentProof || undefined);
+        } finally {
+            setIsPlacingOrder(false);
+        }
     };
 
     const inputBaseClasses = "mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700 focus:border-primary focus:ring-primary";
 
     return (
-        <Modal isOpen={isOpen} onClose={onClose} title="إتمام الطلب" onSave={handleSubmit}>
+        <Modal 
+            isOpen={isOpen} 
+            onClose={isPlacingOrder ? () => {} : onClose} // Prevent closing while order is processing
+            title="إتمام الطلب" 
+            onSave={handleSubmit}
+        >
             <div className="space-y-6">
+                 {isPlacingOrder && (
+                    <div className="absolute inset-0 bg-white/70 dark:bg-gray-800/70 flex flex-col items-center justify-center z-10 rounded-2xl">
+                        <i className="fas fa-spinner fa-spin text-4xl text-primary mb-4"></i>
+                        <p className="font-bold text-lg">جاري إرسال طلبك...</p>
+                    </div>
+                )}
                 <div>
                     <h3 className="font-bold text-lg mb-2">ملخص الطلب</h3>
                     <div className="max-h-40 overflow-y-auto space-y-2 pr-2">
@@ -97,8 +110,6 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, cartItem
                         {paymentProof && <p className="text-xs text-green-600 mt-1">تم اختيار الملف: {paymentProof.name}</p>}
                     </div>
                 )}
-
-                {isPlacingOrder && <p className="text-center text-blue-500">جاري إرسال الطلب...</p>}
             </div>
         </Modal>
     );
