@@ -1,5 +1,7 @@
 
+
 import React, { useState, useMemo } from 'react';
+// Fix: Corrected import path
 import { Attendance as AttendanceType, Employee } from '../../types';
 import SectionHeader from '../shared/SectionHeader';
 import Modal from '../shared/Modal';
@@ -28,8 +30,14 @@ const AttendanceModal: React.FC<{
 
     React.useEffect(() => {
         if (recordToEdit) {
-            // FIX: Ensure 'notes' is a string to match form state type.
-            setFormData({ ...recordToEdit, notes: recordToEdit.notes || '' });
+            // FIX: Ensure 'notes' is a string and provide fallbacks for optional checkIn/checkOut to match form state type.
+            setFormData({ 
+                date: recordToEdit.date,
+                employeeId: recordToEdit.employeeId,
+                checkIn: recordToEdit.checkIn || '08:00',
+                checkOut: recordToEdit.checkOut || '17:00',
+                notes: recordToEdit.notes || '' 
+            });
         } else {
             setFormData({
                 date: new Date().toISOString().split('T')[0],

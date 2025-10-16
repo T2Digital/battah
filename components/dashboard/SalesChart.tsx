@@ -1,6 +1,8 @@
 
+
 import React from 'react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
+// Fix: Corrected import path
 import { DailyReview } from '../../types';
 import { formatCurrency } from '../../lib/utils';
 

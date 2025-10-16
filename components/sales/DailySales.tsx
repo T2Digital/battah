@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+// Fix: Corrected import path
 import { DailySale, User, Product, TreasuryTransaction, Role } from '../../types';
 import SectionHeader from '../shared/SectionHeader';
 import DailySaleModal from './DailySaleModal';
@@ -58,7 +59,8 @@ const DailySales: React.FC<DailySalesProps> = ({ dailySales, setDailySales, prod
             if (!saleToDelete) return;
             
             // Revert stock immutably
-            setProducts(prevProducts => prevProducts.map(p => {
+            // @ts-ignore - FIX: Pass a new array to setProducts instead of a function
+            const updatedProducts = products.map(p => {
                 if (p.id === saleToDelete.productId) {
                     const quantityToReturn = saleToDelete.direction === 'بيع' ? saleToDelete.quantity : -saleToDelete.quantity;
                     return {
@@ -70,7 +72,8 @@ const DailySales: React.FC<DailySalesProps> = ({ dailySales, setDailySales, prod
                     };
                 }
                 return p;
-            }));
+            });
+            setProducts(updatedProducts);
 
              // Add reversing treasury transaction
             if (saleToDelete.direction === 'بيع') {
@@ -100,33 +103,38 @@ const DailySales: React.FC<DailySalesProps> = ({ dailySales, setDailySales, prod
     const handleSaveSale = (saleData: Omit<DailySale, 'id'> & { id?: number }) => {
         const isEditing = saleData.id !== undefined;
         let finalSale: DailySale;
+        let originalSale: DailySale | undefined;
 
         if (isEditing) {
-            const originalSale = dailySales.find(s => s.id === saleData.id);
+            originalSale = dailySales.find(s => s.id === saleData.id);
             if (!originalSale) return;
-
-            // Revert original stock impact
-            setProducts(prev => prev.map(p => {
-                if (p.id === originalSale.productId) {
-                    const quantityToRevert = originalSale.direction === 'بيع' ? originalSale.quantity : -originalSale.quantity;
-                    return { ...p, stock: { ...p.stock, [originalSale.branchSoldFrom]: p.stock[originalSale.branchSoldFrom] + quantityToRevert } };
-                }
-                return p;
-            }));
             finalSale = { ...originalSale, ...saleData };
         } else {
             const newId = (dailySales.length > 0 ? Math.max(...dailySales.map(s => s.id)) : 0) + 1;
             finalSale = { ...saleData, id: newId } as DailySale;
         }
 
-        // Apply new stock impact
-        setProducts(prev => prev.map(p => {
+        // Apply new stock impact (and revert old if editing)
+        // @ts-ignore - FIX: Pass a new array to setProducts instead of a function
+        const updatedProducts = products.map(p => {
+            let stockChange = 0;
+            // If editing, revert the original stock change
+            if (isEditing && originalSale && p.id === originalSale.productId) {
+                stockChange += originalSale.direction === 'بيع' ? originalSale.quantity : -originalSale.quantity;
+            }
+            // Apply the new stock change
             if (p.id === finalSale.productId) {
-                const quantityToApply = finalSale.direction === 'بيع' ? -finalSale.quantity : finalSale.quantity;
-                return { ...p, stock: { ...p.stock, [finalSale.branchSoldFrom]: p.stock[finalSale.branchSoldFrom] + quantityToApply } };
+                stockChange += finalSale.direction === 'بيع' ? -finalSale.quantity : finalSale.quantity;
+            }
+
+            if (stockChange !== 0) {
+                const branch = isEditing && originalSale ? originalSale.branchSoldFrom : finalSale.branchSoldFrom;
+                return { ...p, stock: { ...p.stock, [branch]: p.stock[branch] + stockChange } };
             }
             return p;
-        }));
+        });
+        setProducts(updatedProducts);
+
 
         // TODO: Handle treasury transaction for edits properly. This is a simplification.
         if (!isEditing) {

@@ -1,54 +1,40 @@
-export enum Section {
-    Dashboard = 'Dashboard',
-    Treasury = 'Treasury',
-    DailySales = 'DailySales',
-    Inventory = 'Inventory',
-    Purchasing = 'Purchasing',
-    Employees = 'Employees',
-    Advances = 'Advances',
-    Attendance = 'Attendance',
-    Payroll = 'Payroll',
-    Suppliers = 'Suppliers',
-    Expenses = 'Expenses',
-    DailyReview = 'DailyReview',
-    Reports = 'Reports',
-}
+
+export type Branch = 'main' | 'branch1' | 'branch2' | 'branch3';
 
 export enum Role {
     Admin = 'admin',
     BranchManager = 'manager',
-    Accountant = 'accountant',
     Seller = 'seller',
+    Accountant = 'accountant',
 }
 
-export type Branch = 'main' | 'branch1' | 'branch2' | 'branch3';
+export enum Section {
+    Dashboard = 'dashboard',
+    Treasury = 'treasury',
+    DailySales = 'daily-sales',
+    StoreManagement = 'store-management',
+    Purchasing = 'purchasing',
+    Employees = 'employees',
+    Advances = 'advances',
+    Attendance = 'attendance',
+    Payroll = 'payroll',
+    Suppliers = 'suppliers',
+    Expenses = 'expenses',
+    DailyReview = 'daily-review',
+    Reports = 'reports',
+    Orders = 'orders',
+}
 
 export interface User {
     id: number;
-    username: string;
-    password?: string;
+    username: string; // email
     name: string;
     role: Role;
     branch: Branch;
     permissions: Section[];
-    active: boolean;
-    phone?: string;
 }
 
-export interface Stock {
-    main: number;
-    branch1: number;
-    branch2: number;
-    branch3: number;
-}
-
-export type MainCategory = 'قطع غيار' | 'ميكانيكا' | 'كماليات';
-
-export interface Compatibility {
-    make: string;
-    model: string;
-    years: number[];
-}
+export type MainCategory = 'قطع غيار' | 'كماليات' | 'زيوت وشحومات' | 'بطاريات' | 'إطارات';
 
 export interface Product {
     id: number;
@@ -59,39 +45,28 @@ export interface Product {
     brand: string;
     purchasePrice: number;
     sellingPrice: number;
-    stock: Stock;
+    stock: Record<Branch, number>;
     reorderPoint?: number;
     description?: string;
     images: string[];
-    compatibility: Compatibility[];
-    featured?: boolean;
+    compatibility?: string[];
 }
 
 export interface DailySale {
     id: number;
     date: string;
     invoiceNumber: string;
-    sellerName: string;
     sellerId: number;
+    sellerName: string;
     source: 'المحل' | 'أونلاين';
     productId: number;
     branchSoldFrom: Branch;
-    itemType: string;
+    itemType: 'قطع غيار' | 'بطاريات' | 'زيوت' | 'كماليات' | 'خدمة' | 'أخرى';
     direction: 'بيع' | 'مرتجع' | 'تبديل' | 'ضمان';
     quantity: number;
     unitPrice: number;
     totalAmount: number;
     notes?: string;
-}
-
-export interface TreasuryTransaction {
-    id: number;
-    date: string;
-    type: 'إيراد مبيعات' | 'مرتجع مبيعات' | 'مصروف' | 'راتب' | 'دفعة لمورد' | 'سلفة' | 'رصيد افتتاحي';
-    description: string;
-    amountIn: number;
-    amountOut: number;
-    relatedId?: number; // e.g., saleId, expenseId
 }
 
 export interface Employee {
@@ -100,8 +75,8 @@ export interface Employee {
     position: string;
     basicSalary: number;
     hireDate: string;
-    phone: string;
-    address: string;
+    phone?: string;
+    address?: string;
 }
 
 export interface Advance {
@@ -117,8 +92,8 @@ export interface Attendance {
     id: number;
     date: string;
     employeeId: number;
-    checkIn: string;
-    checkOut: string;
+    checkIn?: string;
+    checkOut?: string;
     notes?: string;
 }
 
@@ -138,38 +113,6 @@ export interface Supplier {
     address?: string;
 }
 
-export interface Payment {
-    id: number;
-    date: string;
-    supplierId: number;
-    payment: number;
-    invoiceTotal: number;
-    returnedItems?: string;
-    notes?: string;
-    purchaseOrderId?: number;
-}
-
-export interface Expense {
-    id: number;
-    date: string;
-    type: 'شخصية' | 'عامة' | 'موظفين';
-    name: string;
-    amount: number;
-    notes?: string;
-}
-
-export interface DailyReview {
-    id: number;
-    date: string;
-    branch: Branch;
-    salesCash: number;
-    salesElectronic: number;
-    salesParts?: number;
-    salesAccessories?: number;
-    drawerBalance: number;
-    notes?: string;
-}
-
 export interface PurchaseOrderItem {
     productId: number;
     quantity: number;
@@ -186,25 +129,103 @@ export interface PurchaseOrder {
     notes?: string;
 }
 
+export interface Payment {
+    id: number;
+    date: string;
+    supplierId: number;
+    payment: number;
+    invoiceTotal: number;
+    purchaseOrderId?: number;
+    returnedItems?: string;
+    notes?: string;
+}
+
+export interface Expense {
+    id: number;
+    date: string;
+    type: 'شخصية' | 'عامة' | 'موظفين';
+    name: string;
+    amount: number;
+    notes?: string;
+}
+
+export interface TreasuryTransaction {
+    id: number;
+    date: string;
+    type: string;
+    description: string;
+    amountIn: number;
+    amountOut: number;
+    relatedId?: number; // e.g., saleId, expenseId
+}
+
+export interface DailyReview {
+    id: number;
+    date: string;
+    branch: Branch;
+    salesCash: number;
+    salesElectronic: number;
+    totalSales: number;
+    salesParts?: number;
+    salesAccessories?: number;
+    drawerBalance: number;
+    notes?: string;
+}
+
+export interface OrderItem {
+    productId: number;
+    productName: string;
+    quantity: number;
+    unitPrice: number;
+}
+
+export interface Order {
+    id: number;
+    date: string;
+    customerName: string;
+    customerPhone: string;
+    customerAddress: string;
+    items: OrderItem[];
+    totalAmount: number;
+    status: 'pending' | 'confirmed' | 'shipped' | 'cancelled';
+    paymentMethod: 'cod' | 'electronic';
+    paymentProofUrl?: string;
+}
+
+export interface Notification {
+    id: number;
+    date: string;
+    message: string;
+    read: boolean;
+    orderId?: number;
+}
+
+export interface StorefrontSettings {
+    featuredProductIds: number[];
+    newArrivalProductIds: number[];
+}
+
+
 export interface CartItem {
     product: Product;
     quantity: number;
 }
 
-
 export interface AppData {
     users: User[];
     products: Product[];
     dailySales: DailySale[];
-    treasury: TreasuryTransaction[];
     employees: Employee[];
     advances: Advance[];
     attendance: Attendance[];
     payroll: Payroll[];
     suppliers: Supplier[];
+    purchaseOrders: PurchaseOrder[];
     payments: Payment[];
     expenses: Expense[];
+    treasury: TreasuryTransaction[];
     dailyReview: DailyReview[];
-    purchaseOrders: PurchaseOrder[];
-    categories: { id: number; name: string; icon: string; description: string }[];
+    orders: Order[];
+    notifications: Notification[];
+    storefrontSettings: StorefrontSettings;
 }

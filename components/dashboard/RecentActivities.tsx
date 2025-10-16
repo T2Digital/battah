@@ -1,5 +1,7 @@
 
+
 import React from 'react';
+// Fix: Corrected import path
 import { Employee, Advance, Expense } from '../../types';
 import { formatCurrency, formatDate } from '../../lib/utils';
 

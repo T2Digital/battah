@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { onAuthStateChanged } from "firebase/auth";
 import { auth } from './lib/firebase';
@@ -24,6 +25,8 @@ import InventoryReports from './components/reports/InventoryReports';
 import Storefront from './components/store/Storefront';
 import AIChatbot from './components/shared/AIChatbot';
 import SeedData from './lib/seed';
+import Orders from './components/orders/Orders';
+import AdminAIChatbot from './components/admin/AdminAIChatbot';
 
 
 type ViewMode = 'admin' | 'store';
@@ -38,7 +41,23 @@ const App: React.FC = () => {
       setCurrentUser,
       clearCurrentUser,
       isSeeded,
-      checkIfSeeded
+      checkIfSeeded,
+      setProducts,
+      setDailySales,
+      setEmployees,
+      setAdvances,
+      setAttendance,
+      addPayroll,
+      updatePayroll,
+      deletePayroll,
+      setSuppliers,
+      setPurchaseOrders,
+      setPayments,
+      addExpense,
+      updateExpense,
+      deleteExpense,
+      setDailyReviews,
+      addTreasuryTransaction
     } = useStore();
 
     const [viewMode, setViewMode] = useState<ViewMode>('store');
@@ -46,34 +65,28 @@ const App: React.FC = () => {
     const [isSidebarOpen, setSidebarOpen] = useState(true);
     const [activeReport, setActiveReport] = useState<string | null>(null);
 
-    // Check Firebase Auth state on mount
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (user) => {
             if (user && user.email) {
-                // When auth state is confirmed, fetch all app data
                 if (!isInitialized) {
                     await fetchInitialData();
                 }
-                // After data is fetched, set the current user from our DB
                 const appUser = useStore.getState().appData?.users.find(u => u.username.toLowerCase() === user.email?.toLowerCase());
                 if (appUser) {
                   setCurrentUser(appUser);
                 } else {
-                  // User exists in Auth but not in our DB, log them out
                   clearCurrentUser();
                 }
             } else {
-                // No user logged in Firebase Auth
                 clearCurrentUser();
                 if (!isInitialized) {
-                  await fetchInitialData(); // Still fetch public data like products
+                  await fetchInitialData(); 
                 }
             }
         });
         return () => unsubscribe();
     }, [isInitialized, fetchInitialData, setCurrentUser, clearCurrentUser]);
 
-    // Check if DB is seeded
      useEffect(() => {
         checkIfSeeded();
     }, [checkIfSeeded]);
@@ -88,28 +101,34 @@ const App: React.FC = () => {
     
     const renderAdminContent = () => {
         if (!appData || !currentUser) return null;
+
+        const {
+            products, dailySales, employees, advances, attendance, payroll, suppliers,
+            purchaseOrders, payments, expenses, treasury, dailyReview
+        } = appData;
+
         if (activeReport === 'inventory') {
             return <InventoryReports setActiveReport={setActiveReport} />;
         }
         switch (activeSection) {
             case Section.Dashboard: return <Dashboard />;
-            case Section.Treasury: return <Treasury />;
-            case Section.DailySales: return <DailySales />;
-            case Section.Inventory: return <Inventory />;
-            case Section.Purchasing: return <Purchasing />;
-            case Section.Employees: return <Employees />;
-            case Section.Advances: return <Advances />;
-            case Section.Attendance: return <Attendance />;
-            case Section.Payroll: return <Payroll />;
-            case Section.Suppliers: return <Suppliers />;
-            case Section.Expenses: return <Expenses />;
-            case Section.DailyReview: return <DailyReview />;
+            case Section.Treasury: return <Treasury treasury={treasury} />;
+            case Section.DailySales: return <DailySales dailySales={dailySales} setDailySales={setDailySales} products={products} setProducts={setProducts} addTreasuryTransaction={addTreasuryTransaction} currentUser={currentUser} />;
+            case Section.StoreManagement: return <Inventory />;
+            case Section.Purchasing: return <Purchasing purchaseOrders={purchaseOrders} setPurchaseOrders={setPurchaseOrders} suppliers={suppliers} products={products} setProducts={setProducts} />;
+            case Section.Employees: return <Employees employees={employees} setEmployees={setEmployees} />;
+            case Section.Advances: return <Advances advances={advances} setAdvances={setAdvances} employees={employees} addTreasuryTransaction={addTreasuryTransaction} />;
+            case Section.Attendance: return <Attendance attendance={attendance} setAttendance={setAttendance} employees={employees} />;
+            case Section.Payroll: return <Payroll payroll={payroll} addPayroll={addPayroll} updatePayroll={updatePayroll} deletePayroll={deletePayroll} employees={employees} />;
+            case Section.Suppliers: return <Suppliers suppliers={suppliers} setSuppliers={setSuppliers} payments={payments} setPayments={setPayments} purchaseOrders={purchaseOrders} addTreasuryTransaction={addTreasuryTransaction} />;
+            case Section.Expenses: return <Expenses expenses={expenses} addExpense={addExpense} updateExpense={updateExpense} deleteExpense={deleteExpense} />;
+            case Section.DailyReview: return <DailyReview dailyReviews={dailyReview} setDailyReviews={setDailyReviews} />;
             case Section.Reports: return <Reports setActiveReport={setActiveReport} />;
+            case Section.Orders: return <Orders />;
             default: return <Dashboard />;
         }
     };
     
-    // MAIN RENDER LOGIC
     if (!isSeeded) {
         return <SeedData />;
     }
@@ -153,6 +172,7 @@ const App: React.FC = () => {
             <main className={`transition-all duration-300 ease-in-out pt-24 pb-8 px-4 sm:px-8 ${isSidebarOpen ? 'lg:mr-72' : 'lg:mr-20'}`}>
                 {renderAdminContent()}
             </main>
+            <AdminAIChatbot appData={appData} />
         </div>
     );
 };

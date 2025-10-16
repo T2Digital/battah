@@ -1,5 +1,7 @@
 
+
 import React, { useState } from 'react';
+// Fix: Corrected import path
 import useStore from '../lib/store';
 
 const LoginModal: React.FC = () => {

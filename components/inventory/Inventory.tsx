@@ -1,122 +1,150 @@
+
 import React, { useState, useMemo } from 'react';
-import { Product } from '../../types';
+import useStore from '../../lib/store';
+import { Product, MainCategory } from '../../types';
 import SectionHeader from '../shared/SectionHeader';
 import ProductModal from './ProductModal';
+// Fix: Corrected import path for StorefrontSettings
+import StorefrontSettings from './StorefrontSettings';
 import { formatCurrency } from '../../lib/utils';
-import useStore from '../../lib/store';
+import BarcodeScannerModal from '../shared/BarcodeScannerModal';
 
 const Inventory: React.FC = () => {
-    const { products, addProduct, updateProduct, deleteProduct } = useStore();
-    
-    const [isModalOpen, setModalOpen] = useState(false);
-    const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-    const [searchTerm, setSearchTerm] = useState('');
+    const { 
+        products, 
+        setProducts, 
+        storefrontSettings,
+        updateStorefrontSettings 
+    } = useStore(state => ({
+        products: state.appData?.products || [],
+        setProducts: state.setProducts,
+        storefrontSettings: state.appData?.storefrontSettings,
+        updateStorefrontSettings: state.updateStorefrontSettings,
+    }));
+
+    const [isProductModalOpen, setProductModalOpen] = useState(false);
+    const [isSettingsModalOpen, setSettingsModalOpen] = useState(false);
+    const [isScannerOpen, setScannerOpen] = useState(false);
+    const [productToEdit, setProductToEdit] = useState<Product | null>(null);
+    const [filters, setFilters] = useState({
+        search: '',
+        category: '',
+        stockStatus: 'all',
+    });
 
     const handleAddProduct = () => {
-        setEditingProduct(null);
-        setModalOpen(true);
+        setProductToEdit(null);
+        setProductModalOpen(true);
     };
 
     const handleEditProduct = (product: Product) => {
-        setEditingProduct(product);
-        setModalOpen(true);
+        setProductToEdit(product);
+        setProductModalOpen(true);
     };
 
-    const handleDelete = (productId: number) => {
-        if (window.confirm('هل أنت متأكد من حذف هذا المنتج؟ لا يمكن التراجع عن هذا الإجراء.')) {
-            deleteProduct(productId);
+    const handleDeleteProduct = (productId: number) => {
+        if (window.confirm('هل أنت متأكد من حذف هذا المنتج؟')) {
+            setProducts(products.filter(p => p.id !== productId));
         }
     };
-    
-    const handleSaveProduct = (productData: Omit<Product, 'id'> & { id?: number }) => {
-        if (productData.id) {
-            updateProduct(productData.id, productData);
+
+    const handleSaveProduct = (product: Omit<Product, 'id'> & { id?: number }) => {
+        if (product.id) {
+            setProducts(products.map(p => (p.id === product.id ? { ...p, ...product } as Product : p)));
         } else {
-            addProduct(productData);
+            const newId = (products.length > 0 ? Math.max(...products.map(p => p.id)) : 0) + 1;
+            setProducts([...products, { ...product, id: newId } as Product]);
         }
-        setModalOpen(false);
+        setProductModalOpen(false);
     };
     
-    const filteredProducts = useMemo(() => {
-        return products.filter(p => 
-            p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            p.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            p.brand.toLowerCase().includes(searchTerm.toLowerCase())
-        );
-    }, [products, searchTerm]);
+    const handleScan = (code: string) => {
+        setFilters(prev => ({ ...prev, search: code }));
+        setScannerOpen(false);
+    };
 
-    const totalStockValue = useMemo(() => {
-        return filteredProducts.reduce((sum, p) => {
-            const totalQuantity = (p.stock.main || 0) + (p.stock.branch1 || 0) + (p.stock.branch2 || 0) + (p.stock.branch3 || 0);
-            return sum + (totalQuantity * p.sellingPrice);
-        }, 0)
-    }, [filteredProducts]);
+    const filteredProducts = useMemo(() => {
+        return products.filter(p => {
+            const totalStock = p.stock.main + p.stock.branch1 + p.stock.branch2 + p.stock.branch3;
+            const matchesSearch = p.name.toLowerCase().includes(filters.search.toLowerCase()) || p.sku.toLowerCase().includes(filters.search.toLowerCase());
+            const matchesCategory = filters.category ? p.mainCategory === filters.category : true;
+            const matchesStock = filters.stockStatus === 'all' || (filters.stockStatus === 'low' && totalStock <= (p.reorderPoint || 0)) || (filters.stockStatus === 'out' && totalStock === 0);
+            return matchesSearch && matchesCategory && matchesStock;
+        });
+    }, [products, filters]);
 
     return (
         <div className="animate-fade-in space-y-6">
-            <SectionHeader icon="fa-warehouse" title="إدارة المخزون">
+            <SectionHeader icon="fa-warehouse" title="إدارة المخزن والمنتجات">
+                <button onClick={() => setSettingsModalOpen(true)} className="px-4 py-2 bg-secondary text-white rounded-lg flex items-center gap-2 hover:bg-secondary-dark transition shadow-md">
+                    <i className="fas fa-store-alt"></i>
+                    إعدادات المتجر
+                </button>
                 <button onClick={handleAddProduct} className="px-4 py-2 bg-primary text-white rounded-lg flex items-center gap-2 hover:bg-primary-dark transition shadow-md">
                     <i className="fas fa-plus"></i>
-                    إضافة منتج جديد
+                    إضافة منتج
                 </button>
             </SectionHeader>
 
-            <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-lg flex flex-col md:flex-row justify-between items-center gap-4">
+            <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-lg flex flex-col md:flex-row gap-4 items-center">
                 <input
                     type="text"
-                    placeholder="ابحث بالاسم, الكود, أو الماركة..."
-                    value={searchTerm}
-                    onChange={e => setSearchTerm(e.target.value)}
-                    className="flex-grow p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 w-full md:w-auto"
+                    placeholder="ابحث بالاسم أو الكود..."
+                    value={filters.search}
+                    onChange={e => setFilters(f => ({ ...f, search: e.target.value }))}
+                    className="flex-grow p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600"
                 />
-                <div className="p-3 bg-primary-light/10 dark:bg-primary-dark/20 rounded-lg text-center">
-                    <span className="text-sm text-primary dark:text-primary-light">قيمة المخزون المعروض: </span>
-                    <span className="font-bold text-lg text-primary dark:text-primary-light">{formatCurrency(totalStockValue)}</span>
-                </div>
+                 <button onClick={() => setScannerOpen(true)} className="p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600"><i className="fas fa-barcode"></i></button>
+                <select value={filters.category} onChange={e => setFilters(f => ({ ...f, category: e.target.value }))} className="p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600">
+                    <option value="">كل الفئات</option>
+                    {(['قطع غيار', 'كماليات', 'زيوت وشحومات', 'بطاريات', 'إطارات'] as MainCategory[]).map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                </select>
+                <select value={filters.stockStatus} onChange={e => setFilters(f => ({ ...f, stockStatus: e.target.value }))} className="p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600">
+                    <option value="all">كل المخزون</option>
+                    <option value="low">حد الطلب</option>
+                    <option value="out">نفذت الكمية</option>
+                </select>
             </div>
 
             <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-x-auto">
                 <table className="w-full text-sm text-right text-gray-500 dark:text-gray-400">
-                    <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-300">
+                     <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-300">
                         <tr>
-                            <th scope="col" className="px-6 py-3">المنتج</th>
-                            <th scope="col" className="px-6 py-3">الكود</th>
-                            <th scope="col" className="px-6 py-3">سعر البيع</th>
-                            <th scope="col" className="px-6 py-3 text-center">المخزون الرئيسي</th>
-                            <th scope="col" className="px-6 py-3 text-center">فرع 1</th>
-                            <th scope="col" className="px-6 py-3 text-center">فرع 2</th>
-                            <th scope="col" className="px-6 py-3 text-center">فرع 3</th>
-                            <th scope="col" className="px-6 py-3">الإجراءات</th>
+                            <th className="px-6 py-3">المنتج</th>
+                            <th className="px-6 py-3">الكود</th>
+                            <th className="px-6 py-3">سعر الشراء</th>
+                            <th className="px-6 py-3">سعر البيع</th>
+                            <th className="px-6 py-3">الرصيد الكلي</th>
+                            <th className="px-6 py-3">الإجراءات</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {filteredProducts.map(product => (
-                            <tr key={product.id} className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
-                                <td className="px-6 py-4 font-medium text-gray-900 whitespace-nowrap dark:text-white">{product.name}</td>
-                                <td className="px-6 py-4">{product.sku}</td>
-                                <td className="px-6 py-4 font-semibold">{formatCurrency(product.sellingPrice)}</td>
-                                <td className="px-6 py-4 text-center font-bold text-blue-600">{product.stock.main}</td>
-                                <td className="px-6 py-4 text-center">{product.stock.branch1}</td>
-                                <td className="px-6 py-4 text-center">{product.stock.branch2}</td>
-                                <td className="px-6 py-4 text-center">{product.stock.branch3}</td>
-                                <td className="px-6 py-4 flex gap-3">
-                                    <button onClick={() => handleEditProduct(product)} className="text-blue-500 hover:text-blue-700 text-lg"><i className="fas fa-edit"></i></button>
-                                    <button onClick={() => handleDelete(product.id)} className="text-red-500 hover:text-red-700 text-lg"><i className="fas fa-trash"></i></button>
-                                </td>
-                            </tr>
-                        ))}
+                        {filteredProducts.map(p => {
+                            const totalStock = p.stock.main + p.stock.branch1 + p.stock.branch2 + p.stock.branch3;
+                            return (
+                                <tr key={p.id} className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
+                                    <td className="px-6 py-4 font-medium text-gray-900 dark:text-white flex items-center gap-3">
+                                        <img src={p.images[0] || 'https://via.placeholder.com/40'} alt={p.name} className="w-10 h-10 rounded-md object-cover"/>
+                                        {p.name}
+                                    </td>
+                                    <td className="px-6 py-4">{p.sku}</td>
+                                    <td className="px-6 py-4">{formatCurrency(p.purchasePrice)}</td>
+                                    <td className="px-6 py-4">{formatCurrency(p.sellingPrice)}</td>
+                                    <td className={`px-6 py-4 font-bold ${totalStock <= (p.reorderPoint || 0) ? 'text-red-500' : ''}`}>{totalStock}</td>
+                                    <td className="px-6 py-4 flex gap-3">
+                                        <button onClick={() => handleEditProduct(p)} className="text-blue-500 hover:text-blue-700 text-lg"><i className="fas fa-edit"></i></button>
+                                        <button onClick={() => handleDeleteProduct(p.id)} className="text-red-500 hover:text-red-700 text-lg"><i className="fas fa-trash"></i></button>
+                                    </td>
+                                </tr>
+                            );
+                        })}
                     </tbody>
                 </table>
             </div>
-            
-            {isModalOpen && (
-                <ProductModal
-                    isOpen={isModalOpen}
-                    onClose={() => setModalOpen(false)}
-                    onSave={handleSaveProduct}
-                    existingProduct={editingProduct}
-                />
-            )}
+
+            {isProductModalOpen && <ProductModal isOpen={isProductModalOpen} onClose={() => setProductModalOpen(false)} onSave={handleSaveProduct} existingProduct={productToEdit} />}
+            {isSettingsModalOpen && storefrontSettings && <StorefrontSettings isOpen={isSettingsModalOpen} onClose={() => setSettingsModalOpen(false)} settings={storefrontSettings} onSave={updateStorefrontSettings} products={products} />}
+            <BarcodeScannerModal isOpen={isScannerOpen} onClose={() => setScannerOpen(false)} onScan={handleScan} />
         </div>
     );
 };

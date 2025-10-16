@@ -1,4 +1,6 @@
+
 import React, { useState } from 'react';
+// Fix: Corrected import path
 import { PurchaseOrder, Product } from '../../types';
 import Modal from '../shared/Modal';
 

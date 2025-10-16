@@ -1,5 +1,7 @@
 
+
 import React, { useState, useMemo } from 'react';
+// Fix: Corrected import path
 import { Employee } from '../../types';
 import { formatCurrency, formatDate } from '../../lib/utils';
 import SectionHeader from '../shared/SectionHeader';

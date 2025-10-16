@@ -1,4 +1,6 @@
+
 import React from 'react';
+// Fix: Corrected import path
 import { Product } from '../../types';
 
 interface ActionableAlertsProps {

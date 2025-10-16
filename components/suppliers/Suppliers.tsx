@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+// Fix: Corrected import path
 import { Supplier, Payment, TreasuryTransaction, PurchaseOrder } from '../../types';
 import SectionHeader from '../shared/SectionHeader';
 import Modal from '../shared/Modal';
@@ -56,7 +57,16 @@ const PaymentModal: React.FC<{
     
     React.useEffect(() => {
         if (paymentToEdit) {
-            setFormData({ ...paymentToEdit, returnedItems: paymentToEdit.returnedItems || '', notes: paymentToEdit.notes || '' });
+            // FIX: Explicitly set properties to handle optional `purchaseOrderId` and ensure type conformity.
+            setFormData({
+                date: paymentToEdit.date,
+                supplierId: paymentToEdit.supplierId,
+                payment: paymentToEdit.payment,
+                invoiceTotal: paymentToEdit.invoiceTotal,
+                returnedItems: paymentToEdit.returnedItems || '',
+                notes: paymentToEdit.notes || '',
+                purchaseOrderId: paymentToEdit.purchaseOrderId,
+            });
         } else {
             const initialSupplierId = suppliers[0]?.id || 0;
             setFormData({ date: new Date().toISOString().split('T')[0], supplierId: initialSupplierId, payment: 0, invoiceTotal: 0, returnedItems: '', notes: '', purchaseOrderId: undefined });

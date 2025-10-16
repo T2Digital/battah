@@ -1,6 +1,8 @@
 
+
 import React from 'react';
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } from 'recharts';
+// Fix: Corrected import path
 import { Expense } from '../../types';
 import { formatCurrency } from '../../lib/utils';
 

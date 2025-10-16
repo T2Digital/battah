@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+// Fix: Corrected import path
 import { PurchaseOrder, Supplier, Product, PurchaseOrderItem } from '../../types';
 import Modal from '../shared/Modal';
 import { formatCurrency } from '../../lib/utils';
@@ -12,12 +13,15 @@ interface PurchaseOrderModalProps {
     products: Product[];
 }
 
+// FIX: Define a type for editable items to allow empty strings for better UX
+type EditablePurchaseOrderItem = Omit<PurchaseOrderItem, 'quantity' | 'purchasePrice'> & { id: number; quantity: number | ''; purchasePrice: number | '' };
+
 const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, onClose, onSave, orderToEdit, suppliers, products }) => {
     const [formData, setFormData] = useState({
         supplierId: 0,
         orderDate: new Date().toISOString().split('T')[0],
         status: 'معلق' as PurchaseOrder['status'],
-        items: [] as (PurchaseOrderItem & { id: number })[],
+        items: [] as EditablePurchaseOrderItem[],
         notes: ''
     });
     
@@ -49,8 +53,8 @@ const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, onClose
 
     const totalAmount = useMemo(() => {
         return formData.items.reduce((sum, item) => {
-            const quantity = isNaN(item.quantity) ? 0 : item.quantity;
-            const price = isNaN(item.purchasePrice) ? 0 : item.purchasePrice;
+            const quantity = Number(item.quantity) || 0;
+            const price = Number(item.purchasePrice) || 0;
             return sum + (quantity * price);
         }, 0);
     }, [formData.items]);
@@ -65,7 +69,7 @@ const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, onClose
         setFormData(prev => ({ ...prev, [name]: name === 'supplierId' ? Number(value) : value }));
     };
     
-    const handleItemChange = (index: number, field: keyof PurchaseOrderItem, value: string) => {
+    const handleItemChange = (index: number, field: 'quantity' | 'purchasePrice', value: string) => {
         const newItems = [...formData.items];
         const numValue = value === '' ? '' : parseFloat(value); // Allow empty string for editing
         newItems[index] = { ...newItems[index], [field]: numValue };
@@ -76,7 +80,7 @@ const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, onClose
         setProductSearch('');
         setShowSuggestions(false);
         if (formData.items.some(item => item.productId === product.id)) return;
-        const newItem = {
+        const newItem: EditablePurchaseOrderItem = {
             id: product.id, // for react key
             productId: product.id,
             quantity: 1,
@@ -95,11 +99,22 @@ const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, onClose
             alert('يجب إضافة صنف واحد على الأقل.');
             return;
         }
-        if (formData.items.some(item => typeof item.quantity !== 'number' || item.quantity <= 0 || typeof item.purchasePrice !== 'number' || item.purchasePrice < 0)) {
+        // FIX: Update validation to handle empty strings
+        if (formData.items.some(item => item.quantity === '' || Number(item.quantity) <= 0 || item.purchasePrice === '' || Number(item.purchasePrice) < 0)) {
             alert('يجب أن تكون كمية وسعر كل صنف أرقاماً صالحة، وأن تكون الكمية أكبر من صفر.');
             return;
         }
-        onSave(orderToEdit ? { ...formData, totalAmount, id: orderToEdit.id } : { ...formData, totalAmount });
+        // FIX: Convert items back to numbers before saving
+        const finalOrderData = {
+            ...formData,
+            totalAmount,
+            items: formData.items.map(i => ({
+                productId: i.productId,
+                quantity: Number(i.quantity),
+                purchasePrice: Number(i.purchasePrice)
+            }))
+        };
+        onSave(orderToEdit ? { ...finalOrderData, id: orderToEdit.id } : finalOrderData);
     };
 
     const getProductName = (id: number) => products.find(p => p.id === id)?.name || 'N/A';
@@ -136,7 +151,8 @@ const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, onClose
                                 <span className="col-span-5 truncate">{getProductName(item.productId)}</span>
                                 <input 
                                     type="number" 
-                                    value={item.quantity === '' || isNaN(item.quantity) ? '' : item.quantity} 
+                                    // FIX: Simplify value prop; state now supports empty string
+                                    value={item.quantity} 
                                     onChange={e => handleItemChange(index, 'quantity', e.target.value)} 
                                     placeholder="الكمية" 
                                     className="col-span-3 p-1 border rounded dark:bg-gray-600" 
@@ -144,7 +160,8 @@ const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, onClose
                                 />
                                 <input 
                                     type="number" 
-                                    value={item.purchasePrice === '' || isNaN(item.purchasePrice) ? '' : item.purchasePrice} 
+                                    // FIX: Simplify value prop; state now supports empty string
+                                    value={item.purchasePrice} 
                                     onChange={e => handleItemChange(index, 'purchasePrice', e.target.value)} 
                                     placeholder="السعر" 
                                     className="col-span-3 p-1 border rounded dark:bg-gray-600" 

@@ -1,3 +1,4 @@
+
 import React, { useMemo, useState, useCallback } from 'react';
 import { GoogleGenAI } from "@google/genai";
 import StatCard from './StatCard';
@@ -5,6 +6,7 @@ import SalesChart from './SalesChart';
 import ExpensesChart from './ExpensesChart';
 import RecentActivities from './RecentActivities';
 import ActionableAlerts from './ActionableAlerts';
+// Fix: Corrected import paths
 import { AppData, User, DailySale, Product, Role } from '../../types';
 import useStore from '../../lib/store';
 

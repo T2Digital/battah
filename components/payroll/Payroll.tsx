@@ -1,14 +1,15 @@
 import React, { useState, useMemo } from 'react';
-import { Payroll as PayrollType, Employee, TreasuryTransaction } from '../../types';
+import { Payroll as PayrollType, Employee } from '../../types';
 import SectionHeader from '../shared/SectionHeader';
 import Modal from '../shared/Modal';
 import { formatDate, formatCurrency } from '../../lib/utils';
 
 interface PayrollProps {
     payroll: PayrollType[];
-    setPayroll: (payroll: PayrollType[]) => void;
+    addPayroll: (payroll: Omit<PayrollType, 'id'>) => Promise<void>;
+    updatePayroll: (payrollId: number, updates: Partial<PayrollType>) => Promise<void>;
+    deletePayroll: (payrollId: number) => Promise<void>;
     employees: Employee[];
-    addTreasuryTransaction: (transaction: Omit<TreasuryTransaction, 'id'>) => void;
 }
 
 const PayrollModal: React.FC<{
@@ -29,7 +30,6 @@ const PayrollModal: React.FC<{
 
     React.useEffect(() => {
         if (recordToEdit) {
-            // FIX: Ensure 'notes' is a string to match form state type.
             setFormData({ ...recordToEdit, notes: recordToEdit.notes || '' });
         } else {
             const firstEmployee = employees[0];
@@ -93,7 +93,7 @@ const PayrollModal: React.FC<{
     );
 };
 
-const Payroll: React.FC<PayrollProps> = ({ payroll, setPayroll, employees, addTreasuryTransaction }) => {
+const Payroll: React.FC<PayrollProps> = ({ payroll, addPayroll, updatePayroll, deletePayroll, employees }) => {
     const [isModalOpen, setModalOpen] = useState(false);
     const [recordToEdit, setRecordToEdit] = useState<PayrollType | null>(null);
 
@@ -111,30 +111,15 @@ const Payroll: React.FC<PayrollProps> = ({ payroll, setPayroll, employees, addTr
 
     const handleDelete = (id: number) => {
         if (window.confirm('هل أنت متأكد من حذف هذا السجل؟')) {
-            // TODO: Handle reversing treasury transaction
-            setPayroll(payroll.filter(p => p.id !== id));
+            deletePayroll(id);
         }
     };
     
     const handleSave = (record: Omit<PayrollType, 'id'> & { id?: number }) => {
-        let newId = record.id;
         if (record.id) {
-            setPayroll(payroll.map(p => p.id === record.id ? { ...p, ...record } : p));
+            updatePayroll(record.id, record);
         } else {
-            newId = Math.max(0, ...payroll.map(p => p.id)) + 1;
-            setPayroll([...payroll, { ...record, id: newId }]);
-
-            // Add to treasury only when creating a new payroll record
-            if (record.disbursed > 0) {
-                addTreasuryTransaction({
-                    date: record.date,
-                    type: 'راتب',
-                    description: `راتب لـ ${getEmployeeName(record.employeeId)}`,
-                    amountIn: 0,
-                    amountOut: record.disbursed,
-                    relatedId: newId
-                });
-            }
+            addPayroll(record);
         }
         setModalOpen(false);
     };

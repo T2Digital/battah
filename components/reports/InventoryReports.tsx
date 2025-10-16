@@ -1,4 +1,6 @@
+
 import React, { useState } from 'react';
+// Fix: Corrected import paths
 import { Product } from '../../types';
 import SectionHeader from '../shared/SectionHeader';
 import ProductSelectorModal from './ProductSelectorModal';

@@ -1,136 +1,150 @@
-import React, { useState } from 'react';
-import { Product, MainCategory } from '../../types';
+import React, { useState, useMemo, useEffect } from 'react';
 import useStore from '../../lib/store';
+import { Product, CartItem, OrderItem, Order } from '../../types';
+
 import StoreHeader from './StoreHeader';
 import StoreHero from './StoreHero';
 import StoreProducts from './StoreProducts';
 import StoreProductModal from './StoreProductModal';
 import StoreCart from './StoreCart';
 import CheckoutModal from './CheckoutModal';
-
-const StoreCategories: React.FC<{ 
-    categories: { id: number; name: string; icon: string; description: string }[], 
-    onCategorySelect: (category: MainCategory) => void 
-}> = ({ categories, onCategorySelect }) => (
-    <div className="bg-slate-100 dark:bg-gray-800/50 py-12">
-        <div className="container mx-auto px-4 sm:px-6">
-            <h2 className="text-3xl font-bold text-center mb-8">الفئات الرئيسية</h2>
-            <div className="grid grid-cols-3 md:grid-cols-3 gap-4 sm:gap-6">
-                {categories.map(category => (
-                    <div 
-                        key={category.id} 
-                        onClick={() => onCategorySelect(category.name as MainCategory)}
-                        className="category-card-store bg-white dark:bg-gray-800 p-4 rounded-xl shadow-md text-center border-2 border-transparent hover:border-primary-light cursor-pointer"
-                    >
-                        <div className="text-5xl mb-3">{category.icon}</div>
-                        <h3 className="font-bold text-md sm:text-lg">{category.name}</h3>
-                    </div>
-                ))}
-            </div>
-        </div>
-    </div>
-);
-
-const StoreFooter: React.FC = () => (
-    <footer className="text-center p-6 mt-8 bg-white dark:bg-gray-800 border-t dark:border-gray-700">
-        <p>&copy; 2024 شركة بطاح لقطع غيار السيارات. جميع الحقوق محفوظة.</p>
-    </footer>
-);
-
+import FeaturedProductsSection from './FeaturedProductsSection';
+import NewArrivalsSection from './NewArrivalsSection';
+import PromotionBanner from './PromotionBanner';
+import CustomerNotifications from './CustomerNotifications';
+import CategoryHighlights from './CategoryHighlights';
 
 interface StorefrontProps {
     setViewMode: (mode: 'admin' | 'store') => void;
 }
 
 const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
-    const { 
-        products, 
-        categories, 
-        cart, 
-        addToCart, 
-        updateCartQuantity, 
-        clearCart,
-        currentUser 
-    } = useStore(state => ({
+    const { products, storefrontSettings, createOrder } = useStore(state => ({
         products: state.appData?.products || [],
-        categories: state.appData?.categories || [],
-        cart: state.cart,
-        addToCart: state.addToCart,
-        updateCartQuantity: state.updateCartQuantity,
-        clearCart: state.clearCart,
-        currentUser: state.currentUser,
+        storefrontSettings: state.appData?.storefrontSettings,
+        createOrder: state.createOrder,
     }));
-    
+
     const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
     const [isCartOpen, setCartOpen] = useState(false);
     const [isCheckoutOpen, setCheckoutOpen] = useState(false);
-    const [categoryFilter, setCategoryFilter] = useState<MainCategory | ''>('');
-    
-    const handleProductClick = (product: Product) => setSelectedProduct(product);
-    const handleCloseModal = () => setSelectedProduct(null);
+    const [cartItems, setCartItems] = useState<CartItem[]>([]);
+    const [notification, setNotification] = useState('');
+    const [filters, setFilters] = useState({ category: 'all', brand: 'all', search: '' });
+
+
+    useEffect(() => {
+        if (notification) {
+            const timer = setTimeout(() => setNotification(''), 3000);
+            return () => clearTimeout(timer);
+        }
+    }, [notification]);
+
+    const addToCart = (product: Product, quantity: number) => {
+        setCartItems(prevItems => {
+            const existingItem = prevItems.find(item => item.product.id === product.id);
+            if (existingItem) {
+                return prevItems.map(item =>
+                    item.product.id === product.id ? { ...item, quantity: item.quantity + quantity } : item
+                );
+            }
+            return [...prevItems, { product, quantity }];
+        });
+        setNotification(`تم إضافة "${product.name}" إلى السلة`);
+    };
+
+    const updateCartQuantity = (productId: number, quantity: number) => {
+        if (quantity <= 0) {
+            setCartItems(prev => prev.filter(item => item.product.id !== productId));
+        } else {
+            setCartItems(prev => prev.map(item => item.product.id === productId ? { ...item, quantity } : item));
+        }
+    };
 
     const handleCheckout = () => {
-        if (cart.length === 0) return;
         setCartOpen(false);
         setCheckoutOpen(true);
     };
 
-    const handleCategorySelect = (category: MainCategory) => {
-        setCategoryFilter(prev => prev === category ? '' : category);
-        const productsElement = document.getElementById('store-products');
-        if (productsElement) {
-            productsElement.scrollIntoView({ behavior: 'smooth' });
+    const handlePlaceOrder = async (customerDetails: { name: string; phone: string; address: string }, paymentMethod: Order['paymentMethod'], paymentProof?: File) => {
+        const orderItems: OrderItem[] = cartItems.map(item => ({
+            productId: item.product.id,
+            productName: item.product.name,
+            quantity: item.quantity,
+            unitPrice: item.product.sellingPrice,
+        }));
+        const totalAmount = cartItems.reduce((sum, item) => sum + item.product.sellingPrice * item.quantity, 0);
+
+        try {
+            await createOrder(customerDetails, orderItems, totalAmount, paymentMethod, paymentProof);
+            setCartItems([]);
+            setCheckoutOpen(false);
+            setNotification('تم إرسال طلبك بنجاح! سنتواصل معك قريباً.');
+        } catch (error) {
+            console.error("Failed to create order:", error);
+            alert("حدث خطأ أثناء إرسال الطلب. يرجى المحاولة مرة أخرى.");
         }
     };
+    
+    const featuredProducts = useMemo(() => {
+        if (!storefrontSettings) return [];
+        return storefrontSettings.featuredProductIds.map(id => products.find(p => p.id === id)).filter(Boolean) as Product[];
+    }, [products, storefrontSettings]);
 
-    const adminUser = useStore(state => state.appData?.users.find(u => u.role === 'admin'));
+    const newArrivals = useMemo(() => {
+        if (!storefrontSettings) return [];
+        return storefrontSettings.newArrivalProductIds.map(id => products.find(p => p.id === id)).filter(Boolean) as Product[];
+    }, [products, storefrontSettings]);
+
 
     return (
-        <div className="bg-slate-50 dark:bg-gray-900 min-h-screen font-cairo" dir="rtl">
-            <StoreHeader 
-                cartCount={cart.reduce((sum, item) => sum + item.quantity, 0)}
+        <div className="font-cairo bg-slate-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200">
+            <PromotionBanner />
+            <StoreHeader
                 onCartClick={() => setCartOpen(true)}
+                cartItemCount={cartItems.reduce((sum, item) => sum + item.quantity, 0)}
                 setViewMode={setViewMode}
-                isLoggedIn={!!currentUser}
             />
             <main>
                 <StoreHero />
-                <StoreCategories categories={categories} onCategorySelect={handleCategorySelect} />
+                <CategoryHighlights setFilters={setFilters} />
+                <FeaturedProductsSection products={featuredProducts} onProductClick={setSelectedProduct} addToCart={addToCart} />
+                <NewArrivalsSection products={newArrivals} onProductClick={setSelectedProduct} addToCart={addToCart} />
                 <StoreProducts 
                     products={products} 
-                    onProductClick={handleProductClick}
+                    onProductClick={setSelectedProduct} 
                     addToCart={addToCart}
-                    activeCategory={categoryFilter}
+                    filters={filters}
+                    setFilters={setFilters} 
                 />
             </main>
-            <StoreFooter />
 
             {selectedProduct && (
                 <StoreProductModal
                     isOpen={!!selectedProduct}
-                    onClose={handleCloseModal}
+                    onClose={() => setSelectedProduct(null)}
                     product={selectedProduct}
                     onAddToCart={addToCart}
                 />
             )}
             
-            <StoreCart 
+            <StoreCart
                 isOpen={isCartOpen}
                 onClose={() => setCartOpen(false)}
-                cartItems={cart}
+                cartItems={cartItems}
                 onUpdateQuantity={updateCartQuantity}
                 onCheckout={handleCheckout}
             />
-
-            {isCheckoutOpen && adminUser?.phone && (
-                <CheckoutModal
+            
+            {isCheckoutOpen && (
+                 <CheckoutModal
                     isOpen={isCheckoutOpen}
                     onClose={() => setCheckoutOpen(false)}
-                    cartItems={cart}
-                    clearCart={clearCart}
-                    companyPhone={adminUser.phone}
+                    cartItems={cartItems}
+                    onPlaceOrder={handlePlaceOrder}
                 />
             )}
+            <CustomerNotifications message={notification} />
         </div>
     );
 };

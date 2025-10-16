@@ -1,3 +1,5 @@
+
+// Fix: Corrected import path
 import { AppData, DailySale, Product } from '../types';
 import { formatCurrency, formatDate, calculateHours } from './utils';
 

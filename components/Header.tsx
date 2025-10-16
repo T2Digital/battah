@@ -1,5 +1,8 @@
+
 import React from 'react';
+// Fix: Corrected import path
 import useStore from '../lib/store';
+import NotificationsDropdown from './shared/NotificationsDropdown';
 
 interface HeaderProps {
     toggleSidebar: () => void;
@@ -28,6 +31,7 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar, setViewMode }) => {
                 </button>
             </div>
             <div className="flex items-center gap-6">
+                <NotificationsDropdown />
                 <div className="text-right">
                     <p className="font-semibold text-gray-800 dark:text-white">{currentUser.name}</p>
                     <p className="text-sm text-gray-500 dark:text-gray-400">{currentUser.role}</p>

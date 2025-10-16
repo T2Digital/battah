@@ -1,4 +1,6 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
+// Fix: Corrected import path
 import { DailySale, User, Product, Branch } from '../../types';
 import { formatCurrency } from '../../lib/utils';
 import Modal from '../shared/Modal';

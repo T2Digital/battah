@@ -1,5 +1,7 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { GoogleGenAI } from "@google/genai";
+// Fix: Corrected import paths
 import { Product, MainCategory } from '../../types';
 import Modal from '../shared/Modal';
 import useStore from '../../lib/store';

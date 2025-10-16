@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import { DailyReview as DailyReviewType } from '../../types';
+// Fix: Corrected import path
+import { DailyReview as DailyReviewType, Branch } from '../../types';
 import SectionHeader from '../shared/SectionHeader';
 import Modal from '../shared/Modal';
 import { formatDate, formatCurrency } from '../../lib/utils';
@@ -29,7 +30,10 @@ const DailyReviewModal: React.FC<{
     
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        onSave(reviewToEdit ? { ...formData, id: reviewToEdit.id } : formData);
+        // FIX: Calculate totalSales before saving, as it's required by the onSave prop's type.
+        const totalSales = formData.salesCash + formData.salesElectronic;
+        const reviewData = { ...formData, totalSales };
+        onSave(reviewToEdit ? { ...reviewData, id: reviewToEdit.id } : reviewData);
     };
 
     return (

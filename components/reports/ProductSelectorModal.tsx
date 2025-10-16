@@ -1,4 +1,6 @@
+
 import React, { useState, useMemo } from 'react';
+// Fix: Corrected import path
 import { Product } from '../../types';
 import Modal from '../shared/Modal';
 

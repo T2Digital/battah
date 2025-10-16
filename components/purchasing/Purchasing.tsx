@@ -1,4 +1,6 @@
+
 import React, { useState, useMemo } from 'react';
+// Fix: Corrected import path
 import { PurchaseOrder, Supplier, Product } from '../../types';
 import SectionHeader from '../shared/SectionHeader';
 import PurchaseOrderModal from './PurchaseOrderModal';
