@@ -13,7 +13,12 @@
       // NOTE: process.env.API_KEY is a placeholder. 
       // You should replace it with your actual Gemini API key in a secure way.
       // For this environment, we'll hardcode it for demonstration.
-      process = { env: { API_KEY: "YOUR_GEMINI_API_KEY_HERE" } };
+      process = { 
+        env: { 
+          API_KEY: "YOUR_GEMINI_API_KEY_HERE",
+          IMGBB_API_KEY: "YOUR_IMGBB_API_KEY_HERE" // Add your ImgBB API Key here
+        } 
+      };
 
       tailwind.config = {
         darkMode: 'class',

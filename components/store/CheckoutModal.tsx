@@ -7,7 +7,7 @@ interface CheckoutModalProps {
     isOpen: boolean;
     onClose: () => void;
     cartItems: CartItem[];
-    onPlaceOrder: (customerDetails: { name: string; phone: string; address: string }, paymentMethod: Order['paymentMethod'], paymentProof?: File) => Promise<void>;
+    onPlaceOrder: (customerDetails: { name: string; phone: string; address: string }, paymentMethod: Order['paymentMethod'], paymentProof?: File) => Promise<string | undefined>;
 }
 
 const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, cartItems, onPlaceOrder }) => {
@@ -15,6 +15,8 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, cartItem
     const [paymentMethod, setPaymentMethod] = useState<Order['paymentMethod']>('electronic');
     const [paymentProof, setPaymentProof] = useState<File | null>(null);
     const [isPlacingOrder, setIsPlacingOrder] = useState(false);
+    const [isGettingLocation, setIsGettingLocation] = useState(false);
+    const [locationUrl, setLocationUrl] = useState('');
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const subtotal = cartItems.reduce((sum, item) => sum + item.product.sellingPrice * item.quantity, 0);
@@ -29,6 +31,26 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, cartItem
         }
     };
 
+    const handleGetLocation = () => {
+        if (!navigator.geolocation) {
+            alert("المتصفح لا يدعم تحديد الموقع.");
+            return;
+        }
+        setIsGettingLocation(true);
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                const { latitude, longitude } = position.coords;
+                const url = `https://www.google.com/maps?q=${latitude},${longitude}`;
+                setLocationUrl(url);
+                setIsGettingLocation(false);
+            },
+            () => {
+                alert("لم نتمكن من الحصول على موقعك. يرجى التأكد من تفعيل الأذونات.");
+                setIsGettingLocation(false);
+            }
+        );
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (paymentMethod === 'electronic' && !paymentProof) {
@@ -37,7 +59,35 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, cartItem
         }
         setIsPlacingOrder(true);
         try {
-            await onPlaceOrder(customerDetails, paymentMethod, paymentProof || undefined);
+            const proofUrl = await onPlaceOrder(customerDetails, paymentMethod, paymentProof || undefined);
+            
+            // Prepare WhatsApp message
+            const businessPhoneNumber = '201021465811'; // Replace with your business WhatsApp number
+            let message = `*طلب جديد من متجر بطاح*\n\n`;
+            message += `*الاسم:* ${customerDetails.name}\n`;
+            message += `*الهاتف:* ${customerDetails.phone}\n`;
+            message += `*العنوان:* ${customerDetails.address}\n\n`;
+            message += `*المنتجات:*\n`;
+            cartItems.forEach(item => {
+                message += `- ${item.product.name} (الكمية: ${item.quantity}) - ${formatCurrency(item.product.sellingPrice * item.quantity)}\n`;
+            });
+            message += `\n*الإجمالي:* ${formatCurrency(subtotal)}\n`;
+            message += `*طريقة الدفع:* ${paymentMethod === 'cod' ? 'عند الاستلام' : 'دفع إلكتروني'}\n`;
+            if (proofUrl) {
+                message += `*إثبات الدفع:* ${proofUrl}\n`;
+            }
+            if (locationUrl) {
+                message += `*موقع العميل:* ${locationUrl}\n`;
+            }
+            
+            const whatsappUrl = `https://wa.me/${businessPhoneNumber}?text=${encodeURIComponent(message)}`;
+            
+            // Redirect to WhatsApp
+            window.location.href = whatsappUrl;
+
+        } catch (error) {
+            console.error("Order submission failed:", error);
+            alert("فشل إرسال الطلب. يرجى التحقق من مفتاح ImgBB API والمحاولة مرة أخرى.");
         } finally {
             setIsPlacingOrder(false);
         }
@@ -48,15 +98,16 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, cartItem
     return (
         <Modal 
             isOpen={isOpen} 
-            onClose={isPlacingOrder ? () => {} : onClose} // Prevent closing while order is processing
+            onClose={isPlacingOrder ? () => {} : onClose}
             title="إتمام الطلب" 
             onSave={handleSubmit}
+            saveButtonText="ارسال الطلب الآن"
         >
             <div className="space-y-6">
                  {isPlacingOrder && (
                     <div className="absolute inset-0 bg-white/70 dark:bg-gray-800/70 flex flex-col items-center justify-center z-10 rounded-2xl">
                         <i className="fas fa-spinner fa-spin text-4xl text-primary mb-4"></i>
-                        <p className="font-bold text-lg">جاري إرسال طلبك...</p>
+                        <p className="font-bold text-lg">جاري إعداد طلبك...</p>
                     </div>
                 )}
                 <div>
@@ -77,10 +128,14 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, cartItem
 
                 <div>
                      <h3 className="font-bold text-lg mb-2">بياناتك</h3>
-                     <div className="grid grid-cols-1 gap-4">
+                     <div className="space-y-4">
                          <input type="text" name="name" placeholder="الاسم الكامل" onChange={handleChange} required className={inputBaseClasses} />
                          <input type="tel" name="phone" placeholder="رقم الهاتف" onChange={handleChange} required className={inputBaseClasses} />
-                         <textarea name="address" placeholder="العنوان بالتفصيل" onChange={handleChange} required className={inputBaseClasses} rows={3}></textarea>
+                         <textarea name="address" placeholder="العنوان بالتفصيل" onChange={handleChange} required className={inputBaseClasses} rows={2}></textarea>
+                         <button type="button" onClick={handleGetLocation} disabled={isGettingLocation} className="w-full flex justify-center items-center gap-2 px-4 py-2 text-sm text-gray-700 bg-gray-100 dark:bg-gray-600 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-500 transition disabled:opacity-50">
+                            {isGettingLocation ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-map-marker-alt"></i>}
+                            <span>{locationUrl ? 'تم تحديد الموقع بنجاح' : '📍 مشاركة موقعي لتوصيل أسرع'}</span>
+                         </button>
                      </div>
                 </div>
                 

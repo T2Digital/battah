@@ -1,4 +1,3 @@
-
 import React from 'react';
 import SectionHeader from '../shared/SectionHeader';
 // Fix: Corrected import path
@@ -9,7 +8,8 @@ import {
     generateAttendanceReportContent,
     generatePayrollReportContent,
     generateExpensesReportContent,
-    generateSuppliersReportContent
+    generateSuppliersReportContent,
+    generateSalesReportContent
 } from '../../lib/reportTemplates';
 
 interface ReportsProps {
@@ -48,6 +48,7 @@ const Reports: React.FC<ReportsProps> = ({ setActiveReport }) => {
             <SectionHeader icon="fa-file-alt" title="التقارير" />
              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <ReportCard icon="fa-warehouse" title="تقارير المخزون" description="حركة الأصناف، حد الطلب، تحليل المبيعات" onClick={() => setActiveReport('inventory')} />
+                <ReportCard icon="fa-dollar-sign" title="تقرير المبيعات" description="تحليل مفصل للمبيعات اليومية والأرباح" onClick={() => openReportWindow('تقرير المبيعات', generateSalesReportContent(appData))} />
                 <ReportCard icon="fa-users" title="تقرير الموظفين" description="بيانات شاملة لجميع الموظفين" onClick={() => openReportWindow('تقرير الموظفين', generateEmployeesReportContent(appData))} />
                 <ReportCard icon="fa-hand-holding-usd" title="تقرير السلف" description="سلف الموظفين والمتبقي منها" onClick={() => openReportWindow('تقرير السلف', generateAdvancesReportContent(appData))} />
                 <ReportCard icon="fa-clock" title="تقرير الحضور" description="حضور وانصراف الموظفين" onClick={() => openReportWindow('تقرير الحضور', generateAttendanceReportContent(appData))} />

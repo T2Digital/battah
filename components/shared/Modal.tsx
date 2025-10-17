@@ -1,4 +1,3 @@
-
 import React from 'react';
 
 interface ModalProps {
@@ -7,9 +6,10 @@ interface ModalProps {
     title: string;
     children: React.ReactNode;
     onSave?: (e: React.FormEvent) => void;
+    saveButtonText?: string;
 }
 
-const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, onSave }) => {
+const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, onSave, saveButtonText }) => {
     if (!isOpen) return null;
 
     const content = (
@@ -30,7 +30,7 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, onSave 
                     </button>
                     <button type="submit" className="px-5 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition shadow-md">
                         <i className="fas fa-save mr-2"></i>
-                        حفظ
+                        {saveButtonText || 'حفظ'}
                     </button>
                 </div>
             )}

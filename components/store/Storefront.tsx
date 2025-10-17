@@ -102,13 +102,16 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
         const totalAmount = cartItems.reduce((sum, item) => sum + item.product.sellingPrice * item.quantity, 0);
 
         try {
-            await createOrder(customerDetails, orderItems, totalAmount, paymentMethod, paymentProof);
+            // FIX: Capture and return the `proofUrl` to satisfy the `onPlaceOrder` prop type.
+            const proofUrl = await createOrder(customerDetails, orderItems, totalAmount, paymentMethod, paymentProof);
             setCartItems([]);
             setCheckoutOpen(false);
             setNotification('تم إرسال طلبك بنجاح! سيتم التواصل معك للتأكيد.');
+            return proofUrl;
         } catch (error) {
             console.error("Failed to create order:", error);
             alert("حدث خطأ أثناء إرسال الطلب. يرجى المحاولة مرة أخرى.");
+            throw error;
         }
     };
     

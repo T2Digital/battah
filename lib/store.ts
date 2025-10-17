@@ -76,7 +76,7 @@ type AppActions = {
     addTreasuryTransaction: (transaction: Omit<TreasuryTransaction, 'id'>) => Promise<void>;
 
     // Storefront Actions
-    createOrder: (customerDetails: { name: string; phone: string; address: string }, items: OrderItem[], totalAmount: number, paymentMethod: Order['paymentMethod'], paymentProof?: File) => Promise<void>;
+    createOrder: (customerDetails: { name: string; phone: string; address: string }, items: OrderItem[], totalAmount: number, paymentMethod: Order['paymentMethod'], paymentProof?: File) => Promise<string | undefined>;
     updateOrderStatus: (orderId: number, status: Order['status']) => Promise<void>;
     updateStorefrontSettings: (settings: StorefrontSettings) => Promise<void>;
     uploadImage: (file: File, path: string) => Promise<string>;
@@ -113,6 +113,32 @@ const syncCollectionToFirestore = async <T extends { id: number }>(
     }
     
     await batch.commit();
+};
+
+const uploadToImgBB = async (file: File): Promise<string> => {
+    const apiKey = process.env.IMGBB_API_KEY;
+    if (!apiKey || apiKey === "YOUR_IMGBB_API_KEY_HERE") {
+        throw new Error("ImgBB API key is not configured.");
+    }
+    
+    const formData = new FormData();
+    formData.append('image', file);
+
+    const response = await fetch(`https://api.imgbb.com/1/upload?key=${apiKey}`, {
+        method: 'POST',
+        body: formData,
+    });
+
+    if (!response.ok) {
+        throw new Error(`Image upload failed with status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    if (data.success) {
+        return data.data.url;
+    } else {
+        throw new Error(data.error?.message || 'Unknown error uploading to ImgBB');
+    }
 };
 
 
@@ -335,8 +361,10 @@ const useStore = create<AppState & AppActions>((set, get) => ({
         let imageUrl: string | undefined = undefined;
         if (paymentMethod === 'electronic' && paymentProof) {
             try {
-                imageUrl = await state.uploadImage(paymentProof, `paymentProofs/${Date.now()}_${paymentProof.name}`);
+                // Use the new ImgBB upload function
+                imageUrl = await uploadToImgBB(paymentProof);
             } catch(e) {
+                console.error("ImgBB Upload Failed:", e);
                 // Propagate the error to the UI
                 throw e;
             }
@@ -379,6 +407,9 @@ const useStore = create<AppState & AppActions>((set, get) => ({
                 notifications: [newNotification, ...state.appData.notifications],
             }
         });
+
+        // Return the image URL so the frontend can use it for WhatsApp
+        return imageUrl;
     },
     
     updateOrderStatus: async (orderId, status) => {

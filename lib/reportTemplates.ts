@@ -1,4 +1,3 @@
-
 // Fix: Corrected import path
 import { AppData, DailySale, Product } from '../types';
 import { formatCurrency, formatDate, calculateHours } from './utils';
@@ -211,6 +210,83 @@ export const generateInvoiceContent = (sale: DailySale, product: Product | undef
     </div>
     `;
     return generateReportHTML(`فاتورة ${sale.invoiceNumber}`, '#3b82f6', content, true);
+};
+
+export const generateSalesReportContent = (appData: AppData) => {
+    const { dailySales, products } = appData;
+    
+    // Group sales by date
+    const salesByDate = dailySales.reduce((acc, sale) => {
+        const date = sale.date;
+        if (!acc[date]) {
+            acc[date] = { revenue: 0, cost: 0 };
+        }
+        const product = products.find(p => p.id === sale.productId);
+        const cost = product ? product.purchasePrice * sale.quantity : 0;
+        
+        if (sale.direction === 'بيع') {
+            acc[date].revenue += sale.totalAmount;
+            acc[date].cost += cost;
+        } else if (sale.direction === 'مرتجع') {
+            acc[date].revenue -= sale.totalAmount;
+            acc[date].cost -= cost;
+        }
+        return acc;
+    }, {} as Record<string, { revenue: number, cost: number }>);
+
+    const sortedDates = Object.keys(salesByDate).sort((a,b) => new Date(b).getTime() - new Date(a).getTime());
+    
+    let totalRevenue = 0;
+    let totalCost = 0;
+
+    const tableRows = sortedDates.map(date => {
+        const { revenue, cost } = salesByDate[date];
+        const profit = revenue - cost;
+        totalRevenue += revenue;
+        totalCost += cost;
+        return `
+            <tr>
+                <td>${formatDate(date)}</td>
+                <td>${formatCurrency(revenue)}</td>
+                <td>${formatCurrency(cost)}</td>
+                <td style="font-weight: bold; color: ${profit >= 0 ? '#10b981' : '#ef4444'};">${formatCurrency(profit)}</td>
+            </tr>
+        `;
+    }).join('');
+
+    const totalProfit = totalRevenue - totalCost;
+
+    const content = `
+        <div class="header">
+            <h1>شركة بطاح لقطع غيار السيارات</h1>
+            <h2>تقرير المبيعات</h2>
+            <p>تاريخ التقرير: ${formatDate(new Date().toISOString())}</p>
+        </div>
+        <div class="summary">
+            <h3>ملخص شامل</h3>
+            <div class="summary-grid">
+                <div class="summary-item"><p>إجمالي المبيعات</p><strong>${formatCurrency(totalRevenue)}</strong></div>
+                <div class="summary-item"><p>إجمالي التكلفة</p><strong>${formatCurrency(totalCost)}</strong></div>
+                <div class="summary-item"><p>إجمالي صافي الربح</p><strong style="color: ${totalProfit >= 0 ? '#10b981' : '#ef4444'};">${formatCurrency(totalProfit)}</strong></div>
+            </div>
+        </div>
+        <table>
+            <thead><tr><th>التاريخ</th><th>إجمالي المبيعات</th><th>تكلفة البضاعة المباعة</th><th>صافي الربح</th></tr></thead>
+            <tbody>
+                ${tableRows}
+                <tr class="total-row">
+                    <td>الإجمالي</td>
+                    <td>${formatCurrency(totalRevenue)}</td>
+                    <td>${formatCurrency(totalCost)}</td>
+                    <td>${formatCurrency(totalProfit)}</td>
+                </tr>
+            </tbody>
+        </table>
+        <div class="footer">
+            <p>تم إنشاء هذا التقرير بواسطة نظام إدارة شركة بطاح المتكامل</p>
+        </div>
+    `;
+    return generateReportHTML('تقرير المبيعات', '#059669', content);
 };
 
 

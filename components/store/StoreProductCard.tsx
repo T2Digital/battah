@@ -23,6 +23,7 @@ const StoreProductCard: React.FC<StoreProductCardProps> = ({ product, onProductC
             setQuantity('');
         } else {
             const num = parseInt(val, 10);
+            // FIX: Only allow positive numbers to be set in state
             if (!isNaN(num) && num > 0) {
                 setQuantity(num);
             }
@@ -69,7 +70,6 @@ const StoreProductCard: React.FC<StoreProductCardProps> = ({ product, onProductC
                                 onBlur={handleInputBlur}
                                 onClick={(e) => e.stopPropagation()}
                                 className="w-12 text-center border-x dark:border-gray-600 dark:bg-gray-800 p-0"
-                                min="1"
                             />
                             <button onClick={(e) => handleQuantityChange(e, 1)} className="px-2 py-1 transition-colors hover:bg-gray-100 dark:hover:bg-gray-700 font-bold">+</button>
                         </div>
