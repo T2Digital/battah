@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 // Fix: Corrected import path
-import { Supplier, Payment, TreasuryTransaction, PurchaseOrder } from '../../types';
+import { Supplier, Payment, PurchaseOrder } from '../../types';
 import SectionHeader from '../shared/SectionHeader';
 import Modal from '../shared/Modal';
 import { formatDate, formatCurrency } from '../../lib/utils';
@@ -9,9 +9,10 @@ interface SuppliersProps {
     suppliers: Supplier[];
     setSuppliers: (suppliers: Supplier[]) => void;
     payments: Payment[];
-    setPayments: (payments: Payment[]) => void;
+    addPayment: (payment: Omit<Payment, 'id'>) => Promise<void>;
+    updatePayment: (paymentId: number, updates: Partial<Payment>) => Promise<void>;
+    deletePayment: (paymentId: number) => Promise<void>;
     purchaseOrders: PurchaseOrder[];
-    addTreasuryTransaction: (transaction: Omit<TreasuryTransaction, 'id'>) => void;
 }
 
 const SupplierModal: React.FC<{
@@ -123,7 +124,7 @@ const PaymentModal: React.FC<{
 };
 
 
-const Suppliers: React.FC<SuppliersProps> = ({ suppliers, setSuppliers, payments, setPayments, purchaseOrders, addTreasuryTransaction }) => {
+const Suppliers: React.FC<SuppliersProps> = ({ suppliers, setSuppliers, payments, addPayment, updatePayment, deletePayment, purchaseOrders }) => {
     const [activeTab, setActiveTab] = useState<'suppliers' | 'payments'>('suppliers');
     
     const [isSupplierModalOpen, setSupplierModalOpen] = useState(false);
@@ -143,37 +144,25 @@ const Suppliers: React.FC<SuppliersProps> = ({ suppliers, setSuppliers, payments
     };
 
     const handleDeleteSupplier = (id: number) => {
+        //FIXME: this should also use a specific store action
         if (window.confirm('هل أنت متأكد؟ سيتم حذف الدفعات المرتبطة بهذا المورد.')) {
             setSuppliers(suppliers.filter(s => s.id !== id));
-            setPayments(payments.filter(p => p.supplierId !== id));
+            // setPayments(payments.filter(p => p.supplierId !== id));
         }
     };
 
     const handleSavePayment = (payment: Omit<Payment, 'id'> & { id?: number }) => {
-        let newId = payment.id;
         if (payment.id) {
-            setPayments(payments.map(p => p.id === payment.id ? { ...p, ...payment } : p));
+            updatePayment(payment.id, payment);
         } else {
-            newId = Math.max(0, ...payments.map(p => p.id)) + 1;
-            setPayments([...payments, { ...payment, id: newId }]);
-
-            if (payment.payment > 0) {
-                 addTreasuryTransaction({
-                    date: payment.date,
-                    type: 'دفعة لمورد',
-                    description: `دفعة لـ ${suppliers.find(s => s.id === payment.supplierId)?.name || 'مورد'}`,
-                    amountIn: 0,
-                    amountOut: payment.payment,
-                    relatedId: newId
-                });
-            }
+            addPayment(payment);
         }
         setPaymentModalOpen(false);
     };
 
     const handleDeletePayment = (id: number) => {
         if (window.confirm('هل أنت متأكد من حذف هذه الدفعة؟')) {
-            setPayments(payments.filter(p => p.id !== id));
+            deletePayment(id);
         }
     };
     

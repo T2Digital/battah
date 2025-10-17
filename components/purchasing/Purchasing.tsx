@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 // Fix: Corrected import path
 import { PurchaseOrder, Supplier, Product } from '../../types';
@@ -9,13 +8,15 @@ import { formatDate, formatCurrency } from '../../lib/utils';
 
 interface PurchasingProps {
     purchaseOrders: PurchaseOrder[];
-    setPurchaseOrders: React.Dispatch<React.SetStateAction<PurchaseOrder[]>>;
+    addPurchaseOrder: (order: Omit<PurchaseOrder, 'id'>) => Promise<void>;
+    updatePurchaseOrder: (orderId: number, updates: Partial<PurchaseOrder>) => Promise<void>;
+    deletePurchaseOrder: (orderId: number) => Promise<void>;
     suppliers: Supplier[];
     products: Product[];
-    setProducts: React.Dispatch<React.SetStateAction<Product[]>>;
+    setProducts: (products: Product[]) => Promise<void>;
 }
 
-const Purchasing: React.FC<PurchasingProps> = ({ purchaseOrders, setPurchaseOrders, suppliers, products, setProducts }) => {
+const Purchasing: React.FC<PurchasingProps> = ({ purchaseOrders, addPurchaseOrder, updatePurchaseOrder, deletePurchaseOrder, suppliers, products, setProducts }) => {
     const [isOrderModalOpen, setOrderModalOpen] = useState(false);
     const [isReceiveModalOpen, setReceiveModalOpen] = useState(false);
     const [orderToEdit, setOrderToEdit] = useState<PurchaseOrder | null>(null);
@@ -40,34 +41,32 @@ const Purchasing: React.FC<PurchasingProps> = ({ purchaseOrders, setPurchaseOrde
 
     const handleDeleteOrder = (id: number) => {
         if (window.confirm('هل أنت متأكد من حذف أمر الشراء هذا؟')) {
-            setPurchaseOrders(prev => prev.filter(po => po.id !== id));
+            deletePurchaseOrder(id);
         }
     };
     
     const handleSaveOrder = (order: Omit<PurchaseOrder, 'id'> & { id?: number }) => {
-        setPurchaseOrders(prev => {
-            if (order.id) {
-                return prev.map(po => po.id === order.id ? { ...po, ...order } as PurchaseOrder : po);
-            }
-            const newId = Math.max(0, ...prev.map(p => p.id)) + 1;
-            return [...prev, { ...order, id: newId } as PurchaseOrder];
-        });
+        if (order.id) {
+            updatePurchaseOrder(order.id, order);
+        } else {
+            addPurchaseOrder(order);
+        }
         setOrderModalOpen(false);
     };
 
     const handleConfirmReception = (orderId: number, receivedItems: { productId: number; quantity: number }[], receivedInto: 'main' | 'branch1' | 'branch2' | 'branch3') => {
-        setProducts(prevProducts => {
-            const newProducts = [...prevProducts];
-            receivedItems.forEach(item => {
-                const productIndex = newProducts.findIndex(p => p.id === item.productId);
-                if (productIndex !== -1) {
-                    newProducts[productIndex].stock[receivedInto] += item.quantity;
-                }
-            });
-            return newProducts;
+        const newProducts = products.map(p => {
+            const receivedItem = receivedItems.find(item => item.productId === p.id);
+            if (receivedItem) {
+                const newStock = { ...p.stock };
+                newStock[receivedInto] += receivedItem.quantity;
+                return { ...p, stock: newStock };
+            }
+            return p;
         });
+        setProducts(newProducts);
 
-        setPurchaseOrders(prev => prev.map(po => po.id === orderId ? { ...po, status: 'مكتمل' } : po));
+        updatePurchaseOrder(orderId, { status: 'مكتمل' });
         setReceiveModalOpen(false);
     };
 

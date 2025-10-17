@@ -61,14 +61,20 @@ type AppActions = {
     setProducts: (products: Product[]) => Promise<void>;
     setDailySales: (sales: DailySale[]) => Promise<void>;
     setEmployees: (employees: Employee[]) => Promise<void>;
-    setAdvances: (advances: Advance[]) => Promise<void>;
+    addAdvance: (advance: Omit<Advance, 'id'>) => Promise<void>;
+    updateAdvance: (advanceId: number, updates: Partial<Advance>) => Promise<void>;
+    deleteAdvance: (advanceId: number) => Promise<void>;
     setAttendance: (attendance: Attendance[]) => Promise<void>;
     addPayroll: (payroll: Omit<Payroll, 'id'>) => Promise<void>;
     updatePayroll: (payrollId: number, updates: Partial<Payroll>) => Promise<void>;
     deletePayroll: (payrollId: number) => Promise<void>;
     setSuppliers: (suppliers: Supplier[]) => Promise<void>;
-    setPurchaseOrders: (orders: PurchaseOrder[]) => Promise<void>;
-    setPayments: (payments: Payment[]) => Promise<void>;
+    addPurchaseOrder: (order: Omit<PurchaseOrder, 'id'>) => Promise<void>;
+    updatePurchaseOrder: (orderId: number, updates: Partial<PurchaseOrder>) => Promise<void>;
+    deletePurchaseOrder: (orderId: number) => Promise<void>;
+    addPayment: (payment: Omit<Payment, 'id'>) => Promise<void>;
+    updatePayment: (paymentId: number, updates: Partial<Payment>) => Promise<void>;
+    deletePayment: (paymentId: number) => Promise<void>;
     addExpense: (expense: Omit<Expense, 'id'>) => Promise<void>;
     updateExpense: (expenseId: number, updates: Partial<Expense>) => Promise<void>;
     deleteExpense: (expenseId: number) => Promise<void>;
@@ -225,9 +231,29 @@ const useStore = create<AppState & AppActions>((set, get) => ({
         await syncCollectionToFirestore('employees', get().appData?.employees || [], employees);
         set(state => ({ appData: state.appData ? { ...state.appData, employees } : null }));
     },
-    setAdvances: async (advances) => {
-        await syncCollectionToFirestore('advances', get().appData?.advances || [], advances);
-        set(state => ({ appData: state.appData ? { ...state.appData, advances } : null }));
+    addAdvance: async (advance) => {
+        const state = get();
+        if (!state.appData) return;
+        const newId = (state.appData.advances.length > 0 ? Math.max(...state.appData.advances.map(a => a.id)) : 0) + 1;
+        const newAdvance = { ...advance, id: newId };
+        await setDoc(doc(db, "advances", String(newId)), newAdvance);
+        set(s => ({ appData: s.appData ? { ...s.appData, advances: [...s.appData.advances, newAdvance] } : null }));
+        
+        if (newAdvance.amount > 0) {
+            const employeeName = state.appData.employees.find(e => e.id === newAdvance.employeeId)?.name || 'موظف';
+            await get().addTreasuryTransaction({
+                date: newAdvance.date, type: 'سلفة', description: `سلفة لـ ${employeeName}`,
+                amountIn: 0, amountOut: newAdvance.amount, relatedId: newId
+            });
+        }
+    },
+    updateAdvance: async (advanceId, updates) => {
+        await updateDoc(doc(db, "advances", String(advanceId)), updates);
+        set(s => ({ appData: s.appData ? { ...s.appData, advances: s.appData.advances.map(a => a.id === advanceId ? { ...a, ...updates } : a) } : null }));
+    },
+    deleteAdvance: async (advanceId) => {
+        await deleteDoc(doc(db, "advances", String(advanceId)));
+        set(s => ({ appData: s.appData ? { ...s.appData, advances: s.appData.advances.filter(a => a.id !== advanceId) } : null }));
     },
     setAttendance: async (attendance) => {
         await syncCollectionToFirestore('attendance', get().appData?.attendance || [], attendance);
@@ -274,13 +300,45 @@ const useStore = create<AppState & AppActions>((set, get) => ({
         await syncCollectionToFirestore('suppliers', get().appData?.suppliers || [], suppliers);
         set(state => ({ appData: state.appData ? { ...state.appData, suppliers } : null }));
     },
-    setPurchaseOrders: async (orders) => {
-        await syncCollectionToFirestore('purchaseOrders', get().appData?.purchaseOrders || [], orders);
-        set(state => ({ appData: state.appData ? { ...state.appData, purchaseOrders: orders } : null }));
+    addPurchaseOrder: async (order) => {
+        const state = get();
+        if (!state.appData) return;
+        const newId = (state.appData.purchaseOrders.length > 0 ? Math.max(...state.appData.purchaseOrders.map(o => o.id)) : 0) + 1;
+        const newOrder = { ...order, id: newId };
+        await setDoc(doc(db, "purchaseOrders", String(newId)), newOrder);
+        set(s => ({ appData: s.appData ? { ...s.appData, purchaseOrders: [...s.appData.purchaseOrders, newOrder] } : null }));
     },
-    setPayments: async (payments) => {
-        await syncCollectionToFirestore('payments', get().appData?.payments || [], payments);
-        set(state => ({ appData: state.appData ? { ...state.appData, payments } : null }));
+    updatePurchaseOrder: async (orderId, updates) => {
+        await updateDoc(doc(db, "purchaseOrders", String(orderId)), updates);
+        set(s => ({ appData: s.appData ? { ...s.appData, purchaseOrders: s.appData.purchaseOrders.map(o => o.id === orderId ? { ...o, ...updates } : o) } : null }));
+    },
+    deletePurchaseOrder: async (orderId) => {
+        await deleteDoc(doc(db, "purchaseOrders", String(orderId)));
+        set(s => ({ appData: s.appData ? { ...s.appData, purchaseOrders: s.appData.purchaseOrders.filter(o => o.id !== orderId) } : null }));
+    },
+    addPayment: async (payment) => {
+        const state = get();
+        if (!state.appData) return;
+        const newId = (state.appData.payments.length > 0 ? Math.max(...state.appData.payments.map(p => p.id)) : 0) + 1;
+        const newPayment = { ...payment, id: newId };
+        await setDoc(doc(db, "payments", String(newId)), newPayment);
+        set(s => ({ appData: s.appData ? { ...s.appData, payments: [...s.appData.payments, newPayment] } : null }));
+        
+        if (newPayment.payment > 0) {
+            const supplierName = state.appData.suppliers.find(s => s.id === newPayment.supplierId)?.name || 'مورد';
+            await get().addTreasuryTransaction({
+                date: newPayment.date, type: 'دفعة لمورد', description: `دفعة لـ ${supplierName}`,
+                amountIn: 0, amountOut: newPayment.payment, relatedId: newId
+            });
+        }
+    },
+    updatePayment: async (paymentId, updates) => {
+        await updateDoc(doc(db, "payments", String(paymentId)), updates);
+        set(s => ({ appData: s.appData ? { ...s.appData, payments: s.appData.payments.map(p => p.id === paymentId ? { ...p, ...updates } : p) } : null }));
+    },
+    deletePayment: async (paymentId) => {
+        await deleteDoc(doc(db, "payments", String(paymentId)));
+        set(s => ({ appData: s.appData ? { ...s.appData, payments: s.appData.payments.filter(p => p.id !== paymentId) } : null }));
     },
     addExpense: async (expense) => {
         const state = get();

@@ -1,16 +1,16 @@
-
 import React, { useState, useMemo } from 'react';
 // Fix: Corrected import path
-import { Advance, Employee, TreasuryTransaction } from '../../types';
+import { Advance, Employee } from '../../types';
 import SectionHeader from '../shared/SectionHeader';
 import Modal from '../shared/Modal';
 import { formatCurrency, formatDate } from '../../lib/utils';
 
 interface AdvancesProps {
     advances: Advance[];
-    setAdvances: (advances: Advance[]) => void;
+    addAdvance: (advance: Omit<Advance, 'id'>) => Promise<void>;
+    updateAdvance: (advanceId: number, updates: Partial<Advance>) => Promise<void>;
+    deleteAdvance: (advanceId: number) => Promise<void>;
     employees: Employee[];
-    addTreasuryTransaction: (transaction: Omit<TreasuryTransaction, 'id'>) => void;
 }
 
 
@@ -93,7 +93,7 @@ const AdvanceModal: React.FC<{
 };
 
 
-const Advances: React.FC<AdvancesProps> = ({ advances, setAdvances, employees, addTreasuryTransaction }) => {
+const Advances: React.FC<AdvancesProps> = ({ advances, addAdvance, updateAdvance, deleteAdvance, employees }) => {
     const [isModalOpen, setModalOpen] = useState(false);
     const [advanceToEdit, setAdvanceToEdit] = useState<Advance | null>(null);
     
@@ -111,28 +111,15 @@ const Advances: React.FC<AdvancesProps> = ({ advances, setAdvances, employees, a
 
     const handleDelete = (id: number) => {
         if (window.confirm('هل أنت متأكد من حذف هذه السلفة؟')) {
-            // TODO: In a real app, handle reversing the treasury transaction
-            setAdvances(advances.filter(a => a.id !== id));
+            deleteAdvance(id);
         }
     };
 
     const handleSave = (advance: Omit<Advance, 'id'> & { id?: number }) => {
-        let newId = advance.id;
         if (advance.id) {
-            setAdvances(advances.map(a => a.id === advance.id ? { ...a, ...advance } : a));
+            updateAdvance(advance.id, advance);
         } else {
-            newId = Math.max(0, ...advances.map(a => a.id)) + 1;
-            setAdvances([...advances, { ...advance, id: newId }]);
-
-            // Add to treasury only when creating a new advance
-            addTreasuryTransaction({
-                date: advance.date,
-                type: 'سلفة',
-                description: `سلفة لـ ${getEmployeeName(advance.employeeId)}`,
-                amountIn: 0,
-                amountOut: advance.amount,
-                relatedId: newId
-            });
+            addAdvance(advance);
         }
         setModalOpen(false);
     };
