@@ -20,46 +20,41 @@ const SeedData: React.FC = () => {
         }
     };
 
-    // FIX: Rewrote the component's render output to use React.createElement instead of JSX.
-    // This resolves the syntax errors caused by using JSX in a .ts file.
+    // FIX: Converted JSX to React.createElement calls to be valid in a .ts file.
     return React.createElement(
-        'div',
+        "div",
         { className: "fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-50 backdrop-blur-sm" },
         React.createElement(
-            'div',
+            "div",
             { className: "bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-lg p-8 m-4 text-center" },
             React.createElement(
-                'h2',
+                "h2",
                 { className: "text-2xl font-bold text-gray-800 dark:text-white mb-4" },
-                'تهيئة قاعدة البيانات'
+                "تهيئة قاعدة البيانات"
             ),
             React.createElement(
-                'p',
+                "p",
                 { className: "text-gray-600 dark:text-gray-300 mb-6" },
-                'يبدو أن هذه هي المرة الأولى التي تشغل فيها النظام. تحتاج إلى تهيئة قاعدة البيانات بالبيانات الأولية (مثل المستخدمين والمنتجات التجريبية) للبدء.'
+                "يبدو أن هذه هي المرة الأولى التي تشغل فيها النظام. تحتاج إلى تهيئة قاعدة البيانات بالبيانات الأولية (مثل المستخدمين والمنتجات التجريبية) للبدء."
             ),
             React.createElement(
-                'p',
+                "p",
                 { className: "text-sm text-amber-600 dark:text-amber-400 mb-6" },
-                React.createElement('strong', null, 'ملاحظة هامة:'),
-                ' هذه العملية تتم لمرة واحدة فقط.'
+                React.createElement("strong", null, "ملاحظة هامة:"),
+                " هذه العملية تتم لمرة واحدة فقط."
             ),
             React.createElement(
-                'button',
+                "button",
                 {
                     onClick: handleSeed,
                     disabled: isLoading,
-                    className: "w-full flex justify-center items-center gap-2 px-4 py-3 text-white bg-gradient-to-r from-green-500 to-green-700 rounded-lg hover:from-green-600 hover:to-green-800 transition-transform transform hover:scale-105 shadow-md disabled:opacity-50 disabled:cursor-not-allowed",
+                    className: "w-full flex justify-center items-center gap-2 px-4 py-3 text-white bg-gradient-to-r from-green-500 to-green-700 rounded-lg hover:from-green-600 hover:to-green-800 transition-transform transform hover:scale-105 shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
                 },
-                isLoading ? React.createElement('i', { className: "fas fa-spinner fa-spin" }) : React.createElement('i', { className: "fas fa-database" }),
-                React.createElement(
-                    'span',
-                    null,
-                    isLoading ? 'جاري التهيئة...' : 'ابدأ تهيئة قاعدة البيانات'
-                )
+                isLoading ? React.createElement("i", { className: "fas fa-spinner fa-spin" }) : React.createElement("i", { className: "fas fa-database" }),
+                React.createElement("span", null, isLoading ? 'جاري التهيئة...' : 'ابدأ تهيئة قاعدة البيانات')
             ),
             error && React.createElement(
-                'p',
+                "p",
                 { className: "text-red-500 text-sm text-center mt-4" },
                 error
             )

@@ -1,6 +1,7 @@
-// Fix: Corrected import path
+
+
 import { AppData, DailySale, Product } from '../types';
-import { formatCurrency, formatDate, calculateHours } from './utils';
+import { formatCurrency, formatDate, calculateHours, normalizeSaleItems } from './utils';
 
 const getReportStyles = (themeColor: string) => `
 <style>
@@ -156,7 +157,19 @@ const generateReportHTML = (title: string, themeColor: string, content: string, 
 </body>
 </html>`;
 
-export const generateInvoiceContent = (sale: DailySale, product: Product | undefined) => {
+export const generateInvoiceContent = (sale: DailySale, products: Product[]) => {
+    const getProductName = (productId: number) => products.find(p => p.id === productId)?.name || 'صنف غير معروف';
+    const items = normalizeSaleItems(sale);
+
+    const itemsRows = items.map(item => `
+        <tr class="item">
+            <td>${getProductName(item.productId)}</td>
+            <td style="text-align:center;">${item.quantity}</td>
+            <td style="text-align:center;">${formatCurrency(item.unitPrice)}</td>
+            <td style="text-align:left;">${formatCurrency(item.quantity * item.unitPrice)}</td>
+        </tr>
+    `).join('');
+
     const content = `
     <div class="invoice-box">
         <table cellpadding="0" cellspacing="0">
@@ -195,12 +208,7 @@ export const generateInvoiceContent = (sale: DailySale, product: Product | undef
                 <td style="text-align:center;">سعر الوحدة</td>
                 <td style="text-align:left;">الإجمالي</td>
             </tr>
-            <tr class="item">
-                <td>${product?.name || 'صنف غير معروف'}</td>
-                <td style="text-align:center;">${sale.quantity}</td>
-                <td style="text-align:center;">${formatCurrency(sale.unitPrice)}</td>
-                <td style="text-align:left;">${formatCurrency(sale.totalAmount)}</td>
-            </tr>
+            ${itemsRows}
             <tr class="total">
                 <td colspan="3" style="text-align:left; font-weight:bold;">الإجمالي</td>
                 <td style="text-align:left; font-weight:bold;">${formatCurrency(sale.totalAmount)}</td>
@@ -213,23 +221,26 @@ export const generateInvoiceContent = (sale: DailySale, product: Product | undef
 };
 
 export const generateSalesReportContent = (appData: AppData) => {
-    const { dailySales, products } = appData;
+    const { dailySales = [], products = [] } = appData;
     
-    // Group sales by date
     const salesByDate = dailySales.reduce((acc, sale) => {
         const date = sale.date;
         if (!acc[date]) {
             acc[date] = { revenue: 0, cost: 0 };
         }
-        const product = products.find(p => p.id === sale.productId);
-        const cost = product ? product.purchasePrice * sale.quantity : 0;
+        
+        const items = normalizeSaleItems(sale);
+        const saleCost = items.reduce((sum, item) => {
+             const product = products.find(p => p.id === item.productId);
+             return sum + (product ? product.purchasePrice * item.quantity : 0);
+        }, 0);
         
         if (sale.direction === 'بيع') {
             acc[date].revenue += sale.totalAmount;
-            acc[date].cost += cost;
+            acc[date].cost += saleCost;
         } else if (sale.direction === 'مرتجع') {
             acc[date].revenue -= sale.totalAmount;
-            acc[date].cost -= cost;
+            acc[date].cost -= saleCost;
         }
         return acc;
     }, {} as Record<string, { revenue: number, cost: number }>);
@@ -485,7 +496,8 @@ export const generateProductCardexReportContent = (appData: AppData, productId: 
     if (!product) return generateReportHTML('خطأ', '#ef4444', 'لم يتم العثور على المنتج');
     
     const movements = dailySales
-        .filter(sale => sale.productId === productId)
+        .flatMap(sale => normalizeSaleItems(sale).map(item => ({ ...item, ...sale })))
+        .filter(movement => movement.productId === productId)
         .sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
         
     const content = `
@@ -558,14 +570,16 @@ export const generateSalesAnalysisReportContent = (appData: AppData) => {
     const salesData = new Map<number, { name: string; sku: string; quantity: number; value: number }>();
 
     dailySales.forEach(sale => {
-        const product = products.find(p => p.id === sale.productId);
-        if (!product) return;
+        normalizeSaleItems(sale).forEach(item => {
+            const product = products.find(p => p.id === item.productId);
+            if (!product) return;
 
-        const currentData = salesData.get(sale.productId) || { name: product.name, sku: product.sku, quantity: 0, value: 0 };
-        const change = sale.direction === 'مرتجع' ? -1 : 1;
-        currentData.quantity += sale.quantity * change;
-        currentData.value += sale.totalAmount * change;
-        salesData.set(sale.productId, currentData);
+            const currentData = salesData.get(item.productId) || { name: product.name, sku: product.sku, quantity: 0, value: 0 };
+            const change = sale.direction === 'مرتجع' ? -1 : 1;
+            currentData.quantity += item.quantity * change;
+            currentData.value += (item.unitPrice * item.quantity) * change;
+            salesData.set(item.productId, currentData);
+        });
     });
 
     const sortedSales = Array.from(salesData.values()).sort((a,b) => b.quantity - a.quantity);

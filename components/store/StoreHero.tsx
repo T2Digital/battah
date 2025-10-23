@@ -7,7 +7,7 @@ const StoreHero: React.FC = () => {
 
     return (
         <div className="bg-gradient-to-br from-primary-dark to-blue-900 text-white text-center py-20 sm:py-28 px-4 relative overflow-hidden">
-             <div className="absolute inset-0 bg-black/20"></div>
+             <div className="absolute inset-0 bg-black bg-opacity-20"></div>
              <div className="absolute top-0 left-0 w-full h-full opacity-10 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]"></div>
 
             <div className="relative z-10">

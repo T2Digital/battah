@@ -1,4 +1,3 @@
-
 import React from 'react';
 // Fix: Corrected import path
 import useStore from '../lib/store';
@@ -34,13 +33,13 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar, setViewMode }) => {
                 <NotificationsDropdown />
                 <div className="text-right">
                     <p className="font-semibold text-gray-800 dark:text-white">{currentUser.name}</p>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">{currentUser.role}</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 hidden sm:block">{currentUser.role}</p>
                 </div>
                 <button onClick={logout} className="flex items-center gap-2 text-gray-500 hover:text-red-500 dark:text-gray-400 dark:hover:text-red-400 transition">
                     <i className="fas fa-sign-out-alt text-xl"></i>
                     <span className="hidden sm:inline">تسجيل الخروج</span>
                 </button>
-                 <button onClick={toggleSidebar} className="text-gray-600 dark:text-gray-300 hover:text-primary dark:hover:text-primary-light">
+                 <button onClick={toggleSidebar} className="text-gray-600 dark:text-gray-300 hover:text-primary dark:hover:text-primary-light" aria-label="تبديل القائمة الجانبية">
                     <i className="fas fa-bars text-2xl"></i>
                 </button>
             </div>

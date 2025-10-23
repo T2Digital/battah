@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import useStore from '../../lib/store';
 import { Product, MainCategory } from '../../types';
@@ -7,7 +6,6 @@ import ProductModal from './ProductModal';
 // Fix: Corrected import path for StorefrontSettings
 import StorefrontSettings from './StorefrontSettings';
 import { formatCurrency } from '../../lib/utils';
-import BarcodeScannerModal from '../shared/BarcodeScannerModal';
 
 const Inventory: React.FC = () => {
     const { 
@@ -24,7 +22,6 @@ const Inventory: React.FC = () => {
 
     const [isProductModalOpen, setProductModalOpen] = useState(false);
     const [isSettingsModalOpen, setSettingsModalOpen] = useState(false);
-    const [isScannerOpen, setScannerOpen] = useState(false);
     const [productToEdit, setProductToEdit] = useState<Product | null>(null);
     const [filters, setFilters] = useState({
         search: '',
@@ -58,11 +55,6 @@ const Inventory: React.FC = () => {
         setProductModalOpen(false);
     };
     
-    const handleScan = (code: string) => {
-        setFilters(prev => ({ ...prev, search: code }));
-        setScannerOpen(false);
-    };
-
     const filteredProducts = useMemo(() => {
         return products.filter(p => {
             const totalStock = p.stock.main + p.stock.branch1 + p.stock.branch2 + p.stock.branch3;
@@ -94,7 +86,6 @@ const Inventory: React.FC = () => {
                     onChange={e => setFilters(f => ({ ...f, search: e.target.value }))}
                     className="flex-grow p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600"
                 />
-                 <button onClick={() => setScannerOpen(true)} className="p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600"><i className="fas fa-barcode"></i></button>
                 <select value={filters.category} onChange={e => setFilters(f => ({ ...f, category: e.target.value }))} className="p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600">
                     <option value="">كل الفئات</option>
                     {(['قطع غيار', 'كماليات', 'زيوت وشحومات', 'بطاريات', 'إطارات'] as MainCategory[]).map(cat => <option key={cat} value={cat}>{cat}</option>)}
@@ -144,7 +135,6 @@ const Inventory: React.FC = () => {
 
             {isProductModalOpen && <ProductModal isOpen={isProductModalOpen} onClose={() => setProductModalOpen(false)} onSave={handleSaveProduct} existingProduct={productToEdit} />}
             {isSettingsModalOpen && storefrontSettings && <StorefrontSettings isOpen={isSettingsModalOpen} onClose={() => setSettingsModalOpen(false)} settings={storefrontSettings} onSave={updateStorefrontSettings} products={products} />}
-            <BarcodeScannerModal isOpen={isScannerOpen} onClose={() => setScannerOpen(false)} onScan={handleScan} />
         </div>
     );
 };

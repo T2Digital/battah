@@ -7,9 +7,10 @@ interface ModalProps {
     children: React.ReactNode;
     onSave?: (e: React.FormEvent) => void;
     saveButtonText?: string;
+    isLoading?: boolean;
 }
 
-const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, onSave, saveButtonText }) => {
+const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, onSave, saveButtonText, isLoading = false }) => {
     if (!isOpen) return null;
 
     const content = (
@@ -24,13 +25,19 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, onSave,
                 {children}
             </div>
             {onSave && (
-                 <div className="p-4 bg-gray-50 dark:bg-gray-900/50 flex justify-end gap-3 border-t border-gray-200 dark:border-gray-700">
+                 <div className="p-4 bg-gray-50 dark:bg-gray-900 dark:bg-opacity-50 flex justify-end gap-3 border-t border-gray-200 dark:border-gray-700">
                     <button type="button" onClick={onClose} className="px-5 py-2 bg-gray-200 text-gray-800 dark:bg-gray-600 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500 transition">
                         إلغاء
                     </button>
-                    <button type="submit" className="px-5 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition shadow-md">
-                        <i className="fas fa-save mr-2"></i>
-                        {saveButtonText || 'حفظ'}
+                    <button type="submit" disabled={isLoading} className="px-5 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition shadow-md flex items-center justify-center w-28 disabled:bg-primary/50">
+                        {isLoading ? (
+                            <i className="fas fa-spinner fa-spin"></i>
+                        ) : (
+                            <>
+                                <i className="fas fa-save mr-2"></i>
+                                {saveButtonText || 'حفظ'}
+                            </>
+                        )}
                     </button>
                 </div>
             )}

@@ -147,7 +147,7 @@ const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, onClose
                     </div>
                     <div className="space-y-2 max-h-60 overflow-y-auto">
                         {formData.items.map((item, index) => (
-                            <div key={item.id} className="grid grid-cols-12 gap-2 items-center p-2 bg-gray-50 dark:bg-gray-700/50 rounded">
+                            <div key={item.id} className="grid grid-cols-12 gap-2 items-center p-2 bg-gray-50 dark:bg-gray-700 dark:bg-opacity-50 rounded">
                                 <span className="col-span-5 truncate">{getProductName(item.productId)}</span>
                                 <input 
                                     type="number" 

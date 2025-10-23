@@ -1,9 +1,9 @@
-
-import React, { useState, useEffect, useMemo } from 'react';
-// Fix: Corrected import path
-import { DailySale, User, Product, Branch } from '../../types';
-import { formatCurrency } from '../../lib/utils';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { DailySale, User, Product, Branch, SaleItem, Role } from '../../types';
+import { formatCurrency, normalizeSaleItems } from '../../lib/utils';
 import Modal from '../shared/Modal';
+
+type EditableSaleItem = SaleItem & { productName: string; stock: number };
 
 interface DailySaleModalProps {
     isOpen: boolean;
@@ -16,26 +16,28 @@ interface DailySaleModalProps {
 }
 
 const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave, currentUser, existingSale, dailySales, products }) => {
-    const [formData, setFormData] = useState({
-        date: new Date().toISOString().split('T')[0],
-        invoiceNumber: '',
-        sellerName: currentUser.name,
-        sellerId: currentUser.id,
-        source: 'المحل' as DailySale['source'],
-        productId: 0,
-        branchSoldFrom: currentUser.branch as Branch,
-        itemType: 'قطع غيار' as DailySale['itemType'],
-        direction: 'بيع' as DailySale['direction'],
-        quantity: 1,
-        unitPrice: 0,
-        notes: '',
-    });
+    const [invoiceNumber, setInvoiceNumber] = useState('');
+    const [items, setItems] = useState<EditableSaleItem[]>([]);
+    const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+    const [direction, setDirection] = useState<DailySale['direction']>('بيع');
+    const [branchSoldFrom, setBranchSoldFrom] = useState<Branch>(currentUser.branch);
+    const [notes, setNotes] = useState('');
     
-    const [totalAmount, setTotalAmount] = useState(0);
     const [productSearch, setProductSearch] = useState('');
     const [showSuggestions, setShowSuggestions] = useState(false);
-    const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-    
+    const lastAddedItemRef = useRef<HTMLInputElement>(null);
+
+    const branchNames: Record<Branch, string> = {
+        main: 'المخزن الرئيسي',
+        branch1: 'فرع 1',
+        branch2: 'فرع 2',
+        branch3: 'فرع 3',
+    };
+
+    const getStockBreakdown = (product: Product): string => {
+        return `رصيد: الرئيسي(${product.stock.main}), ف1(${product.stock.branch1}), ف2(${product.stock.branch2}), ف3(${product.stock.branch3})`;
+    };
+
     useEffect(() => {
         const generateInvoiceNumber = () => {
             const today = new Date();
@@ -45,125 +47,164 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
         };
 
         if (existingSale) {
-            const product = products.find(p => p.id === existingSale.productId);
-            setSelectedProduct(product || null);
-            setProductSearch(product?.name || '');
-            setFormData({
-                ...existingSale,
-                notes: existingSale.notes || '',
+            setInvoiceNumber(existingSale.invoiceNumber);
+            setDate(existingSale.date);
+            setDirection(existingSale.direction);
+            setBranchSoldFrom(existingSale.branchSoldFrom);
+            setNotes(existingSale.notes || '');
+            const itemsToEdit = normalizeSaleItems(existingSale);
+            const editableItems = itemsToEdit.map(item => {
+                const product = products.find(p => p.id === item.productId);
+                return {
+                    ...item,
+                    productName: product?.name || 'صنف محذوف',
+                    stock: product?.stock[existingSale.branchSoldFrom] || 0,
+                };
             });
+            setItems(editableItems);
         } else {
-             setFormData({
-                date: new Date().toISOString().split('T')[0],
-                invoiceNumber: generateInvoiceNumber(),
-                sellerName: currentUser.name,
-                sellerId: currentUser.id,
-                source: 'المحل',
-                productId: 0,
-                branchSoldFrom: currentUser.branch,
-                itemType: 'قطع غيار',
-                direction: 'بيع',
-                quantity: 1,
-                unitPrice: 0,
-                notes: '',
-            });
-             setSelectedProduct(null);
-             setProductSearch('');
+            setInvoiceNumber(generateInvoiceNumber());
+            setDate(new Date().toISOString().split('T')[0]);
+            setDirection('بيع');
+            setBranchSoldFrom(currentUser.branch);
+            setNotes('');
+            setItems([]);
         }
     }, [existingSale, dailySales, currentUser, products, isOpen]);
 
     useEffect(() => {
-        const total = formData.quantity * formData.unitPrice;
-        setTotalAmount(total);
-    }, [formData.quantity, formData.unitPrice]);
+        if (lastAddedItemRef.current) {
+            lastAddedItemRef.current.focus();
+            lastAddedItemRef.current.select();
+        }
+    }, [items.length]);
+
+    const totalAmount = useMemo(() => {
+        return items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+    }, [items]);
     
     const filteredProducts = useMemo(() => {
         if (!productSearch) return [];
-        return products.filter(p => p.name.toLowerCase().includes(productSearch.toLowerCase()) || p.sku.toLowerCase().includes(productSearch.toLowerCase())).slice(0, 5);
+        return products
+            .filter(p => p.name.toLowerCase().includes(productSearch.toLowerCase()) || p.sku.toLowerCase().includes(productSearch.toLowerCase()))
+            .slice(0, 5);
     }, [productSearch, products]);
 
     const handleProductSelect = (product: Product) => {
-        setSelectedProduct(product);
-        setProductSearch(product.name);
-        setShowSuggestions(false);
-        setFormData(prev => ({
-            ...prev,
+        if (items.some(item => item.productId === product.id)) return;
+        const newItem: EditableSaleItem = {
             productId: product.id,
+            productName: product.name,
+            quantity: 1,
             unitPrice: product.sellingPrice,
-            itemType: product.category as DailySale['itemType'] || 'أخرى',
-        }));
+            itemType: product.category as SaleItem['itemType'] || 'أخرى',
+            stock: product.stock[branchSoldFrom],
+        };
+        setItems(prev => [...prev, newItem]);
+        setProductSearch('');
+        setShowSuggestions(false);
     };
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-        const { name, value } = e.target;
-        setFormData(prev => ({
-            ...prev,
-            [name]: name === 'quantity' || name === 'unitPrice' ? Number(value) : value,
-        }));
+    const handleItemChange = (index: number, field: 'quantity' | 'unitPrice', value: number) => {
+        const newItems = [...items];
+        newItems[index] = { ...newItems[index], [field]: value };
+        setItems(newItems);
+    };
+
+    const handleRemoveItem = (index: number) => {
+        setItems(prev => prev.filter((_, i) => i !== index));
     };
     
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (!selectedProduct) {
-            alert('يرجى اختيار صنف صحيح من القائمة.');
+        if (items.length === 0) {
+            alert('يجب إضافة صنف واحد على الأقل للفاتورة.');
             return;
         }
-        if(formData.quantity > selectedProduct.stock[formData.branchSoldFrom] && formData.direction === 'بيع') {
-            alert(`الكمية المطلوبة (${formData.quantity}) أكبر من الرصيد المتاح في هذا الفرع (${selectedProduct.stock[formData.branchSoldFrom]})`);
-            return;
+
+        for (const item of items) {
+             const product = products.find(p => p.id === item.productId);
+             if (product && item.quantity > product.stock[branchSoldFrom] && direction === 'بيع') {
+                alert(`الكمية المطلوبة (${item.quantity}) من صنف "${item.productName}" أكبر من الرصيد المتاح في هذا الفرع (${product.stock[branchSoldFrom]})`);
+                return;
+             }
         }
-        const saleData = { ...formData, totalAmount };
+
+        const saleData = {
+            date, invoiceNumber, direction, branchSoldFrom, notes, totalAmount,
+            sellerId: currentUser.id,
+            sellerName: currentUser.name,
+            source: 'المحل' as const,
+            items: items.map(({ productName, stock, ...rest }) => rest), // Remove productName & stock before saving
+        };
         onSave(existingSale ? { ...saleData, id: existingSale.id } : saleData);
     };
 
     return (
-        <Modal isOpen={isOpen} onClose={onClose} title={existingSale ? 'تعديل مبيعة' : 'تسجيل مبيعة جديدة'} onSave={handleSubmit}>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div><label>التاريخ</label><input type="date" name="date" value={formData.date} readOnly className="w-full mt-1 p-2 border rounded dark:bg-gray-700 dark:border-gray-600 bg-gray-100" /></div>
-                <div><label>رقم الفاتورة</label><input type="text" name="invoiceNumber" value={formData.invoiceNumber} readOnly className="w-full mt-1 p-2 border rounded dark:bg-gray-700 dark:border-gray-600 bg-gray-100" /></div>
-                
-                <div className="md:col-span-2 relative">
-                    <label>بحث عن الصنف *</label>
-                    <input 
-                        type="text" 
-                        value={productSearch} 
-                        onChange={e => { setProductSearch(e.target.value); setShowSuggestions(true); }}
-                        onFocus={() => setShowSuggestions(true)}
-                        onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
-                        required 
-                        className="w-full mt-1 p-2 border rounded dark:bg-gray-700 dark:border-gray-600" 
-                        placeholder="اكتب اسم الصنف أو الكود..."/>
-                    {filteredProducts.length > 0 && showSuggestions && (
-                        <ul className="absolute z-10 w-full bg-white dark:bg-gray-600 border dark:border-gray-500 rounded-md mt-1 max-h-40 overflow-y-auto shadow-lg">
-                            {filteredProducts.map(p => <li key={p.id} onMouseDown={() => handleProductSelect(p)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-500 cursor-pointer">{p.name} ({p.sku})</li>)}
-                        </ul>
-                    )}
-                </div>
-                {selectedProduct && (
-                    <div className="md:col-span-2 bg-blue-50 dark:bg-gray-700 p-3 rounded-lg text-sm">
-                        <h4 className="font-bold text-blue-800 dark:text-blue-300 mb-2">رصيد المخزون لـ "{selectedProduct.name}"</h4>
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
-                            <div><strong>الرئيسي:</strong> <span className="text-blue-600 dark:text-blue-400 font-semibold">{selectedProduct.stock.main}</span></div>
-                            <div><strong>فرع 1:</strong> <span className="text-blue-600 dark:text-blue-400 font-semibold">{selectedProduct.stock.branch1}</span></div>
-                            <div><strong>فرع 2:</strong> <span className="text-blue-600 dark:text-blue-400 font-semibold">{selectedProduct.stock.branch2}</span></div>
-                            <div><strong>فرع 3:</strong> <span className="text-blue-600 dark:text-blue-400 font-semibold">{selectedProduct.stock.branch3}</span></div>
-                        </div>
+        <Modal isOpen={isOpen} onClose={onClose} title={existingSale ? 'تعديل فاتورة' : 'فاتورة جديدة'} onSave={handleSubmit}>
+            <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div><label>التاريخ</label><input type="date" value={date} readOnly className="w-full mt-1 p-2 border rounded dark:bg-gray-700 dark:border-gray-600 bg-gray-100" /></div>
+                    <div><label>رقم الفاتورة</label><input type="text" value={invoiceNumber} readOnly className="w-full mt-1 p-2 border rounded dark:bg-gray-700 dark:border-gray-600 bg-gray-100" /></div>
+                    <div><label>الاتجاه</label><select value={direction} onChange={e => setDirection(e.target.value as DailySale['direction'])} className="w-full mt-1 p-2 border rounded dark:bg-gray-700 dark:border-gray-600"><option>بيع</option><option>مرتجع</option><option>تبديل</option><option>ضمان</option></select></div>
+                    <div>
+                        <label>البيع من فرع</label>
+                        <select 
+                            value={branchSoldFrom} 
+                            onChange={e => setBranchSoldFrom(e.target.value as Branch)} 
+                            className="w-full mt-1 p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
+                            disabled={currentUser.role !== Role.Admin}
+                        >
+                            {Object.entries(branchNames).map(([key, name]) => (
+                                <option key={key} value={key}>{name}</option>
+                            ))}
+                        </select>
                     </div>
-                )}
-                <div>
-                    <label>البيع من *</label>
-                    <select name="branchSoldFrom" value={formData.branchSoldFrom} onChange={handleChange} className="w-full mt-1 p-2 border rounded dark:bg-gray-700 dark:border-gray-600">
-                        <option value="main">المخزن الرئيسي</option>
-                        <option value="branch1">فرع 1</option>
-                        <option value="branch2">فرع 2</option>
-                        <option value="branch3">فرع 3</option>
-                    </select>
                 </div>
-                <div><label>الاتجاه</label><select name="direction" value={formData.direction} onChange={handleChange} className="w-full mt-1 p-2 border rounded dark:bg-gray-700 dark:border-gray-600"><option>بيع</option><option>مرتجع</option><option>تبديل</option><option>ضمان</option></select></div>
-                <div><label>الكمية *</label><input type="number" name="quantity" value={formData.quantity} onChange={handleChange} min="1" required className="w-full mt-1 p-2 border rounded dark:bg-gray-700 dark:border-gray-600" /></div>
-                <div><label>السعر *</label><input type="number" name="unitPrice" value={formData.unitPrice} onChange={handleChange} min="0" step="0.01" required className="w-full mt-1 p-2 border rounded dark:bg-gray-700 dark:border-gray-600" /></div>
-                <div className="md:col-span-2"><label>الإجمالي</label><div className="w-full mt-1 p-3 text-lg font-bold bg-gray-100 dark:bg-gray-700 rounded text-center">{formatCurrency(totalAmount)}</div></div>
-                <div className="md:col-span-2"><label>ملاحظات</label><textarea name="notes" value={formData.notes} onChange={handleChange} rows={2} className="w-full mt-1 p-2 border rounded dark:bg-gray-700 dark:border-gray-600"></textarea></div>
+                
+                <div className="border-t pt-4 mt-4">
+                    <h4 className="font-bold mb-2">الأصناف</h4>
+                    <div className="relative mb-2">
+                        <input 
+                            type="text" 
+                            value={productSearch} 
+                            onChange={e => { setProductSearch(e.target.value); setShowSuggestions(true); }}
+                            onFocus={() => setShowSuggestions(true)}
+                            onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                            className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" 
+                            placeholder="اكتب اسم الصنف أو الكود لإضافته..."/>
+                        {filteredProducts.length > 0 && showSuggestions && (
+                            <ul className="absolute z-10 w-full bg-white dark:bg-gray-600 border dark:border-gray-500 rounded-md mt-1 max-h-60 overflow-y-auto shadow-lg">
+                                {filteredProducts.map(p => (
+                                    <li key={p.id} onMouseDown={() => handleProductSelect(p)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-500 cursor-pointer flex flex-col">
+                                        <div>{p.name} ({p.sku}) - <span className="font-semibold text-primary-dark dark:text-primary-light">الرصيد الحالي: {p.stock[branchSoldFrom]}</span></div>
+                                        <small className="text-xs text-gray-500 dark:text-gray-400">{getStockBreakdown(p)}</small>
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                    </div>
+                     <div className="space-y-2 max-h-60 overflow-y-auto">
+                        {items.map((item, index) => {
+                            const product = products.find(p => p.id === item.productId);
+                            return (
+                                <div key={item.productId} className="grid grid-cols-12 gap-2 items-center p-2 bg-gray-50 dark:bg-gray-700/50 rounded">
+                                    <div className="col-span-5">
+                                        <span className="truncate block">{item.productName}</span>
+                                        {product && <small className="text-xs text-gray-500 dark:text-gray-400 block">{getStockBreakdown(product)}</small>}
+                                    </div>
+                                    <input type="number" value={item.quantity} onChange={e => handleItemChange(index, 'quantity', Number(e.target.value))} placeholder="الكمية" className="col-span-3 p-1 border rounded dark:bg-gray-600" ref={index === items.length - 1 ? lastAddedItemRef : null} />
+                                    <input type="number" value={item.unitPrice} onChange={e => handleItemChange(index, 'unitPrice', Number(e.target.value))} placeholder="السعر" className="col-span-3 p-1 border rounded dark:bg-gray-600" step="0.01" />
+                                    <button type="button" onClick={() => handleRemoveItem(index)} className="col-span-1 text-red-500 hover:text-red-700"><i className="fas fa-trash"></i></button>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+
+                <div className="text-right font-bold text-2xl mt-4">الإجمالي: {formatCurrency(totalAmount)}</div>
+                
+                <div><label>ملاحظات</label><textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} className="w-full mt-1 p-2 border rounded dark:bg-gray-700 dark:border-gray-600"></textarea></div>
             </div>
         </Modal>
     );

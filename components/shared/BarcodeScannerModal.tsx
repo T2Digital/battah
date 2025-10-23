@@ -57,7 +57,7 @@ const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({ isOpen, onClo
                     <video ref={videoRef} className="w-full h-full object-cover" muted playsInline />
                 )}
                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="w-3/4 h-1/2 border-4 border-dashed border-red-500/70 rounded-lg" />
+                    <div className="w-3/4 h-1/2 border-4 border-dashed border-red-500 border-opacity-70 rounded-lg" />
                 </div>
             </div>
             <div className="mt-4 text-center">

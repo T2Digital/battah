@@ -1,4 +1,3 @@
-
 import React from 'react';
 // Fix: Corrected import path
 import { Product } from '../../types';
@@ -9,7 +8,7 @@ interface ActionableAlertsProps {
 
 const ActionableAlerts: React.FC<ActionableAlertsProps> = ({ lowStockProducts }) => {
     return (
-        <div className="bg-amber-50 dark:bg-amber-900/20 border-r-4 border-amber-500 p-4 rounded-lg shadow-md">
+        <div className="bg-amber-50 dark:bg-amber-900 dark:bg-opacity-20 border-r-4 border-amber-500 p-4 rounded-lg shadow-md">
             <h3 className="text-lg font-bold text-amber-800 dark:text-amber-300 flex items-center gap-2">
                 <i className="fas fa-exclamation-triangle"></i>
                 تنبيهات إدارية عاجلة

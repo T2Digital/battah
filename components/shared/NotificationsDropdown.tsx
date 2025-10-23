@@ -47,7 +47,7 @@ const NotificationsDropdown: React.FC = () => {
                                     <div 
                                         key={n.id}
                                         onClick={(e) => handleRead(e, n)}
-                                        className={`p-3 border-b dark:border-gray-700 last:border-b-0 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer ${!n.read ? 'bg-blue-50 dark:bg-blue-900/30' : ''}`}
+                                        className={`p-3 border-b dark:border-gray-700 last:border-b-0 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer ${!n.read ? 'bg-blue-50 dark:bg-blue-900 dark:bg-opacity-30' : ''}`}
                                     >
                                         <p className="text-sm">{n.message}</p>
                                         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{formatDate(n.date)}</p>

@@ -105,7 +105,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, cartItem
         >
             <div className="space-y-6">
                  {isPlacingOrder && (
-                    <div className="absolute inset-0 bg-white/70 dark:bg-gray-800/70 flex flex-col items-center justify-center z-10 rounded-2xl">
+                    <div className="absolute inset-0 bg-white bg-opacity-70 dark:bg-gray-800 dark:bg-opacity-70 flex flex-col items-center justify-center z-10 rounded-2xl">
                         <i className="fas fa-spinner fa-spin text-4xl text-primary mb-4"></i>
                         <p className="font-bold text-lg">جاري إعداد طلبك...</p>
                     </div>

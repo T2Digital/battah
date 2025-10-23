@@ -1,5 +1,3 @@
-
-
 import React, { useState, useMemo } from 'react';
 // Fix: Corrected import path
 import { Attendance as AttendanceType, Employee } from '../../types';
@@ -134,7 +132,7 @@ const Attendance: React.FC<AttendanceProps> = ({ attendance, setAttendance, empl
             <SectionHeader icon="fa-clock" title="الحضور والانصراف">
                 <button onClick={handleAdd} className="px-4 py-2 bg-primary text-white rounded-lg flex items-center gap-2 hover:bg-primary-dark transition shadow-md">
                     <i className="fas fa-plus"></i>
-                    تسجيل حضور
+                    إضافة سجل حضور
                 </button>
             </SectionHeader>
             <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-x-auto">
@@ -143,9 +141,9 @@ const Attendance: React.FC<AttendanceProps> = ({ attendance, setAttendance, empl
                         <tr>
                             <th scope="col" className="px-6 py-3">التاريخ</th>
                             <th scope="col" className="px-6 py-3">اسم الموظف</th>
-                            <th scope="col" className="px-6 py-3">وقت الحضور</th>
-                            <th scope="col" className="px-6 py-3">وقت الانصراف</th>
-                            <th scope="col" className="px-6 py-3">عدد الساعات</th>
+                            <th scope="col" className="px-6 py-3">الحضور</th>
+                            <th scope="col" className="px-6 py-3">الانصراف</th>
+                            <th scope="col" className="px-6 py-3">إجمالي الساعات</th>
                             <th scope="col" className="px-6 py-3">الإجراءات</th>
                         </tr>
                     </thead>
@@ -156,7 +154,7 @@ const Attendance: React.FC<AttendanceProps> = ({ attendance, setAttendance, empl
                                 <td className="px-6 py-4 font-medium text-gray-900 whitespace-nowrap dark:text-white">{att.employeeName}</td>
                                 <td className="px-6 py-4">{att.checkIn}</td>
                                 <td className="px-6 py-4">{att.checkOut}</td>
-                                <td className={`px-6 py-4 font-bold ${att.totalHours < 8 ? 'text-red-500' : 'text-green-500'}`}>{att.totalHours.toFixed(2)} ساعة</td>
+                                <td className="px-6 py-4 font-bold">{att.totalHours.toFixed(2)}</td>
                                 <td className="px-6 py-4 flex gap-3">
                                     <button onClick={() => handleEdit(att)} className="text-blue-500 hover:text-blue-700 text-lg"><i className="fas fa-edit"></i></button>
                                     <button onClick={() => handleDelete(att.id)} className="text-red-500 hover:text-red-700 text-lg"><i className="fas fa-trash"></i></button>

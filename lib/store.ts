@@ -1,3 +1,5 @@
+
+
 import { create } from 'zustand';
 import {
     signInWithEmailAndPassword,
@@ -35,7 +37,8 @@ import {
     Order,
     StorefrontSettings,
     Notification,
-    Role
+    Role,
+    SaleItem
 } from '../types';
 import { initialData } from './initialData'; // Assuming initialData.ts exists for seeding
 import { formatCurrency } from './utils';
@@ -483,64 +486,53 @@ const useStore = create<AppState & AppActions>((set, get) => ({
         const isAlreadyProcessed = orderToUpdate.status === 'confirmed' || orderToUpdate.status === 'shipped';
         const isNowBeingProcessed = status === 'confirmed' || status === 'shipped';
 
-        // 1. Update order status in Firestore first
         await updateDoc(doc(db, "orders", String(orderId)), { status });
 
-        // 2. Update local state for immediate UI feedback
         const updatedOrders = state.appData.orders.map(o => o.id === orderId ? { ...o, status } : o);
         let updatedAppData = { ...state.appData, orders: updatedOrders };
         set({ appData: updatedAppData });
         
-        // 3. If transitioning to a processed state for the first time, perform financial and inventory updates
         if (isNowBeingProcessed && !isAlreadyProcessed) {
             const batch = writeBatch(db);
             
-            // a. Create DailySale records
-            let newDailySales = [...state.appData.dailySales];
             let lastSaleId = (state.appData.dailySales.length > 0) ? Math.max(...state.appData.dailySales.map(s => s.id)) : 0;
             const seller = state.appData.users.find(u => u.role === Role.Admin) || state.appData.users[0];
-
-            orderToUpdate.items.forEach(item => {
-                lastSaleId++;
-                const product = state.appData.products.find(p => p.id === item.productId);
-                // FIX: Map Product's MainCategory to DailySale's itemType, as they are not identical.
-                // For example, 'زيوت وشحومات' in MainCategory maps to 'زيوت' in itemType.
-                let itemTypeForSale: DailySale['itemType'] = 'أخرى';
+            
+            const saleItems: SaleItem[] = orderToUpdate.items.map(item => {
+                const product = state.appData!.products.find(p => p.id === item.productId);
+                let itemTypeForSale: SaleItem['itemType'] = 'أخرى';
                 if (product) {
-                    switch (product.mainCategory) {
-                        case 'قطع غيار':
-                            itemTypeForSale = 'قطع غيار';
-                            break;
-                        case 'كماليات':
-                            itemTypeForSale = 'كماليات';
-                            break;
-                        case 'زيوت وشحومات':
-                            itemTypeForSale = 'زيوت';
-                            break;
-                        case 'بطاريات':
-                            itemTypeForSale = 'بطاريات';
-                            break;
-                        // 'إطارات' is not in DailySale['itemType'], so it will fall through to default.
-                        default:
-                            itemTypeForSale = 'أخرى';
-                            break;
+                     switch (product.mainCategory) {
+                        case 'قطع غيار': itemTypeForSale = 'قطع غيار'; break;
+                        case 'كماليات': itemTypeForSale = 'كماليات'; break;
+                        case 'زيوت وشحومات': itemTypeForSale = 'زيوت'; break;
+                        case 'بطاريات': itemTypeForSale = 'بطاريات'; break;
+                        default: itemTypeForSale = 'أخرى'; break;
                     }
                 }
-
-                const newSale: DailySale = {
-                    id: lastSaleId, date: orderToUpdate.date, invoiceNumber: `ONLINE-${orderToUpdate.id}`,
-                    sellerId: seller.id, sellerName: seller.name, source: 'أونلاين', productId: item.productId,
-                    branchSoldFrom: 'main', // Assume online orders are from main branch
-                    itemType: itemTypeForSale, 
-                    direction: 'بيع', quantity: item.quantity,
-                    unitPrice: item.unitPrice, totalAmount: item.quantity * item.unitPrice,
+                return {
+                    productId: item.productId,
+                    quantity: item.quantity,
+                    unitPrice: item.unitPrice,
+                    itemType: itemTypeForSale,
                 };
-                newDailySales.push(newSale);
-                batch.set(doc(db, "dailySales", String(newSale.id)), newSale);
             });
-            updatedAppData.dailySales = newDailySales;
 
-            // b. Create Treasury Transaction
+            const newSale: DailySale = {
+                id: ++lastSaleId,
+                date: orderToUpdate.date,
+                invoiceNumber: `ONLINE-${orderToUpdate.id}`,
+                sellerId: seller.id,
+                sellerName: seller.name,
+                source: 'أونلاين',
+                branchSoldFrom: 'main',
+                direction: 'بيع',
+                items: saleItems,
+                totalAmount: orderToUpdate.totalAmount,
+            };
+            batch.set(doc(db, "dailySales", String(newSale.id)), newSale);
+            updatedAppData.dailySales = [...updatedAppData.dailySales, newSale];
+            
             let lastTreasuryId = (state.appData.treasury.length > 0) ? Math.max(...state.appData.treasury.map(t => t.id)) : 0;
             const newTransaction: TreasuryTransaction = {
                 id: ++lastTreasuryId, date: orderToUpdate.date, type: 'إيراد مبيعات',
@@ -550,7 +542,6 @@ const useStore = create<AppState & AppActions>((set, get) => ({
             batch.set(doc(db, "treasury", String(newTransaction.id)), newTransaction);
             updatedAppData.treasury = [...state.appData.treasury, newTransaction];
             
-            // c. Decrement stock
             let productUpdates = new Map<number, number>();
             orderToUpdate.items.forEach(item => {
                 productUpdates.set(item.productId, (productUpdates.get(item.productId) || 0) + item.quantity);
@@ -567,9 +558,8 @@ const useStore = create<AppState & AppActions>((set, get) => ({
             });
             updatedAppData.products = updatedProducts;
             
-            // Commit all changes
             await batch.commit();
-            set({ appData: updatedAppData }); // Update state again with all changes
+            set({ appData: updatedAppData });
         }
     },
     

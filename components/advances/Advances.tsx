@@ -154,15 +154,15 @@ const Advances: React.FC<AdvancesProps> = ({ advances, addAdvance, updateAdvance
                     </thead>
                     <tbody>
                         {advancesWithDetails.map(adv => (
-                            <tr key={adv.id} className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
+                            <tr key={adv.id} className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 even:bg-gray-50 dark:even:bg-gray-800 dark:even:bg-opacity-50 hover:bg-gray-100 dark:hover:bg-gray-700">
                                 <td className="px-6 py-4">{formatDate(adv.date)}</td>
                                 <td className="px-6 py-4 font-medium text-gray-900 whitespace-nowrap dark:text-white">{adv.employeeName}</td>
                                 <td className="px-6 py-4">{formatCurrency(adv.amount)}</td>
                                 <td className={`px-6 py-4 font-bold ${adv.remaining > 0 ? 'text-amber-500' : 'text-green-500'}`}>{formatCurrency(adv.remaining)}</td>
                                 <td className="px-6 py-4">{adv.notes || '-'}</td>
                                 <td className="px-6 py-4 flex gap-3">
-                                    <button onClick={() => handleEdit(adv)} className="text-blue-500 hover:text-blue-700 text-lg"><i className="fas fa-edit"></i></button>
-                                    <button onClick={() => handleDelete(adv.id)} className="text-red-500 hover:text-red-700 text-lg"><i className="fas fa-trash"></i></button>
+                                    <button onClick={() => handleEdit(adv)} className="text-blue-500 hover:text-blue-700 text-lg" aria-label={`تعديل سلفة ${adv.employeeName}`}><i className="fas fa-edit"></i></button>
+                                    <button onClick={() => handleDelete(adv.id)} className="text-red-500 hover:text-red-700 text-lg" aria-label={`حذف سلفة ${adv.employeeName}`}><i className="fas fa-trash"></i></button>
                                 </td>
                             </tr>
                         ))}

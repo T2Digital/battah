@@ -1,4 +1,5 @@
 
+
 export type Branch = 'main' | 'branch1' | 'branch2' | 'branch3';
 
 export enum Role {
@@ -52,6 +53,13 @@ export interface Product {
     compatibility?: string[];
 }
 
+export interface SaleItem {
+    productId: number;
+    quantity: number;
+    unitPrice: number;
+    itemType: 'قطع غيار' | 'بطاريات' | 'زيوت' | 'كماليات' | 'خدمة' | 'أخرى';
+}
+
 export interface DailySale {
     id: number;
     date: string;
@@ -59,15 +67,21 @@ export interface DailySale {
     sellerId: number;
     sellerName: string;
     source: 'المحل' | 'أونلاين';
-    productId: number;
     branchSoldFrom: Branch;
-    itemType: 'قطع غيار' | 'بطاريات' | 'زيوت' | 'كماليات' | 'خدمة' | 'أخرى';
     direction: 'بيع' | 'مرتجع' | 'تبديل' | 'ضمان';
-    quantity: number;
-    unitPrice: number;
     totalAmount: number;
     notes?: string;
+
+    // New multi-item structure (optional for backward compatibility)
+    items?: SaleItem[];
+
+    // Legacy single-item fields for backward compatibility
+    productId?: number;
+    quantity?: number;
+    unitPrice?: number;
+    itemType?: 'قطع غيار' | 'بطاريات' | 'زيوت' | 'كماليات' | 'خدمة' | 'أخرى';
 }
+
 
 export interface Employee {
     id: number;

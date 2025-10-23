@@ -20,7 +20,8 @@ const StoreProductModal: React.FC<StoreProductModalProps> = ({ isOpen, onClose, 
 
     if (!isOpen) return null;
 
-    const totalStock = Object.values(product.stock).reduce((a: number, b: number) => a + b, 0);
+    // FIX: Replaced reduce with a direct sum to ensure 'totalStock' is a number and to align with other components.
+    const totalStock = product.stock.main + product.stock.branch1 + product.stock.branch2 + product.stock.branch3;
 
     const DetailItem: React.FC<{ label: string; value: string | undefined }> = ({ label, value }) => (
         value ? <div className="text-sm"><span className="font-semibold text-gray-600 dark:text-gray-400">{label}:</span> {value}</div> : null
@@ -31,7 +32,7 @@ const StoreProductModal: React.FC<StoreProductModalProps> = ({ isOpen, onClose, 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="flex flex-col gap-4">
                     <img src={product.images[0] || 'https://via.placeholder.com/300'} alt={product.name} className="w-full h-auto object-contain rounded-lg" />
-                    <div className="space-y-2 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                    <div className="space-y-2 p-3 bg-gray-50 dark:bg-gray-700 dark:bg-opacity-50 rounded-lg">
                         <DetailItem label="الكود (SKU)" value={product.sku} />
                         <DetailItem label="الفئة الرئيسية" value={product.mainCategory} />
                         <DetailItem label="الفئة الفرعية" value={product.category} />

@@ -8,6 +8,9 @@ import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import LoginModal from './components/LoginModal';
 import Dashboard from './components/dashboard/Dashboard';
+import SellerDashboard from './components/dashboard/SellerDashboard';
+import BranchManagerDashboard from './components/dashboard/BranchManagerDashboard';
+import AccountantDashboard from './components/dashboard/AccountantDashboard';
 import Treasury from './components/treasury/Treasury';
 import DailySales from './components/sales/DailySales';
 import Inventory from './components/inventory/Inventory';
@@ -22,7 +25,7 @@ import DailyReview from './components/daily-review/DailyReview';
 import Reports from './components/reports/Reports';
 import InventoryReports from './components/reports/InventoryReports';
 import Storefront from './components/store/Storefront';
-import SeedData from './lib/seed';
+import SeedData from './lib/seed.tsx';
 import Orders from './components/orders/Orders';
 import AdminAIChatbot from './components/admin/AdminAIChatbot';
 
@@ -107,15 +110,29 @@ const App: React.FC = () => {
         if (!appData || !currentUser) return null;
 
         const {
-            products, dailySales, employees, advances, attendance, payroll, suppliers,
-            purchaseOrders, payments, expenses, treasury, dailyReview
+            products = [], dailySales = [], employees = [], advances = [], 
+            attendance = [], payroll = [], suppliers = [],
+            purchaseOrders = [], payments = [], expenses = [], 
+            treasury = [], dailyReview = []
         } = appData;
 
         if (activeReport === 'inventory') {
             return <InventoryReports setActiveReport={setActiveReport} />;
         }
         switch (activeSection) {
-            case Section.Dashboard: return <Dashboard />;
+            case Section.Dashboard:
+                switch (currentUser.role) {
+                    case Role.Admin:
+                        return <Dashboard />;
+                    case Role.Seller:
+                        return <SellerDashboard currentUser={currentUser} dailySales={dailySales} setActiveSection={setActiveSection} />;
+                    case Role.BranchManager:
+                        return <BranchManagerDashboard currentUser={currentUser} appData={appData} />;
+                    case Role.Accountant:
+                        return <AccountantDashboard appData={appData} />;
+                    default:
+                        return <Dashboard />;
+                }
             case Section.Treasury: return <Treasury treasury={treasury} />;
             case Section.DailySales: return <DailySales dailySales={dailySales} setDailySales={setDailySales} products={products} setProducts={setProducts} addTreasuryTransaction={addTreasuryTransaction} currentUser={currentUser} />;
             case Section.StoreManagement: return <Inventory />;
@@ -170,10 +187,10 @@ const App: React.FC = () => {
                 setActiveSection={setActiveSection}
                 hasPermission={hasPermission}
             />
-            <main className={`transition-all duration-300 ease-in-out pt-24 pb-8 px-4 sm:px-8 ${isSidebarOpen ? 'lg:mr-72' : 'lg:mr-20'}`}>
+            <main className={`transition-all duration-300 ease-in-out pt-24 pb-8 px-4 sm:px-8 ${isSidebarOpen ? 'mr-64 sm:mr-72' : 'mr-20'}`}>
                 {renderAdminContent()}
             </main>
-            <AdminAIChatbot appData={appData} />
+            {currentUser?.role === Role.Admin && <AdminAIChatbot appData={appData} />}
         </div>
     );
 };

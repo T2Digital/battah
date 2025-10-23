@@ -1,4 +1,5 @@
 
+
 import React from 'react';
 import { Section } from '../types';
 
@@ -50,7 +51,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, activeSection, setActiveSecti
     return (
         <aside
             className={`fixed top-0 right-0 h-full bg-white dark:bg-gray-800 shadow-lg z-30 transition-all duration-300 ease-in-out ${
-                isOpen ? 'w-72' : 'w-20'
+                isOpen ? 'w-64 sm:w-72' : 'w-20'
             }`}
         >
             <div className="flex items-center justify-center h-20 border-b dark:border-gray-700">

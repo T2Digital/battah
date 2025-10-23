@@ -1,4 +1,3 @@
-
 import React from 'react';
 
 interface StoreHeaderProps {
@@ -9,7 +8,7 @@ interface StoreHeaderProps {
 
 const StoreHeader: React.FC<StoreHeaderProps> = ({ onCartClick, cartItemCount, setViewMode }) => {
     return (
-        <header className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm shadow-md sticky top-0 z-30">
+        <header className="bg-white bg-opacity-80 dark:bg-gray-800 dark:bg-opacity-80 backdrop-blur-sm shadow-md sticky top-0 z-30">
             <div className="container mx-auto px-4 sm:px-6 py-4 flex justify-between items-center">
                 <div className="flex items-center gap-3">
                     <i className="fas fa-car-battery text-3xl text-primary-dark"></i>

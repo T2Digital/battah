@@ -1,4 +1,23 @@
 
+
+import { DailySale, SaleItem } from '../types';
+
+export const normalizeSaleItems = (sale: DailySale): SaleItem[] => {
+    if (sale.items && Array.isArray(sale.items)) {
+        return sale.items;
+    }
+    if (sale.productId && sale.quantity && sale.unitPrice && sale.itemType) {
+        return [{
+            productId: sale.productId,
+            quantity: sale.quantity,
+            unitPrice: sale.unitPrice,
+            itemType: sale.itemType,
+        }];
+    }
+    return [];
+};
+
+
 export const formatCurrency = (amount: number | null | undefined): string => {
     if (amount === null || amount === undefined || isNaN(amount)) {
         return '0.00 ج.م';

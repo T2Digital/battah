@@ -1,4 +1,5 @@
 
+
 import React, { useMemo, useState, useCallback } from 'react';
 import { GoogleGenAI } from "@google/genai";
 import StatCard from './StatCard';
@@ -6,9 +7,9 @@ import SalesChart from './SalesChart';
 import ExpensesChart from './ExpensesChart';
 import RecentActivities from './RecentActivities';
 import ActionableAlerts from './ActionableAlerts';
-// Fix: Corrected import paths
 import { AppData, User, DailySale, Product, Role } from '../../types';
 import useStore from '../../lib/store';
+import { normalizeSaleItems } from '../../lib/utils';
 
 const AIInsights: React.FC<{ profit: number; balance: number }> = ({ profit, balance }) => {
     const [insight, setInsight] = useState('');
@@ -24,8 +25,8 @@ const AIInsights: React.FC<{ profit: number; balance: number }> = ({ profit, bal
         try {
             const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
             const todayStr = new Date().toISOString().split('T')[0];
-            const todaySalesCount = appData.dailySales.filter(s => s.date === todayStr).length;
-            const todayExpenses = appData.expenses
+            const todaySalesCount = (appData.dailySales || []).filter(s => s.date === todayStr).length;
+            const todayExpenses = (appData.expenses || [])
                 .filter(e => e.date === todayStr)
                 .reduce((sum, e) => sum + e.amount, 0);
 
@@ -34,9 +35,9 @@ const AIInsights: React.FC<{ profit: number; balance: number }> = ({ profit, bal
 
                 - صافي الربح اليومي: ${profit.toFixed(2)} جنيه مصري
                 - رصيد الخزينة الحالي: ${balance.toFixed(2)} جنيه مصري
-                - عدد المبيعات اليومية: ${todaySalesCount}
+                - عدد فواتير المبيعات اليومية: ${todaySalesCount}
                 - إجمالي المصروفات اليومية: ${todayExpenses.toFixed(2)} جنيه مصري
-                - عدد الأصناف التي وصلت لحد الطلب: ${appData.products.filter(p => (p.stock.main + p.stock.branch1 + p.stock.branch2 + p.stock.branch3) <= (p.reorderPoint || 0)).length}
+                - عدد الأصناف التي وصلت لحد الطلب: ${(appData.products || []).filter(p => (p.stock.main + p.stock.branch1 + p.stock.branch2 + p.stock.branch3) <= (p.reorderPoint || 0)).length}
             `;
             
             const response = await ai.models.generateContent({
@@ -81,32 +82,44 @@ const AIInsights: React.FC<{ profit: number; balance: number }> = ({ profit, bal
 const Dashboard: React.FC = () => {
     const { appData, currentUser } = useStore();
     
-    const { employees, advances, expenses, dailyReview, treasury, dailySales, products, users } = appData!;
+    const { 
+        employees = [], 
+        advances = [], 
+        expenses = [], 
+        dailyReview = [], 
+        treasury = [], 
+        dailySales = [], 
+        products = [], 
+        users = [] 
+    } = appData || {};
 
     const todayStr = new Date().toISOString().split('T')[0];
 
     const { currentTreasuryBalance, dailyNetProfit, sellerTodaySales } = useMemo(() => {
         let balance = 0;
-        treasury.forEach(t => {
+        (treasury || []).forEach(t => {
             balance = balance + t.amountIn - t.amountOut;
         });
 
         const salesToConsider = currentUser?.role === Role.BranchManager
-            ? dailySales.filter(s => users.find(u => u.id === s.sellerId)?.branch === currentUser.branch)
-            : dailySales;
+            ? (dailySales || []).filter(s => (users || []).find(u => u.id === s.sellerId)?.branch === currentUser.branch)
+            : (dailySales || []);
             
         const todaySales = salesToConsider.filter(s => s.date === todayStr);
+        
         let profit = 0;
         todaySales.forEach(sale => {
-            const product = products.find(p => p.id === sale.productId);
-            if (product) {
-                const cost = product.purchasePrice * sale.quantity;
-                const revenue = sale.totalAmount;
-                if (sale.direction === 'بيع') {
-                    profit += (revenue - cost);
-                } else if (sale.direction === 'مرتجع') {
-                    profit -= (revenue - cost);
-                }
+            const saleRevenue = sale.totalAmount;
+            const items = normalizeSaleItems(sale);
+            const saleCost = items.reduce((sum, item) => {
+                const product = (products || []).find(p => p.id === item.productId);
+                return sum + (product ? product.purchasePrice * item.quantity : 0);
+            }, 0);
+
+            if (sale.direction === 'بيع') {
+                profit += (saleRevenue - saleCost);
+            } else if (sale.direction === 'مرتجع') {
+                profit -= (saleRevenue - saleCost);
             }
         });
         
@@ -121,7 +134,7 @@ const Dashboard: React.FC = () => {
     }, [treasury, dailySales, products, todayStr, currentUser, users]);
 
     const lowStockProducts = useMemo(() => {
-        return products.filter(p => {
+        return (products || []).filter(p => {
             const totalStock = p.stock.main + p.stock.branch1 + p.stock.branch2 + p.stock.branch3;
             return totalStock <= (p.reorderPoint || 0);
         });
@@ -133,7 +146,7 @@ const Dashboard: React.FC = () => {
              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 <StatCard icon="fa-wallet" title="رصيد الخزينة الحالي" value={currentTreasuryBalance} isCurrency />
                 <StatCard icon="fa-chart-pie" title={currentUser?.role === Role.BranchManager ? `صافي ربح فرعك اليوم` : `صافي الربح اليومي`} value={dailyNetProfit} isCurrency />
-                <StatCard icon="fa-users" title="إجمالي الموظفين" value={employees.length.toString()} />
+                <StatCard icon="fa-users" title="إجمالي الموظفين" value={(employees || []).length.toString()} />
                 {sellerTodaySales !== null && (
                      <StatCard icon="fa-user-tag" title="مبيعاتك اليوم" value={sellerTodaySales} isCurrency />
                 )}
@@ -147,19 +160,19 @@ const Dashboard: React.FC = () => {
                 <div className="lg:col-span-3 bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg">
                     <h3 className="text-xl font-bold mb-4 text-gray-800 dark:text-white">المبيعات اليومية - آخر أسبوع</h3>
                     <div className="h-80">
-                        <SalesChart dailyReview={dailyReview} />
+                        <SalesChart dailyReview={dailyReview || []} />
                     </div>
                 </div>
                 <div className="lg:col-span-2 bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg">
                      <h3 className="text-xl font-bold mb-4 text-gray-800 dark:text-white">توزيع المصاريف حسب النوع</h3>
                     <div className="h-80">
-                       <ExpensesChart expenses={expenses} />
+                       <ExpensesChart expenses={expenses || []} />
                     </div>
                 </div>
             </div>
 
              <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg">
-                <RecentActivities employees={employees} advances={advances} expenses={expenses} />
+                <RecentActivities employees={employees || []} advances={advances || []} expenses={expenses || []} />
             </div>
         </div>
     );

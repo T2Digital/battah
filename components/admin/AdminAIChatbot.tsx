@@ -22,28 +22,29 @@ const AdminAIChatbot: React.FC<AdminAIChatbotProps> = ({ appData }) => {
     const createDataSummaryForAI = () => {
         // Create a detailed, yet manageable, summary of the entire app data for the AI context.
         return {
-            products: appData.products.map(p => ({
+            products: (appData.products || []).map(p => ({
                 name: p.name,
                 sku: p.sku,
                 mainCategory: p.mainCategory,
                 brand: p.brand,
                 sellingPrice: p.sellingPrice,
-                totalStock: Object.values(p.stock).reduce((a, b) => a + b, 0),
+                // FIX: Replaced reduce with a direct sum to avoid type inference issues and ensure the result is a number.
+                totalStock: p.stock.main + p.stock.branch1 + p.stock.branch2 + p.stock.branch3,
             })),
             dailySalesSummary: {
-                totalSalesToday: appData.dailySales
+                totalSalesToday: (appData.dailySales || [])
                     .filter(s => s.date === new Date().toISOString().split('T')[0])
                     .reduce((sum, s) => sum + (s.direction === 'بيع' ? s.totalAmount : -s.totalAmount), 0),
-                salesCountToday: appData.dailySales.filter(s => s.date === new Date().toISOString().split('T')[0]).length,
+                salesCountToday: (appData.dailySales || []).filter(s => s.date === new Date().toISOString().split('T')[0]).length,
             },
             expensesSummary: {
-                totalExpenses: appData.expenses.reduce((sum, e) => sum + e.amount, 0),
-                expenseCount: appData.expenses.length,
+                totalExpenses: (appData.expenses || []).reduce((sum, e) => sum + e.amount, 0),
+                expenseCount: (appData.expenses || []).length,
             },
-            employees: appData.employees.map(e => ({ name: e.name, position: e.position })),
+            employees: (appData.employees || []).map(e => ({ name: e.name, position: e.position })),
             ordersSummary: {
-                totalOrders: appData.orders.length,
-                pendingOrders: appData.orders.filter(o => o.status === 'pending').length,
+                totalOrders: (appData.orders || []).length,
+                pendingOrders: (appData.orders || []).filter(o => o.status === 'pending').length,
             },
         };
     };
