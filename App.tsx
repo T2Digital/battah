@@ -25,7 +25,7 @@ import DailyReview from './components/daily-review/DailyReview';
 import Reports from './components/reports/Reports';
 import InventoryReports from './components/reports/InventoryReports';
 import Storefront from './components/store/Storefront';
-import SeedData from './lib/seed.tsx';
+import SeedData from './lib/seed.ts';
 import Orders from './components/orders/Orders';
 import AdminAIChatbot from './components/admin/AdminAIChatbot';
 
