@@ -13,7 +13,6 @@ interface PurchaseOrderModalProps {
     products: Product[];
 }
 
-// FIX: Define a type for editable items to allow empty strings for better UX
 type EditablePurchaseOrderItem = Omit<PurchaseOrderItem, 'quantity' | 'purchasePrice'> & { id: number; quantity: number | ''; purchasePrice: number | '' };
 
 const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, onClose, onSave, orderToEdit, suppliers, products }) => {
@@ -99,12 +98,10 @@ const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, onClose
             alert('يجب إضافة صنف واحد على الأقل.');
             return;
         }
-        // FIX: Update validation to handle empty strings
         if (formData.items.some(item => item.quantity === '' || Number(item.quantity) <= 0 || item.purchasePrice === '' || Number(item.purchasePrice) < 0)) {
             alert('يجب أن تكون كمية وسعر كل صنف أرقاماً صالحة، وأن تكون الكمية أكبر من صفر.');
             return;
         }
-        // FIX: Convert items back to numbers before saving
         const finalOrderData = {
             ...formData,
             totalAmount,
@@ -151,7 +148,6 @@ const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, onClose
                                 <span className="col-span-5 truncate">{getProductName(item.productId)}</span>
                                 <input 
                                     type="number" 
-                                    // FIX: Simplify value prop; state now supports empty string
                                     value={item.quantity} 
                                     onChange={e => handleItemChange(index, 'quantity', e.target.value)} 
                                     placeholder="الكمية" 
@@ -160,7 +156,6 @@ const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, onClose
                                 />
                                 <input 
                                     type="number" 
-                                    // FIX: Simplify value prop; state now supports empty string
                                     value={item.purchasePrice} 
                                     onChange={e => handleItemChange(index, 'purchasePrice', e.target.value)} 
                                     placeholder="السعر" 

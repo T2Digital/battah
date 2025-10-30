@@ -28,7 +28,6 @@ const AttendanceModal: React.FC<{
 
     React.useEffect(() => {
         if (recordToEdit) {
-            // FIX: Ensure 'notes' is a string and provide fallbacks for optional checkIn/checkOut to match form state type.
             setFormData({ 
                 date: recordToEdit.date,
                 employeeId: recordToEdit.employeeId,

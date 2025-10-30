@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Payroll as PayrollType, Employee } from '../../types';
 import SectionHeader from '../shared/SectionHeader';
 import Modal from '../shared/Modal';
+import ConfirmationModal from '../shared/ConfirmationModal';
 import { formatDate, formatCurrency } from '../../lib/utils';
 
 interface PayrollProps {
@@ -96,6 +97,8 @@ const PayrollModal: React.FC<{
 const Payroll: React.FC<PayrollProps> = ({ payroll, addPayroll, updatePayroll, deletePayroll, employees }) => {
     const [isModalOpen, setModalOpen] = useState(false);
     const [recordToEdit, setRecordToEdit] = useState<PayrollType | null>(null);
+    const [recordToDelete, setRecordToDelete] = useState<PayrollType | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     const getEmployeeName = (id: number) => employees.find(e => e.id === id)?.name || 'غير معروف';
 
@@ -109,9 +112,17 @@ const Payroll: React.FC<PayrollProps> = ({ payroll, addPayroll, updatePayroll, d
         setModalOpen(true);
     };
 
-    const handleDelete = (id: number) => {
-        if (window.confirm('هل أنت متأكد من حذف هذا السجل؟')) {
-            deletePayroll(id);
+    const confirmDelete = async () => {
+        if (!recordToDelete) return;
+        setIsDeleting(true);
+        try {
+            await deletePayroll(recordToDelete.id);
+            setRecordToDelete(null);
+        } catch (error) {
+            console.error("Failed to delete payroll:", error);
+            alert(`فشل حذف الراتب: ${error instanceof Error ? error.message : String(error)}`);
+        } finally {
+            setIsDeleting(false);
         }
     };
     
@@ -162,7 +173,9 @@ const Payroll: React.FC<PayrollProps> = ({ payroll, addPayroll, updatePayroll, d
                                 <td className={`px-6 py-4 font-bold ${p.remaining > 0 ? 'text-amber-500' : 'text-green-500'}`}>{formatCurrency(p.remaining)}</td>
                                 <td className="px-6 py-4 flex gap-3">
                                     <button onClick={() => handleEdit(p)} className="text-blue-500 hover:text-blue-700 text-lg"><i className="fas fa-edit"></i></button>
-                                    <button onClick={() => handleDelete(p.id)} className="text-red-500 hover:text-red-700 text-lg"><i className="fas fa-trash"></i></button>
+                                    <button onClick={() => setRecordToDelete(p)} className="text-red-500 hover:text-red-700 text-lg w-6 text-center">
+                                        <i className="fas fa-trash"></i>
+                                    </button>
                                 </td>
                             </tr>
                         ))}
@@ -177,6 +190,17 @@ const Payroll: React.FC<PayrollProps> = ({ payroll, addPayroll, updatePayroll, d
                 recordToEdit={recordToEdit}
                 employees={employees}
             />
+
+            {recordToDelete && (
+                <ConfirmationModal
+                    isOpen={!!recordToDelete}
+                    onClose={() => setRecordToDelete(null)}
+                    onConfirm={confirmDelete}
+                    title="تأكيد الحذف"
+                    message={`هل أنت متأكد من حذف سجل راتب الموظف "${getEmployeeName(recordToDelete.employeeId)}؟"`}
+                    isLoading={isDeleting}
+                />
+            )}
         </div>
     );
 };

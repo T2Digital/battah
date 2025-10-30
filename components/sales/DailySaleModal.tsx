@@ -79,6 +79,19 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
         }
     }, [items.length]);
 
+    // BUG FIX: Update item stock info when the selling branch changes
+    useEffect(() => {
+        setItems(prevItems =>
+            prevItems.map(item => {
+                const product = products.find(p => p.id === item.productId);
+                return {
+                    ...item,
+                    stock: product ? product.stock[branchSoldFrom] : 0,
+                };
+            })
+        );
+    }, [branchSoldFrom, products]);
+
     const totalAmount = useMemo(() => {
         return items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
     }, [items]);

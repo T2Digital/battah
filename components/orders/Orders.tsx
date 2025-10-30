@@ -1,10 +1,10 @@
-
 import React, { useMemo, useState } from 'react';
-import { Order } from '../../types';
+import { Order, Role } from '../../types';
 import SectionHeader from '../shared/SectionHeader';
 import { formatDate, formatCurrency } from '../../lib/utils';
 import useStore from '../../lib/store';
 import Modal from '../shared/Modal';
+import ConfirmationModal from '../shared/ConfirmationModal';
 
 const OrderDetailsModal: React.FC<{
     order: Order | null;
@@ -56,14 +56,21 @@ const OrderDetailsModal: React.FC<{
 
 
 const Orders: React.FC = () => {
-    const { orders, updateOrderStatus } = useStore(state => ({
+    const { orders, updateOrderStatus, deleteOrder } = useStore(state => ({
         orders: state.appData?.orders || [],
         updateOrderStatus: state.updateOrderStatus,
+        deleteOrder: state.deleteOrder,
     }));
     const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+    const [orderToDelete, setOrderToDelete] = useState<Order | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     const sortedOrders = useMemo(() => {
-        return [...orders].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        return [...orders].sort((a, b) => {
+            if (isNaN(a.id) && !isNaN(b.id)) return -1;
+            if (!isNaN(a.id) && isNaN(b.id)) return 1;
+            return new Date(b.date).getTime() - new Date(a.date).getTime();
+        });
     }, [orders]);
 
     const statusMap: Record<Order['status'], { text: string; color: string }> = {
@@ -75,6 +82,36 @@ const Orders: React.FC = () => {
 
     const handleStatusChange = async (orderId: number, newStatus: Order['status']) => {
         await updateOrderStatus(orderId, newStatus);
+    };
+
+    const handleDeleteClick = (order: Order) => {
+        if (isNaN(order.id)) {
+            alert("هذا الطلب تالف ولا يمكن حذفه بالطريقة العادية. يرجى حذفه يدوياً من قاعدة بيانات Firebase.");
+            return;
+        }
+        setOrderToDelete(order);
+    };
+
+    const confirmDelete = async () => {
+        if (!orderToDelete) return;
+        setIsDeleting(true);
+        try {
+            await deleteOrder(orderToDelete.id);
+            setOrderToDelete(null);
+        } catch (error) {
+            console.error("Failed to delete order:", error);
+            alert(`حدث خطأ أثناء حذف الطلب: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
+    const getDeleteWarningMessage = (order: Order | null): string => {
+        if (!order) return '';
+        if (['confirmed', 'shipped'].includes(order.status)) {
+            return 'هذا الطلب تم تأكيده بالفعل. هل أنت متأكد من حذفه؟ سيتم عكس جميع العمليات المرتبطة به (فاتورة البيع، حركة الخزينة، والمخزون).';
+        }
+        return 'هل أنت متأكد من حذف هذا الطلب؟';
     };
 
     return (
@@ -95,9 +132,9 @@ const Orders: React.FC = () => {
                         </tr>
                     </thead>
                     <tbody>
-                        {sortedOrders.map(order => (
-                            <tr key={order.id} className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
-                                <td className="px-6 py-4 font-bold">#{order.id}</td>
+                        {sortedOrders.map((order, index) => (
+                            <tr key={order.id || `corrupted-${index}`} className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
+                                <td className={`px-6 py-4 font-bold ${isNaN(order.id) ? 'text-red-500' : ''}`}>#{isNaN(order.id) ? 'NaN' : order.id}</td>
                                 <td className="px-6 py-4">{formatDate(order.date)}</td>
                                 <td className="px-6 py-4 font-medium text-gray-900 dark:text-white">{order.customerName}</td>
                                 <td className="px-6 py-4">{formatCurrency(order.totalAmount)}</td>
@@ -107,6 +144,7 @@ const Orders: React.FC = () => {
                                         value={order.status}
                                         onChange={(e) => handleStatusChange(order.id, e.target.value as Order['status'])}
                                         className={`p-1 rounded text-xs border-none ${statusMap[order.status].color}`}
+                                        disabled={isNaN(order.id)}
                                     >
                                         <option value="pending">معلق</option>
                                         <option value="confirmed">مؤكد</option>
@@ -121,6 +159,13 @@ const Orders: React.FC = () => {
                                      {order.paymentProofUrl && <a href={order.paymentProofUrl} target="_blank" rel="noopener noreferrer" className="text-green-500 hover:text-green-700 text-lg" title="عرض إيصال الدفع">
                                         <i className="fas fa-file-invoice-dollar"></i>
                                     </a>}
+                                    <button 
+                                        onClick={() => handleDeleteClick(order)} 
+                                        className="text-red-500 hover:text-red-700 text-lg w-6 text-center" 
+                                        title="حذف الطلب"
+                                    >
+                                        <i className="fas fa-trash"></i>
+                                    </button>
                                 </td>
                             </tr>
                         ))}
@@ -133,6 +178,17 @@ const Orders: React.FC = () => {
                 onClose={() => setSelectedOrder(null)}
                 order={selectedOrder}
             />
+
+            {orderToDelete && (
+                <ConfirmationModal
+                    isOpen={!!orderToDelete}
+                    onClose={() => setOrderToDelete(null)}
+                    onConfirm={confirmDelete}
+                    title="تأكيد حذف الطلب"
+                    message={getDeleteWarningMessage(orderToDelete)}
+                    isLoading={isDeleting}
+                />
+            )}
         </div>
     );
 };

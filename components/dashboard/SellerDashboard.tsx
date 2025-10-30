@@ -1,14 +1,15 @@
 import React, { useMemo } from 'react';
 import { User, DailySale, Section } from '../../types';
 import StatCard from './StatCard';
+import useStore from '../../lib/store';
 
 interface SellerDashboardProps {
     currentUser: User;
-    dailySales: DailySale[];
     setActiveSection: (section: Section) => void;
 }
 
-const SellerDashboard: React.FC<SellerDashboardProps> = ({ currentUser, dailySales, setActiveSection }) => {
+const SellerDashboard: React.FC<SellerDashboardProps> = ({ currentUser, setActiveSection }) => {
+    const dailySales = useStore(state => state.appData?.dailySales || []);
     const todayStr = new Date().toISOString().split('T')[0];
 
     const { todaySalesTotal, todayInvoicesCount } = useMemo(() => {

@@ -1,13 +1,13 @@
 import React, { useState, useMemo } from 'react';
-// Fix: Corrected import path
 import { Supplier, Payment, PurchaseOrder } from '../../types';
 import SectionHeader from '../shared/SectionHeader';
 import Modal from '../shared/Modal';
+import ConfirmationModal from '../shared/ConfirmationModal';
 import { formatDate, formatCurrency } from '../../lib/utils';
+import useStore from '../../lib/store';
 
 interface SuppliersProps {
     suppliers: Supplier[];
-    setSuppliers: (suppliers: Supplier[]) => void;
     payments: Payment[];
     addPayment: (payment: Omit<Payment, 'id'>) => Promise<void>;
     updatePayment: (paymentId: number, updates: Partial<Payment>) => Promise<void>;
@@ -58,7 +58,6 @@ const PaymentModal: React.FC<{
     
     React.useEffect(() => {
         if (paymentToEdit) {
-            // FIX: Explicitly set properties to handle optional `purchaseOrderId` and ensure type conformity.
             setFormData({
                 date: paymentToEdit.date,
                 supplierId: paymentToEdit.supplierId,
@@ -124,30 +123,40 @@ const PaymentModal: React.FC<{
 };
 
 
-const Suppliers: React.FC<SuppliersProps> = ({ suppliers, setSuppliers, payments, addPayment, updatePayment, deletePayment, purchaseOrders }) => {
+const Suppliers: React.FC<SuppliersProps> = ({ suppliers, payments, addPayment, updatePayment, deletePayment, purchaseOrders }) => {
+    const { addSupplier, updateSupplier, deleteSupplier } = useStore();
     const [activeTab, setActiveTab] = useState<'suppliers' | 'payments'>('suppliers');
     
     const [isSupplierModalOpen, setSupplierModalOpen] = useState(false);
     const [supplierToEdit, setSupplierToEdit] = useState<Supplier | null>(null);
+    const [supplierToDelete, setSupplierToDelete] = useState<Supplier | null>(null);
 
     const [isPaymentModalOpen, setPaymentModalOpen] = useState(false);
     const [paymentToEdit, setPaymentToEdit] = useState<Payment | null>(null);
+    const [paymentToDelete, setPaymentToDelete] = useState<Payment | null>(null);
+    
+    const [isDeleting, setIsDeleting] = useState(false);
 
     const handleSaveSupplier = (supplier: Omit<Supplier, 'id'> & { id?: number }) => {
         if (supplier.id) {
-            setSuppliers(suppliers.map(s => s.id === supplier.id ? { ...s, ...supplier } : s));
+            updateSupplier(supplier.id, supplier);
         } else {
-            const newId = Math.max(0, ...suppliers.map(s => s.id)) + 1;
-            setSuppliers([...suppliers, { ...supplier, id: newId }]);
+            addSupplier(supplier);
         }
         setSupplierModalOpen(false);
     };
 
-    const handleDeleteSupplier = (id: number) => {
-        //FIXME: this should also use a specific store action
-        if (window.confirm('هل أنت متأكد؟ سيتم حذف الدفعات المرتبطة بهذا المورد.')) {
-            setSuppliers(suppliers.filter(s => s.id !== id));
-            // setPayments(payments.filter(p => p.supplierId !== id));
+    const confirmDeleteSupplier = async () => {
+        if (!supplierToDelete) return;
+        setIsDeleting(true);
+        try {
+            await deleteSupplier(supplierToDelete.id);
+            setSupplierToDelete(null);
+        } catch (error) {
+            console.error("Failed to delete supplier:", error);
+            alert(`فشل حذف المورد: ${error instanceof Error ? error.message : String(error)}`);
+        } finally {
+            setIsDeleting(false);
         }
     };
 
@@ -160,9 +169,17 @@ const Suppliers: React.FC<SuppliersProps> = ({ suppliers, setSuppliers, payments
         setPaymentModalOpen(false);
     };
 
-    const handleDeletePayment = (id: number) => {
-        if (window.confirm('هل أنت متأكد من حذف هذه الدفعة؟')) {
-            deletePayment(id);
+    const confirmDeletePayment = async () => {
+        if (!paymentToDelete) return;
+        setIsDeleting(true);
+        try {
+            await deletePayment(paymentToDelete.id);
+            setPaymentToDelete(null);
+        } catch (error) {
+            console.error("Failed to delete payment:", error);
+            alert(`فشل حذف الدفعة: ${error instanceof Error ? error.message : String(error)}`);
+        } finally {
+            setIsDeleting(false);
         }
     };
     
@@ -207,7 +224,9 @@ const Suppliers: React.FC<SuppliersProps> = ({ suppliers, setSuppliers, payments
                                     <td className="px-6 py-4">{s.address}</td>
                                     <td className="px-6 py-4 flex gap-3">
                                         <button onClick={() => { setSupplierToEdit(s); setSupplierModalOpen(true); }} className="text-blue-500"><i className="fas fa-edit"></i></button>
-                                        <button onClick={() => handleDeleteSupplier(s.id)} className="text-red-500"><i className="fas fa-trash"></i></button>
+                                        <button onClick={() => setSupplierToDelete(s)} className="text-red-500 w-6 text-center">
+                                            <i className="fas fa-trash"></i>
+                                        </button>
                                     </td>
                                 </tr>
                             ))}
@@ -237,7 +256,9 @@ const Suppliers: React.FC<SuppliersProps> = ({ suppliers, setSuppliers, payments
                                     <td className="px-6 py-4">{p.purchaseOrderId ? `PO-${p.purchaseOrderId.toString().padStart(4, '0')}` : '-'}</td>
                                     <td className="px-6 py-4 flex gap-3">
                                         <button onClick={() => { setPaymentToEdit(p); setPaymentModalOpen(true); }} className="text-blue-500"><i className="fas fa-edit"></i></button>
-                                        <button onClick={() => handleDeletePayment(p.id)} className="text-red-500"><i className="fas fa-trash"></i></button>
+                                        <button onClick={() => setPaymentToDelete(p)} className="text-red-500 w-6 text-center">
+                                            <i className="fas fa-trash"></i>
+                                        </button>
                                     </td>
                                 </tr>
                             ))}
@@ -248,6 +269,28 @@ const Suppliers: React.FC<SuppliersProps> = ({ suppliers, setSuppliers, payments
             
             <SupplierModal isOpen={isSupplierModalOpen} onClose={() => setSupplierModalOpen(false)} onSave={handleSaveSupplier} supplierToEdit={supplierToEdit} />
             <PaymentModal isOpen={isPaymentModalOpen} onClose={() => setPaymentModalOpen(false)} onSave={handleSavePayment} paymentToEdit={paymentToEdit} suppliers={suppliers} purchaseOrders={purchaseOrders}/>
+
+            {supplierToDelete && (
+                <ConfirmationModal
+                    isOpen={!!supplierToDelete}
+                    onClose={() => setSupplierToDelete(null)}
+                    onConfirm={confirmDeleteSupplier}
+                    title="تأكيد الحذف"
+                    message={`هل أنت متأكد من حذف المورد "${supplierToDelete.name}"؟ سيتم حذف جميع الدفعات المرتبطة به.`}
+                    isLoading={isDeleting}
+                />
+            )}
+
+            {paymentToDelete && (
+                <ConfirmationModal
+                    isOpen={!!paymentToDelete}
+                    onClose={() => setPaymentToDelete(null)}
+                    onConfirm={confirmDeletePayment}
+                    title="تأكيد الحذف"
+                    message={`هل أنت متأكد من حذف هذه الدفعة بقيمة ${formatCurrency(paymentToDelete.payment)}؟`}
+                    isLoading={isDeleting}
+                />
+            )}
         </div>
     );
 };

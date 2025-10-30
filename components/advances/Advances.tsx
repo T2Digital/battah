@@ -1,8 +1,8 @@
 import React, { useState, useMemo } from 'react';
-// Fix: Corrected import path
 import { Advance, Employee } from '../../types';
 import SectionHeader from '../shared/SectionHeader';
 import Modal from '../shared/Modal';
+import ConfirmationModal from '../shared/ConfirmationModal';
 import { formatCurrency, formatDate } from '../../lib/utils';
 
 interface AdvancesProps {
@@ -31,7 +31,6 @@ const AdvanceModal: React.FC<{
 
     React.useEffect(() => {
         if (advanceToEdit) {
-            // FIX: Ensure 'notes' is a string to match form state type.
             setFormData({ ...advanceToEdit, notes: advanceToEdit.notes || '' });
         } else {
             setFormData({
@@ -96,6 +95,8 @@ const AdvanceModal: React.FC<{
 const Advances: React.FC<AdvancesProps> = ({ advances, addAdvance, updateAdvance, deleteAdvance, employees }) => {
     const [isModalOpen, setModalOpen] = useState(false);
     const [advanceToEdit, setAdvanceToEdit] = useState<Advance | null>(null);
+    const [advanceToDelete, setAdvanceToDelete] = useState<Advance | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
     
     const getEmployeeName = (id: number) => employees.find(e => e.id === id)?.name || 'غير معروف';
 
@@ -109,9 +110,18 @@ const Advances: React.FC<AdvancesProps> = ({ advances, addAdvance, updateAdvance
         setModalOpen(true);
     };
 
-    const handleDelete = (id: number) => {
-        if (window.confirm('هل أنت متأكد من حذف هذه السلفة؟')) {
-            deleteAdvance(id);
+    const confirmDelete = async () => {
+        if (!advanceToDelete) return;
+
+        setIsDeleting(true);
+        try {
+            await deleteAdvance(advanceToDelete.id);
+            setAdvanceToDelete(null);
+        } catch (error) {
+            console.error("Failed to delete advance:", error);
+            alert(`فشل حذف السلفة: ${error instanceof Error ? error.message : String(error)}`);
+        } finally {
+            setIsDeleting(false);
         }
     };
 
@@ -162,7 +172,9 @@ const Advances: React.FC<AdvancesProps> = ({ advances, addAdvance, updateAdvance
                                 <td className="px-6 py-4">{adv.notes || '-'}</td>
                                 <td className="px-6 py-4 flex gap-3">
                                     <button onClick={() => handleEdit(adv)} className="text-blue-500 hover:text-blue-700 text-lg" aria-label={`تعديل سلفة ${adv.employeeName}`}><i className="fas fa-edit"></i></button>
-                                    <button onClick={() => handleDelete(adv.id)} className="text-red-500 hover:text-red-700 text-lg" aria-label={`حذف سلفة ${adv.employeeName}`}><i className="fas fa-trash"></i></button>
+                                    <button onClick={() => setAdvanceToDelete(adv)} className="text-red-500 hover:text-red-700 text-lg w-6 text-center" aria-label={`حذف سلفة ${adv.employeeName}`}>
+                                        <i className="fas fa-trash"></i>
+                                    </button>
                                 </td>
                             </tr>
                         ))}
@@ -177,6 +189,17 @@ const Advances: React.FC<AdvancesProps> = ({ advances, addAdvance, updateAdvance
                 advanceToEdit={advanceToEdit}
                 employees={employees}
             />
+
+            {advanceToDelete && (
+                <ConfirmationModal
+                    isOpen={!!advanceToDelete}
+                    onClose={() => setAdvanceToDelete(null)}
+                    onConfirm={confirmDelete}
+                    title="تأكيد الحذف"
+                    message={`هل أنت متأكد من حذف سلفة الموظف "${getEmployeeName(advanceToDelete.employeeId)}" بقيمة ${formatCurrency(advanceToDelete.amount)}؟`}
+                    isLoading={isDeleting}
+                />
+            )}
         </div>
     );
 };

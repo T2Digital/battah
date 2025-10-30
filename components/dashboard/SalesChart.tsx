@@ -1,5 +1,3 @@
-
-
 import React from 'react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
 // Fix: Corrected import path
@@ -25,6 +23,19 @@ const SalesChart: React.FC<SalesChartProps> = ({ dailyReview }) => {
             sales: daySales,
         };
     }).reverse();
+
+    const noData = last7DaysData.every(d => d.sales === 0);
+
+    if (noData) {
+        return (
+            <div className="flex items-center justify-center h-full text-center text-gray-500 dark:text-gray-400">
+                <div>
+                    <i className="fas fa-chart-line text-4xl mb-3 text-gray-400"></i>
+                    <p>لا توجد بيانات مراجعة يومية مسجلة في آخر 7 أيام لعرضها.</p>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <ResponsiveContainer width="100%" height="100%">

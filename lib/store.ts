@@ -1,5 +1,3 @@
-
-
 import { create } from 'zustand';
 import {
     signInWithEmailAndPassword,
@@ -7,7 +5,6 @@ import {
 } from 'firebase/auth';
 import {
     collection,
-    getDocs,
     doc,
     writeBatch,
     setDoc,
@@ -15,6 +12,11 @@ import {
     updateDoc,
     Timestamp,
     deleteDoc,
+    onSnapshot,
+    Unsubscribe,
+    query,
+    where,
+    getDocs
 } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { auth, db, storage } from './firebase';
@@ -40,8 +42,10 @@ import {
     Role,
     SaleItem
 } from '../types';
-import { initialData } from './initialData'; // Assuming initialData.ts exists for seeding
-import { formatCurrency } from './utils';
+import { initialData } from './initialData';
+import { formatCurrency, normalizeSaleItems } from './utils';
+
+let unsubscribers: Unsubscribe[] = [];
 
 type AppState = {
     currentUser: User | null;
@@ -52,7 +56,7 @@ type AppState = {
 };
 
 type AppActions = {
-    fetchInitialData: () => Promise<void>;
+    initRealtimeListeners: () => Promise<void>;
     checkIfSeeded: () => Promise<void>;
     seedDatabase: () => Promise<void>;
     login: (email: string, pass: string) => Promise<void>;
@@ -62,8 +66,13 @@ type AppActions = {
     
     // Actions to modify appData subsets
     setProducts: (products: Product[]) => Promise<void>;
-    setDailySales: (sales: DailySale[]) => Promise<void>;
-    setEmployees: (employees: Employee[]) => Promise<void>;
+    deleteProduct: (productId: number) => Promise<void>;
+    
+    // Employee Actions (Atomic)
+    addEmployee: (employee: Omit<Employee, 'id'>) => Promise<void>;
+    updateEmployee: (employeeId: number, updates: Partial<Employee>) => Promise<void>;
+    deleteEmployee: (employeeId: number) => Promise<void>;
+
     addAdvance: (advance: Omit<Advance, 'id'>) => Promise<void>;
     updateAdvance: (advanceId: number, updates: Partial<Advance>) => Promise<void>;
     deleteAdvance: (advanceId: number) => Promise<void>;
@@ -71,7 +80,12 @@ type AppActions = {
     addPayroll: (payroll: Omit<Payroll, 'id'>) => Promise<void>;
     updatePayroll: (payrollId: number, updates: Partial<Payroll>) => Promise<void>;
     deletePayroll: (payrollId: number) => Promise<void>;
-    setSuppliers: (suppliers: Supplier[]) => Promise<void>;
+
+    // Supplier Actions (Atomic)
+    addSupplier: (supplier: Omit<Supplier, 'id'>) => Promise<void>;
+    updateSupplier: (supplierId: number, updates: Partial<Supplier>) => Promise<void>;
+    deleteSupplier: (supplierId: number) => Promise<void>;
+
     addPurchaseOrder: (order: Omit<PurchaseOrder, 'id'>) => Promise<void>;
     updatePurchaseOrder: (orderId: number, updates: Partial<PurchaseOrder>) => Promise<void>;
     deletePurchaseOrder: (orderId: number) => Promise<void>;
@@ -82,110 +96,103 @@ type AppActions = {
     updateExpense: (expenseId: number, updates: Partial<Expense>) => Promise<void>;
     deleteExpense: (expenseId: number) => Promise<void>;
     setDailyReviews: (reviews: DailyReview[]) => Promise<void>;
+    deleteDailyReview: (reviewId: number) => Promise<void>;
     addTreasuryTransaction: (transaction: Omit<TreasuryTransaction, 'id'>) => Promise<void>;
+    
+    // Sales action (no longer a simple set, but an atomic add)
+    addDailySale: (sale: Omit<DailySale, 'id'>) => Promise<DailySale>;
+    updateDailySale: (saleId: number, updates: Partial<DailySale>) => Promise<void>;
+    deleteDailySale: (saleId: number) => Promise<void>;
+
 
     // Storefront Actions
     createOrder: (customerDetails: { name: string; phone: string; address: string }, items: OrderItem[], totalAmount: number, paymentMethod: Order['paymentMethod'], paymentProof?: File) => Promise<string | undefined>;
     updateOrderStatus: (orderId: number, status: Order['status']) => Promise<void>;
+    deleteOrder: (orderId: number) => Promise<void>;
     updateStorefrontSettings: (settings: StorefrontSettings) => Promise<void>;
     uploadImage: (file: File, path: string) => Promise<string>;
     markNotificationAsRead: (notificationId: number) => Promise<void>;
 };
 
-// Helper to compare two arrays of objects by ID and generate a Firestore batch
-const syncCollectionToFirestore = async <T extends { id: number }>(
-    collectionName: string,
-    oldData: T[],
-    newData: T[],
-) => {
-    const batch = writeBatch(db);
-    const oldMap = new Map(oldData.map(item => [item.id, item]));
-    const newMap = new Map(newData.map(item => [item.id, item]));
-
-    // Deletions
-    for (const id of oldMap.keys()) {
-        if (!newMap.has(id)) {
-            batch.delete(doc(db, collectionName, String(id)));
-        }
-    }
-
-    // Additions and Updates
-    for (const [id, newItem] of newMap.entries()) {
-        const oldItem = oldMap.get(id);
-        const docRef = doc(db, collectionName, String(id));
-        
-        const cleanNewItem = JSON.parse(JSON.stringify(newItem));
-
-        if (!oldItem || JSON.stringify(oldItem) !== JSON.stringify(cleanNewItem)) {
-             batch.set(docRef, cleanNewItem);
-        }
-    }
-    
-    await batch.commit();
-};
-
-const uploadToImgBB = async (file: File): Promise<string> => {
-    const apiKey = process.env.IMGBB_API_KEY;
-    if (!apiKey || apiKey === "YOUR_IMGBB_API_KEY_HERE") {
-        throw new Error("ImgBB API key is not configured.");
-    }
-    
-    const formData = new FormData();
-    formData.append('image', file);
-
-    const response = await fetch(`https://api.imgbb.com/1/upload?key=${apiKey}`, {
-        method: 'POST',
-        body: formData,
-    });
-
-    if (!response.ok) {
-        throw new Error(`Image upload failed with status: ${response.status}`);
-    }
-
-    const data = await response.json();
-    if (data.success) {
-        return data.data.url;
-    } else {
-        throw new Error(data.error?.message || 'Unknown error uploading to ImgBB');
-    }
-};
-
-
 const useStore = create<AppState & AppActions>((set, get) => ({
     currentUser: null,
     isInitialized: false,
-    isLoading: true,
+    isLoading: false,
     isSeeded: true, 
     appData: null,
 
-    fetchInitialData: async () => {
+    initRealtimeListeners: async () => {
+        if (get().isInitialized) return;
         set({ isLoading: true });
+    
         try {
-            const collections: AppData = {
+            unsubscribers.forEach(unsub => unsub());
+            unsubscribers = [];
+        
+            const collectionNames: (keyof Omit<AppData, 'storefrontSettings'>)[] = [
+                'users', 'products', 'dailySales', 'employees', 'advances',
+                'attendance', 'payroll', 'suppliers', 'purchaseOrders',
+                'payments', 'expenses', 'treasury', 'dailyReview',
+                'orders', 'notifications'
+            ];
+            
+            const initialAppData: AppData = {
                 users: [], products: [], dailySales: [], employees: [], advances: [],
                 attendance: [], payroll: [], suppliers: [], purchaseOrders: [],
                 payments: [], expenses: [], treasury: [], dailyReview: [],
-                orders: [], notifications: [],
-                storefrontSettings: { featuredProductIds: [], newArrivalProductIds: [] }
+                orders: [], notifications: [], storefrontSettings: { featuredProductIds: [], newArrivalProductIds: [] }
             };
-            
-            const collectionNames = Object.keys(collections).filter(c => c !== 'storefrontSettings');
+            set({ appData: initialAppData });
+        
+            collectionNames.forEach(name => {
+                const unsub = onSnapshot(collection(db, name as string), (snapshot) => {
+                    const data = snapshot.docs.map(d => ({ ...d.data(), id: d.data().id ?? parseInt(d.id, 10) }));
+                    set(state => ({
+                        appData: { ...(state.appData as AppData), [name]: data }
+                    }));
 
-            for (const name of collectionNames) {
-                const querySnapshot = await getDocs(collection(db, name));
-                (collections as any)[name] = querySnapshot.docs.map(d => ({ ...d.data(), id: d.data().id ?? parseInt(d.id, 10) }));
-            }
-            
-            const settingsDoc = await getDoc(doc(db, "settings", "storefront"));
-            if (settingsDoc.exists()) {
-                 collections.storefrontSettings = settingsDoc.data() as StorefrontSettings;
-            }
+                    if (name === 'users') {
+                        const firebaseUser = auth.currentUser;
+                        if (firebaseUser && firebaseUser.email) {
+                            const appUser = (data as User[]).find(u => u.username.toLowerCase() === firebaseUser.email?.toLowerCase());
+                            if (appUser) {
+                                set({ currentUser: appUser });
+                            }
+                        }
+                    }
 
-            set({ appData: collections, isInitialized: true });
+                    if (name === 'orders') {
+                        snapshot.docChanges().forEach(async (change) => {
+                            if (change.type === "added") {
+                                const newOrder = change.doc.data() as Order;
+                                if (Notification.permission === 'granted') {
+                                    navigator.serviceWorker.ready.then(registration => {
+                                        registration.showNotification('طلب جديد!', {
+                                            body: `تم استلام طلب جديد من ${newOrder.customerName} بقيمة ${formatCurrency(newOrder.totalAmount)}`,
+                                            icon: '/vite.svg',
+                                        });
+                                    });
+                                }
+                            }
+                        });
+                    }
+                });
+                unsubscribers.push(unsub);
+            });
+            
+            const settingsUnsub = onSnapshot(doc(db, "settings", "storefront"), (doc) => {
+                 const storefrontSettings = doc.exists() ? doc.data() as StorefrontSettings : { featuredProductIds: [], newArrivalProductIds: [] };
+                 set(state => ({
+                    appData: { ...(state.appData as AppData), storefrontSettings }
+                }));
+            });
+            unsubscribers.push(settingsUnsub);
+
         } catch (error) {
-            console.error("Error fetching initial data:", error);
+            console.error("Failed to initialize realtime listeners:", error);
+            set({ isInitialized: false });
         } finally {
-            set({ isLoading: false });
+            set({ isInitialized: true, isLoading: false });
         }
     },
     checkIfSeeded: async () => {
@@ -217,365 +224,395 @@ const useStore = create<AppState & AppActions>((set, get) => ({
     logout: async () => {
         await signOut(auth);
         set({ currentUser: null });
+        unsubscribers.forEach(unsub => unsub());
+        unsubscribers = [];
+        set({ isInitialized: false, appData: null });
     },
     setCurrentUser: (user) => set({ currentUser: user }),
     clearCurrentUser: () => set({ currentUser: null }),
     
-    // Specific setters with Firestore sync
     setProducts: async (products) => {
-        await syncCollectionToFirestore('products', get().appData?.products || [], products);
-        set(state => ({ appData: state.appData ? { ...state.appData, products } : null }));
+        const batch = writeBatch(db);
+        products.forEach(p => {
+            const docRef = doc(db, "products", String(p.id));
+            batch.set(docRef, p);
+        });
+        await batch.commit();
     },
-    setDailySales: async (sales) => {
-        await syncCollectionToFirestore('dailySales', get().appData?.dailySales || [], sales);
-        set(state => ({ appData: state.appData ? { ...state.appData, dailySales: sales } : null }));
+    deleteProduct: async (productId: number) => {
+        try {
+            await deleteDoc(doc(db, "products", String(productId)));
+        } catch (error) {
+            console.error("Error deleting product:", error);
+            throw error;
+        }
     },
-    setEmployees: async (employees) => {
-        await syncCollectionToFirestore('employees', get().appData?.employees || [], employees);
-        set(state => ({ appData: state.appData ? { ...state.appData, employees } : null }));
+
+    addDailySale: async (sale) => {
+        const maxId = Math.max(0, ...(get().appData?.dailySales.map(s => Number(s.id) || 0) || []));
+        const newSale = { ...sale, id: maxId + 1 };
+        await setDoc(doc(db, "dailySales", String(newSale.id)), newSale);
+        return newSale as DailySale;
+    },
+    updateDailySale: async (saleId, updates) => {
+        await updateDoc(doc(db, "dailySales", String(saleId)), updates);
+    },
+    deleteDailySale: async (saleId: number) => {
+        try {
+            const saleDocRef = doc(db, "dailySales", String(saleId));
+            const saleSnapshot = await getDoc(saleDocRef);
+            if (!saleSnapshot.exists()) throw new Error("Sale not found!");
+            const saleToDelete = saleSnapshot.data() as DailySale;
+
+            const batch = writeBatch(db);
+            batch.delete(saleDocRef);
+
+            const treasuryQuery = query(collection(db, "treasury"), where("relatedId", "==", saleId), where("type", "in", ["إيراد مبيعات", "مرتجع مبيعات"]));
+            const treasurySnapshot = await getDocs(treasuryQuery);
+            treasurySnapshot.forEach(doc => batch.delete(doc.ref));
+
+            const items = normalizeSaleItems(saleToDelete);
+            for (const item of items) {
+                const productRef = doc(db, "products", String(item.productId));
+                const productDoc = await getDoc(productRef);
+                if (productDoc.exists()) {
+                    const product = productDoc.data() as Product;
+                    const quantityToRestore = saleToDelete.direction === 'بيع' ? item.quantity : -item.quantity;
+                    const newStock = { ...product.stock, [saleToDelete.branchSoldFrom]: product.stock[saleToDelete.branchSoldFrom] + quantityToRestore };
+                    batch.update(productRef, { stock: newStock });
+                }
+            }
+            await batch.commit();
+        } catch (error) {
+            console.error("Error deleting daily sale:", error);
+            throw error;
+        }
+    },
+    
+    addEmployee: async (employee) => {
+        const maxId = Math.max(0, ...(get().appData?.employees.map(e => Number(e.id) || 0) || []));
+        const newEmployee = { ...employee, id: maxId + 1 };
+        await setDoc(doc(db, "employees", String(newEmployee.id)), newEmployee);
+    },
+    updateEmployee: async (employeeId, updates) => {
+        await updateDoc(doc(db, "employees", String(employeeId)), updates);
+    },
+    deleteEmployee: async (employeeId) => {
+        try {
+             await deleteDoc(doc(db, "employees", String(employeeId)));
+        } catch(error) {
+            console.error("Error deleting employee:", error);
+            throw error;
+        }
     },
     addAdvance: async (advance) => {
-        const state = get();
-        if (!state.appData) return;
-        const newId = (state.appData.advances.length > 0 ? Math.max(...state.appData.advances.map(a => a.id)) : 0) + 1;
-        const newAdvance = { ...advance, id: newId };
-        await setDoc(doc(db, "advances", String(newId)), newAdvance);
-        set(s => ({ appData: s.appData ? { ...s.appData, advances: [...s.appData.advances, newAdvance] } : null }));
-        
+        const maxId = Math.max(0, ...(get().appData?.advances.map(a => Number(a.id) || 0) || []));
+        const newAdvance = { ...advance, id: maxId + 1 };
+        await setDoc(doc(db, "advances", String(newAdvance.id)), newAdvance);
         if (newAdvance.amount > 0) {
-            const employeeName = state.appData.employees.find(e => e.id === newAdvance.employeeId)?.name || 'موظف';
+            const employeeName = get().appData?.employees.find(e => e.id === newAdvance.employeeId)?.name || 'موظف';
             await get().addTreasuryTransaction({
                 date: newAdvance.date, type: 'سلفة', description: `سلفة لـ ${employeeName}`,
-                amountIn: 0, amountOut: newAdvance.amount, relatedId: newId
+                amountIn: 0, amountOut: newAdvance.amount, relatedId: newAdvance.id
             });
         }
     },
     updateAdvance: async (advanceId, updates) => {
         await updateDoc(doc(db, "advances", String(advanceId)), updates);
-        set(s => ({ appData: s.appData ? { ...s.appData, advances: s.appData.advances.map(a => a.id === advanceId ? { ...a, ...updates } : a) } : null }));
     },
     deleteAdvance: async (advanceId) => {
-        await deleteDoc(doc(db, "advances", String(advanceId)));
-        set(s => ({ appData: s.appData ? { ...s.appData, advances: s.appData.advances.filter(a => a.id !== advanceId) } : null }));
+        try {
+            await deleteDoc(doc(db, "advances", String(advanceId)));
+        } catch(error) {
+            console.error("Error deleting advance:", error);
+            throw error;
+        }
     },
     setAttendance: async (attendance) => {
-        await syncCollectionToFirestore('attendance', get().appData?.attendance || [], attendance);
-        set(state => ({ appData: state.appData ? { ...state.appData, attendance } : null }));
+        const batch = writeBatch(db);
+        attendance.forEach(a => batch.set(doc(db, "attendance", String(a.id)), a));
+        await batch.commit();
     },
     addPayroll: async (payroll) => {
-        const state = get();
-        if (!state.appData) return;
-        const newId = (state.appData.payroll.length > 0 ? Math.max(...state.appData.payroll.map(p => p.id)) : 0) + 1;
-        const newPayroll = { ...payroll, id: newId };
-        await setDoc(doc(db, "payroll", String(newId)), newPayroll);
-        set(s => ({ appData: s.appData ? { ...s.appData, payroll: [...s.appData.payroll, newPayroll] } : null }));
-
+        const maxId = Math.max(0, ...(get().appData?.payroll.map(p => Number(p.id) || 0) || []));
+        const newPayroll = { ...payroll, id: maxId + 1 };
+        await setDoc(doc(db, "payroll", String(newPayroll.id)), newPayroll);
         if (newPayroll.disbursed > 0) {
-            const employeeName = state.appData.employees.find(e => e.id === newPayroll.employeeId)?.name || 'موظف';
+            const employeeName = get().appData?.employees.find(e => e.id === newPayroll.employeeId)?.name || 'موظف';
             await get().addTreasuryTransaction({
                 date: newPayroll.date, type: 'راتب', description: `راتب لـ ${employeeName}`,
-                amountIn: 0, amountOut: newPayroll.disbursed, relatedId: newId
+                amountIn: 0, amountOut: newPayroll.disbursed, relatedId: newPayroll.id
             });
         }
     },
     updatePayroll: async (payrollId, updates) => {
-        const state = get();
-        if (!state.appData) return;
-        const docRef = doc(db, "payroll", String(payrollId));
-        await updateDoc(docRef, updates);
-        set(s => ({
-            appData: s.appData ? {
-                ...s.appData,
-                payroll: s.appData.payroll.map(p => p.id === payrollId ? { ...p, ...updates } : p)
-            } : null
-        }));
+        await updateDoc(doc(db, "payroll", String(payrollId)), updates);
     },
     deletePayroll: async (payrollId) => {
-        await deleteDoc(doc(db, "payroll", String(payrollId)));
-        set(state => {
-            if (!state.appData) return state;
-            return {
-                appData: { ...state.appData, payroll: state.appData.payroll.filter(p => p.id !== payrollId) }
-            }
-        });
+        try {
+            await deleteDoc(doc(db, "payroll", String(payrollId)));
+        } catch(error) {
+            console.error("Error deleting payroll:", error);
+            throw error;
+        }
     },
-    setSuppliers: async (suppliers) => {
-        await syncCollectionToFirestore('suppliers', get().appData?.suppliers || [], suppliers);
-        set(state => ({ appData: state.appData ? { ...state.appData, suppliers } : null }));
+    
+    addSupplier: async (supplier) => {
+        const maxId = Math.max(0, ...(get().appData?.suppliers.map(s => Number(s.id) || 0) || []));
+        const newSupplier = { ...supplier, id: maxId + 1 };
+        await setDoc(doc(db, "suppliers", String(newSupplier.id)), newSupplier);
+    },
+    updateSupplier: async (supplierId, updates) => {
+        await updateDoc(doc(db, "suppliers", String(supplierId)), updates);
+    },
+    deleteSupplier: async (supplierId) => {
+        try {
+            const paymentsToDelete = get().appData?.payments.filter(p => p.supplierId === supplierId) || [];
+            const batch = writeBatch(db);
+            batch.delete(doc(db, "suppliers", String(supplierId)));
+            paymentsToDelete.forEach(payment => batch.delete(doc(db, "payments", String(payment.id))));
+            await batch.commit();
+        } catch (error) {
+            console.error("Error deleting supplier:", error);
+            throw error;
+        }
     },
     addPurchaseOrder: async (order) => {
-        const state = get();
-        if (!state.appData) return;
-        const newId = (state.appData.purchaseOrders.length > 0 ? Math.max(...state.appData.purchaseOrders.map(o => o.id)) : 0) + 1;
-        const newOrder = { ...order, id: newId };
-        await setDoc(doc(db, "purchaseOrders", String(newId)), newOrder);
-        set(s => ({ appData: s.appData ? { ...s.appData, purchaseOrders: [...s.appData.purchaseOrders, newOrder] } : null }));
+        const maxId = Math.max(0, ...(get().appData?.purchaseOrders.map(o => Number(o.id) || 0) || []));
+        const newOrder = { ...order, id: maxId + 1 };
+        await setDoc(doc(db, "purchaseOrders", String(newOrder.id)), newOrder);
     },
     updatePurchaseOrder: async (orderId, updates) => {
         await updateDoc(doc(db, "purchaseOrders", String(orderId)), updates);
-        set(s => ({ appData: s.appData ? { ...s.appData, purchaseOrders: s.appData.purchaseOrders.map(o => o.id === orderId ? { ...o, ...updates } : o) } : null }));
     },
     deletePurchaseOrder: async (orderId) => {
-        await deleteDoc(doc(db, "purchaseOrders", String(orderId)));
-        set(s => ({ appData: s.appData ? { ...s.appData, purchaseOrders: s.appData.purchaseOrders.filter(o => o.id !== orderId) } : null }));
+        try {
+            await deleteDoc(doc(db, "purchaseOrders", String(orderId)));
+        } catch(error) {
+            console.error("Error deleting purchase order:", error);
+            throw error;
+        }
     },
     addPayment: async (payment) => {
-        const state = get();
-        if (!state.appData) return;
-        const newId = (state.appData.payments.length > 0 ? Math.max(...state.appData.payments.map(p => p.id)) : 0) + 1;
-        const newPayment = { ...payment, id: newId };
-        await setDoc(doc(db, "payments", String(newId)), newPayment);
-        set(s => ({ appData: s.appData ? { ...s.appData, payments: [...s.appData.payments, newPayment] } : null }));
-        
+        const maxId = Math.max(0, ...(get().appData?.payments.map(p => Number(p.id) || 0) || []));
+        const newPayment = { ...payment, id: maxId + 1 };
+        await setDoc(doc(db, "payments", String(newPayment.id)), newPayment);
         if (newPayment.payment > 0) {
-            const supplierName = state.appData.suppliers.find(s => s.id === newPayment.supplierId)?.name || 'مورد';
+            const supplierName = get().appData?.suppliers.find(s => s.id === newPayment.supplierId)?.name || 'مورد';
             await get().addTreasuryTransaction({
                 date: newPayment.date, type: 'دفعة لمورد', description: `دفعة لـ ${supplierName}`,
-                amountIn: 0, amountOut: newPayment.payment, relatedId: newId
+                amountIn: 0, amountOut: newPayment.payment, relatedId: newPayment.id
             });
         }
     },
     updatePayment: async (paymentId, updates) => {
         await updateDoc(doc(db, "payments", String(paymentId)), updates);
-        set(s => ({ appData: s.appData ? { ...s.appData, payments: s.appData.payments.map(p => p.id === paymentId ? { ...p, ...updates } : p) } : null }));
     },
     deletePayment: async (paymentId) => {
-        await deleteDoc(doc(db, "payments", String(paymentId)));
-        set(s => ({ appData: s.appData ? { ...s.appData, payments: s.appData.payments.filter(p => p.id !== paymentId) } : null }));
+        try {
+            await deleteDoc(doc(db, "payments", String(paymentId)));
+        } catch(error) {
+            console.error("Error deleting payment:", error);
+            throw error;
+        }
     },
     addExpense: async (expense) => {
-        const state = get();
-        if (!state.appData) return;
-        const newId = (state.appData.expenses.length > 0 ? Math.max(...state.appData.expenses.map(e => e.id)) : 0) + 1;
-        const newExpense = { ...expense, id: newId };
-        await setDoc(doc(db, "expenses", String(newId)), newExpense);
-        set(s => ({ appData: s.appData ? { ...s.appData, expenses: [...s.appData.expenses, newExpense] } : null }));
+        const maxId = Math.max(0, ...(get().appData?.expenses.map(e => Number(e.id) || 0) || []));
+        const newExpense = { ...expense, id: maxId + 1 };
+        await setDoc(doc(db, "expenses", String(newExpense.id)), newExpense);
         if (newExpense.amount > 0) {
             await get().addTreasuryTransaction({
                 date: newExpense.date, type: 'مصروف', description: newExpense.name,
-                amountIn: 0, amountOut: newExpense.amount, relatedId: newId
+                amountIn: 0, amountOut: newExpense.amount, relatedId: newExpense.id
             });
         }
     },
     updateExpense: async (expenseId, updates) => {
-        const state = get();
-        if (!state.appData) return;
-        const docRef = doc(db, "expenses", String(expenseId));
-        await updateDoc(docRef, updates);
-        set(s => ({
-            appData: s.appData ? {
-                ...s.appData,
-                expenses: s.appData.expenses.map(e => e.id === expenseId ? { ...e, ...updates } : e)
-            } : null
-        }));
+        await updateDoc(doc(db, "expenses", String(expenseId)), updates);
     },
     deleteExpense: async (expenseId) => {
-        await deleteDoc(doc(db, "expenses", String(expenseId)));
-        set(state => {
-            if (!state.appData) return state;
-            return {
-                appData: { ...state.appData, expenses: state.appData.expenses.filter(e => e.id !== expenseId) }
-            }
-        });
+        try {
+            await deleteDoc(doc(db, "expenses", String(expenseId)));
+        } catch(error) {
+            console.error("Error deleting expense:", error);
+            throw error;
+        }
     },
     setDailyReviews: async (reviews) => {
-        await syncCollectionToFirestore('dailyReview', get().appData?.dailyReview || [], reviews);
-        set(state => ({ appData: state.appData ? { ...state.appData, dailyReview: reviews } : null }));
+        const batch = writeBatch(db);
+        reviews.forEach(r => batch.set(doc(db, "dailyReview", String(r.id)), r));
+        await batch.commit();
+    },
+    deleteDailyReview: async (reviewId: number) => {
+        try {
+            await deleteDoc(doc(db, "dailyReview", String(reviewId)));
+        } catch (error) {
+            console.error("Error deleting daily review:", error);
+            throw error;
+        }
     },
     updateStorefrontSettings: async (settings) => {
         await setDoc(doc(db, "settings", "storefront"), settings);
-        set(state => ({ appData: state.appData ? { ...state.appData, storefrontSettings: settings } : null }));
     },
-
     addTreasuryTransaction: async (transaction) => {
-        const state = get();
-        if (!state.appData) return;
-        const newId = (state.appData.treasury.length > 0 ? Math.max(...state.appData.treasury.map(t => t.id)) : 0) + 1;
-        const newTransaction = { ...transaction, id: newId };
-        
-        await setDoc(doc(db, "treasury", String(newId)), newTransaction);
-
-        set({
-            appData: {
-                ...state.appData,
-                treasury: [...state.appData.treasury, newTransaction]
-            }
-        });
+        const maxId = Math.max(0, ...(get().appData?.treasury.map(t => Number(t.id) || 0) || []));
+        const newTransaction = { ...transaction, id: maxId + 1 };
+        await setDoc(doc(db, "treasury", String(newTransaction.id)), newTransaction);
     },
-
     uploadImage: async (file, path) => {
-        try {
-            const storageRef = ref(storage, path);
-            await uploadBytes(storageRef, file);
-            const downloadURL = await getDownloadURL(storageRef);
-            return downloadURL;
-        } catch (error) {
-            console.error("Image Upload Failed:", error);
-            throw new Error("Failed to upload image.");
-        }
+        const storageRef = ref(storage, path);
+        await uploadBytes(storageRef, file);
+        return await getDownloadURL(storageRef);
     },
-
     createOrder: async (customerDetails, items, totalAmount, paymentMethod, paymentProof) => {
-        const state = get();
-        if (!state.appData) throw new Error("App data not loaded");
-
         let imageUrl: string | undefined = undefined;
         if (paymentMethod === 'electronic' && paymentProof) {
-            try {
-                // Use the new ImgBB upload function
-                imageUrl = await uploadToImgBB(paymentProof);
-            } catch(e) {
-                console.error("ImgBB Upload Failed:", e);
-                // Propagate the error to the UI
-                throw e;
+            const apiKey = (process.env as any).IMGBB_API_KEY;
+             if (!apiKey || apiKey === "YOUR_IMGBB_API_KEY_HERE") {
+                throw new Error("ImgBB API Key is not configured.");
+            }
+            const formData = new FormData();
+            formData.append('image', paymentProof);
+            const response = await fetch(`https://api.imgbb.com/1/upload?key=${apiKey}`, { method: 'POST', body: formData });
+            const result = await response.json();
+            if (result.success) {
+                imageUrl = result.data.url;
+            } else {
+                throw new Error(result.error?.message || 'ImgBB upload failed');
             }
         }
 
-        const newId = (state.appData.orders.length > 0 ? Math.max(...state.appData.orders.map(o => o.id)) : 0) + 1;
+        const maxId = Math.max(0, ...(get().appData?.orders.map(o => Number(o.id) || 0) || []));
+        const newId = maxId + 1;
+        const newOrder: Order = {
+            id: newId, date: new Date().toISOString().split('T')[0],
+            customerName: customerDetails.name, customerPhone: customerDetails.phone, customerAddress: customerDetails.address,
+            items, totalAmount, status: 'pending', paymentMethod, paymentProofUrl: imageUrl,
+        };
         
-        const newOrder: Omit<Order, 'paymentProofUrl'> & { paymentProofUrl?: string } = {
-            id: newId,
-            date: new Date().toISOString().split('T')[0],
-            customerName: customerDetails.name,
-            customerPhone: customerDetails.phone,
-            customerAddress: customerDetails.address,
-            items,
-            totalAmount,
-            status: 'pending',
-            paymentMethod,
+        const maxNotificationId = Math.max(0, ...(get().appData?.notifications.map(n => Number(n.id) || 0) || []));
+        const newNotification: Notification = {
+            id: maxNotificationId + 1, date: new Date().toISOString(),
+            message: `طلب جديد من ${customerDetails.name} بقيمة ${formatCurrency(totalAmount)}`,
+            read: false, orderId: newId,
         };
 
-        if (imageUrl) {
-            newOrder.paymentProofUrl = imageUrl;
+        const batch = writeBatch(db);
+        batch.set(doc(db, "orders", String(newId)), newOrder);
+        batch.set(doc(db, "notifications", String(newNotification.id)), newNotification);
+        await batch.commit();
+        
+        if (Notification.permission !== 'granted') {
+            await Notification.requestPermission();
         }
 
-        const newNotificationId = (state.appData.notifications.length > 0 ? Math.max(...state.appData.notifications.map(n => n.id)) : 0) + 1;
-        const newNotification: Notification = {
-            id: newNotificationId,
-            date: new Date().toISOString(),
-            message: `طلب جديد من ${customerDetails.name} بقيمة ${formatCurrency(totalAmount)}`,
-            read: false,
-            orderId: newId,
-        }
-
-        await setDoc(doc(db, "orders", String(newId)), newOrder);
-        await setDoc(doc(db, "notifications", String(newNotificationId)), newNotification);
-
-        set({
-            appData: {
-                ...state.appData,
-                orders: [...state.appData.orders, newOrder as Order],
-                notifications: [newNotification, ...state.appData.notifications],
-            }
-        });
-
-        // Return the image URL so the frontend can use it for WhatsApp
         return imageUrl;
     },
     
     updateOrderStatus: async (orderId, status) => {
         const state = get();
-        if (!state.appData) return;
+        const { appData } = state;
+        if (!appData) throw new Error("App data not loaded!");
 
-        const orderToUpdate = state.appData.orders.find(o => o.id === orderId);
-        if (!orderToUpdate) {
-            console.error("Order not found!");
-            return;
-        }
+        const orderToUpdate = appData.orders.find(o => o.id === orderId);
+        if (!orderToUpdate) throw new Error("Order not found!");
         
-        const isAlreadyProcessed = orderToUpdate.status === 'confirmed' || orderToUpdate.status === 'shipped';
-        const isNowBeingProcessed = status === 'confirmed' || status === 'shipped';
+        const isNowBeingProcessed = ['confirmed', 'shipped'].includes(status);
+        const wasAlreadyProcessed = ['confirmed', 'shipped'].includes(orderToUpdate.status);
 
-        await updateDoc(doc(db, "orders", String(orderId)), { status });
+        const batch = writeBatch(db);
+        batch.update(doc(db, "orders", String(orderId)), { status });
 
-        const updatedOrders = state.appData.orders.map(o => o.id === orderId ? { ...o, status } : o);
-        let updatedAppData = { ...state.appData, orders: updatedOrders };
-        set({ appData: updatedAppData });
-        
-        if (isNowBeingProcessed && !isAlreadyProcessed) {
-            const batch = writeBatch(db);
+        if (isNowBeingProcessed && !wasAlreadyProcessed) {
+            const seller = appData.users.find(u => u.role === Role.Admin) || appData.users[0];
+            if (!seller) throw new Error("No admin seller found.");
             
-            let lastSaleId = (state.appData.dailySales.length > 0) ? Math.max(...state.appData.dailySales.map(s => s.id)) : 0;
-            const seller = state.appData.users.find(u => u.role === Role.Admin) || state.appData.users[0];
-            
+            const maxSaleId = Math.max(0, ...appData.dailySales.map(s => Number(s.id) || 0));
             const saleItems: SaleItem[] = orderToUpdate.items.map(item => {
-                const product = state.appData!.products.find(p => p.id === item.productId);
-                let itemTypeForSale: SaleItem['itemType'] = 'أخرى';
-                if (product) {
-                     switch (product.mainCategory) {
-                        case 'قطع غيار': itemTypeForSale = 'قطع غيار'; break;
-                        case 'كماليات': itemTypeForSale = 'كماليات'; break;
-                        case 'زيوت وشحومات': itemTypeForSale = 'زيوت'; break;
-                        case 'بطاريات': itemTypeForSale = 'بطاريات'; break;
-                        default: itemTypeForSale = 'أخرى'; break;
-                    }
+                const product = appData.products.find(p => p.id === item.productId);
+                if (!product) {
+                    console.warn(`Product with ID ${item.productId} not found for order ${orderId}. Skipping sale item.`);
+                    return null;
                 }
-                return {
-                    productId: item.productId,
-                    quantity: item.quantity,
-                    unitPrice: item.unitPrice,
-                    itemType: itemTypeForSale,
-                };
-            });
+                return { productId: item.productId, quantity: item.quantity, unitPrice: item.unitPrice, itemType: product?.mainCategory || 'أخرى' };
+            }).filter((item): item is SaleItem => item !== null);
+
+            if(saleItems.length !== orderToUpdate.items.length) {
+                 console.error("Some products in the order were not found. Sale record might be incomplete.");
+            }
 
             const newSale: DailySale = {
-                id: ++lastSaleId,
-                date: orderToUpdate.date,
-                invoiceNumber: `ONLINE-${orderToUpdate.id}`,
-                sellerId: seller.id,
-                sellerName: seller.name,
-                source: 'أونلاين',
-                branchSoldFrom: 'main',
-                direction: 'بيع',
-                items: saleItems,
-                totalAmount: orderToUpdate.totalAmount,
+                id: maxSaleId + 1, date: orderToUpdate.date, invoiceNumber: `ONLINE-${orderToUpdate.id}`,
+                sellerId: seller.id, sellerName: seller.name, source: 'أونلاين', branchSoldFrom: 'main', 
+                direction: 'بيع', items: saleItems, totalAmount: orderToUpdate.totalAmount,
             };
             batch.set(doc(db, "dailySales", String(newSale.id)), newSale);
-            updatedAppData.dailySales = [...updatedAppData.dailySales, newSale];
             
-            let lastTreasuryId = (state.appData.treasury.length > 0) ? Math.max(...state.appData.treasury.map(t => t.id)) : 0;
+            const maxTreasuryId = Math.max(0, ...appData.treasury.map(t => Number(t.id) || 0));
             const newTransaction: TreasuryTransaction = {
-                id: ++lastTreasuryId, date: orderToUpdate.date, type: 'إيراد مبيعات',
-                description: `طلب أونلاين #${orderToUpdate.id} - ${orderToUpdate.customerName}`,
-                amountIn: orderToUpdate.totalAmount, amountOut: 0, relatedId: orderToUpdate.id,
+                id: maxTreasuryId + 1, date: orderToUpdate.date, type: 'إيراد مبيعات',
+                description: `طلب أونلاين #${orderToUpdate.id}`, amountIn: orderToUpdate.totalAmount, amountOut: 0, relatedId: orderToUpdate.id,
             };
             batch.set(doc(db, "treasury", String(newTransaction.id)), newTransaction);
-            updatedAppData.treasury = [...state.appData.treasury, newTransaction];
-            
-            let productUpdates = new Map<number, number>();
-            orderToUpdate.items.forEach(item => {
-                productUpdates.set(item.productId, (productUpdates.get(item.productId) || 0) + item.quantity);
-            });
-            
-            let updatedProducts = state.appData.products.map(p => {
-                if (productUpdates.has(p.id)) {
-                    const newStock = { ...p.stock, main: p.stock.main - (productUpdates.get(p.id) || 0) };
-                    const updatedProduct = { ...p, stock: newStock };
-                    batch.update(doc(db, "products", String(p.id)), { stock: newStock });
-                    return updatedProduct;
+
+            for (const item of orderToUpdate.items) {
+                const product = appData.products.find(p => p.id === item.productId);
+                if (product) {
+                    const newStock = { ...product.stock, main: product.stock.main - item.quantity };
+                    batch.update(doc(db, "products", String(item.productId)), { stock: newStock });
                 }
-                return p;
-            });
-            updatedAppData.products = updatedProducts;
-            
+            }
+        }
+        await batch.commit();
+    },
+
+    deleteOrder: async (orderId: number) => {
+        if (isNaN(orderId)) {
+            throw new Error(`Order with ID ${orderId} not found!`);
+        }
+        try {
+            const orderDocRef = doc(db, "orders", String(orderId));
+            const orderSnapshot = await getDoc(orderDocRef);
+        
+            if (!orderSnapshot.exists()) throw new Error(`Order with ID ${orderId} not found!`);
+            const orderToDelete = orderSnapshot.data() as Order;
+        
+            const batch = writeBatch(db);
+            batch.delete(orderDocRef);
+        
+            const notificationsQuery = query(collection(db, "notifications"), where("orderId", "==", orderId));
+            const notificationsSnapshot = await getDocs(notificationsQuery);
+            notificationsSnapshot.forEach(doc => batch.delete(doc.ref));
+        
+            if (['confirmed', 'shipped'].includes(orderToDelete.status)) {
+                const salesQuery = query(collection(db, "dailySales"), where("invoiceNumber", "==", `ONLINE-${orderId}`));
+                const salesSnapshot = await getDocs(salesQuery);
+                salesSnapshot.forEach(doc => batch.delete(doc.ref));
+        
+                const treasuryQuery = query(collection(db, "treasury"), where("relatedId", "==", orderId), where("type", "==", "إيراد مبيعات"));
+                const treasurySnapshot = await getDocs(treasuryQuery);
+                treasurySnapshot.forEach(doc => batch.delete(doc.ref));
+        
+                for (const item of orderToDelete.items) {
+                    const productRef = doc(db, "products", String(item.productId));
+                    const productDoc = await getDoc(productRef);
+                    if (productDoc.exists()) {
+                        const product = productDoc.data() as Product;
+                        const newStock = { ...product.stock, main: product.stock.main + item.quantity };
+                        batch.update(productRef, { stock: newStock });
+                    }
+                }
+            }
             await batch.commit();
-            set({ appData: updatedAppData });
+        } catch (error) {
+            console.error("!!! CRITICAL: deleteOrder failed !!!", error);
+            throw error;
         }
     },
     
     markNotificationAsRead: async (notificationId) => {
         await updateDoc(doc(db, "notifications", String(notificationId)), { read: true });
-        set(state => {
-            if (!state.appData) return {};
-            return {
-                appData: {
-                    ...state.appData,
-                    notifications: state.appData.notifications.map(n => n.id === notificationId ? { ...n, read: true } : n),
-                }
-            };
-        });
     }
-
 }));
 
 export default useStore;

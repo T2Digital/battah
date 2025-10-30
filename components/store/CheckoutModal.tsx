@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { CartItem, Order } from '../../types';
 import Modal from '../shared/Modal';
 import { formatCurrency } from '../../lib/utils';
@@ -19,11 +19,27 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, cartItem
     const [locationUrl, setLocationUrl] = useState('');
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    const subtotal = cartItems.reduce((sum, item) => sum + item.product.sellingPrice * item.quantity, 0);
+    // Persist form data to localStorage
+    useEffect(() => {
+        if (isOpen) {
+            const savedData = localStorage.getItem('checkoutData');
+            if (savedData) {
+                setCustomerDetails(JSON.parse(savedData));
+            }
+        }
+    }, [isOpen]);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-        setCustomerDetails({ ...customerDetails, [e.target.name]: e.target.value });
+        const newDetails = { ...customerDetails, [e.target.name]: e.target.value };
+        setCustomerDetails(newDetails);
+        localStorage.setItem('checkoutData', JSON.stringify(newDetails));
     };
+
+
+    const subtotal = cartItems.reduce((sum, item) => sum + item.product.sellingPrice * item.quantity, 0);
+    const deliveryFee = 50; // Example delivery fee
+    const totalAmount = subtotal + deliveryFee;
+
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
@@ -61,8 +77,11 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, cartItem
         try {
             const proofUrl = await onPlaceOrder(customerDetails, paymentMethod, paymentProof || undefined);
             
+            // Clear saved data on successful order
+            localStorage.removeItem('checkoutData');
+
             // Prepare WhatsApp message
-            const businessPhoneNumber = '201021465811'; // Replace with your business WhatsApp number
+            const businessPhoneNumber = '201068466666'; 
             let message = `*طلب جديد من متجر بطاح*\n\n`;
             message += `*الاسم:* ${customerDetails.name}\n`;
             message += `*الهاتف:* ${customerDetails.phone}\n`;
@@ -71,7 +90,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, cartItem
             cartItems.forEach(item => {
                 message += `- ${item.product.name} (الكمية: ${item.quantity}) - ${formatCurrency(item.product.sellingPrice * item.quantity)}\n`;
             });
-            message += `\n*الإجمالي:* ${formatCurrency(subtotal)}\n`;
+            message += `\n*الإجمالي:* ${formatCurrency(totalAmount)}\n`;
             message += `*طريقة الدفع:* ${paymentMethod === 'cod' ? 'عند الاستلام' : 'دفع إلكتروني'}\n`;
             if (proofUrl) {
                 message += `*إثبات الدفع:* ${proofUrl}\n`;
@@ -82,12 +101,11 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, cartItem
             
             const whatsappUrl = `https://wa.me/${businessPhoneNumber}?text=${encodeURIComponent(message)}`;
             
-            // Redirect to WhatsApp
-            window.location.href = whatsappUrl;
+            window.open(whatsappUrl, '_blank');
 
         } catch (error) {
             console.error("Order submission failed:", error);
-            alert("فشل إرسال الطلب. يرجى التحقق من مفتاح ImgBB API والمحاولة مرة أخرى.");
+            alert("فشل إرسال الطلب. يرجى المحاولة مرة أخرى.");
         } finally {
             setIsPlacingOrder(false);
         }
@@ -120,18 +138,28 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, cartItem
                             </div>
                         ))}
                     </div>
-                    <div className="flex justify-between font-bold text-xl border-t pt-2 mt-2 dark:border-gray-600">
-                        <span>الإجمالي</span>
-                        <span>{formatCurrency(subtotal)}</span>
+                    <div className="space-y-1 border-t pt-2 mt-2 dark:border-gray-600">
+                        <div className="flex justify-between text-sm">
+                            <span>المجموع الفرعي</span>
+                            <span>{formatCurrency(subtotal)}</span>
+                        </div>
+                         <div className="flex justify-between text-sm">
+                            <span>رسوم التوصيل</span>
+                            <span>{formatCurrency(deliveryFee)}</span>
+                        </div>
+                        <div className="flex justify-between font-bold text-xl pt-1">
+                            <span>المجموع الإجمالي</span>
+                            <span>{formatCurrency(totalAmount)}</span>
+                        </div>
                     </div>
                 </div>
 
                 <div>
                      <h3 className="font-bold text-lg mb-2">بياناتك</h3>
                      <div className="space-y-4">
-                         <input type="text" name="name" placeholder="الاسم الكامل" onChange={handleChange} required className={inputBaseClasses} />
-                         <input type="tel" name="phone" placeholder="رقم الهاتف" onChange={handleChange} required className={inputBaseClasses} />
-                         <textarea name="address" placeholder="العنوان بالتفصيل" onChange={handleChange} required className={inputBaseClasses} rows={2}></textarea>
+                         <input type="text" name="name" value={customerDetails.name} placeholder="الاسم الكامل" onChange={handleChange} required className={inputBaseClasses} />
+                         <input type="tel" name="phone" value={customerDetails.phone} placeholder="رقم الهاتف" onChange={handleChange} required className={inputBaseClasses} />
+                         <textarea name="address" value={customerDetails.address} placeholder="العنوان بالتفصيل" onChange={handleChange} required className={inputBaseClasses} rows={2}></textarea>
                          <button type="button" onClick={handleGetLocation} disabled={isGettingLocation} className="w-full flex justify-center items-center gap-2 px-4 py-2 text-sm text-gray-700 bg-gray-100 dark:bg-gray-600 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-500 transition disabled:opacity-50">
                             {isGettingLocation ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-map-marker-alt"></i>}
                             <span>{locationUrl ? 'تم تحديد الموقع بنجاح' : '📍 مشاركة موقعي لتوصيل أسرع'}</span>

@@ -38,14 +38,10 @@ const App: React.FC = () => {
       isInitialized, 
       isLoading,
       appData,
-      fetchInitialData,
-      setCurrentUser,
+      initRealtimeListeners,
       clearCurrentUser,
       isSeeded,
       checkIfSeeded,
-      setProducts,
-      setDailySales,
-      setEmployees,
       addAdvance,
       updateAdvance,
       deleteAdvance,
@@ -53,46 +49,59 @@ const App: React.FC = () => {
       addPayroll,
       updatePayroll,
       deletePayroll,
-      setSuppliers,
-      addPurchaseOrder,
-      updatePurchaseOrder,
-      deletePurchaseOrder,
       addPayment,
       updatePayment,
       deletePayment,
       addExpense,
       updateExpense,
       deleteExpense,
-      setDailyReviews,
-      addTreasuryTransaction
     } = useStore();
 
     const [viewMode, setViewMode] = useState<ViewMode>('store');
     const [activeSection, setActiveSection] = useState<Section>(Section.Dashboard);
     const [isSidebarOpen, setSidebarOpen] = useState(true);
     const [activeReport, setActiveReport] = useState<string | null>(null);
+    
+    useEffect(() => {
+        // On user logout, always return to the store view.
+        if (!currentUser) {
+            setViewMode('store');
+        }
+    }, [currentUser]);
+
+    useEffect(() => {
+        const handleHashChange = () => {
+            const hash = window.location.hash.replace('#', '');
+            if (Object.values(Section).includes(hash as Section)) {
+                setActiveSection(hash as Section);
+            } else {
+                setActiveSection(Section.Dashboard);
+            }
+        };
+
+        window.addEventListener('hashchange', handleHashChange);
+        handleHashChange();
+
+        return () => window.removeEventListener('hashchange', handleHashChange);
+    }, []);
+
+    const updateActiveSection = (section: Section) => {
+        window.location.hash = section;
+    };
+
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (user) => {
-            if (user && user.email) {
-                if (!isInitialized) {
-                    await fetchInitialData();
-                }
-                const appUser = useStore.getState().appData?.users.find(u => u.username.toLowerCase() === user.email?.toLowerCase());
-                if (appUser) {
-                  setCurrentUser(appUser);
-                } else {
-                  clearCurrentUser();
+            if (user) {
+                if (!useStore.getState().isInitialized) {
+                    initRealtimeListeners();
                 }
             } else {
                 clearCurrentUser();
-                if (!isInitialized) {
-                  await fetchInitialData(); 
-                }
             }
         });
         return () => unsubscribe();
-    }, [isInitialized, fetchInitialData, setCurrentUser, clearCurrentUser]);
+    }, [initRealtimeListeners, clearCurrentUser]);
 
      useEffect(() => {
         checkIfSeeded();
@@ -110,10 +119,11 @@ const App: React.FC = () => {
         if (!appData || !currentUser) return null;
 
         const {
-            products = [], dailySales = [], employees = [], advances = [], 
+            employees = [], advances = [], 
             attendance = [], payroll = [], suppliers = [],
-            purchaseOrders = [], payments = [], expenses = [], 
-            treasury = [], dailyReview = []
+            payments = [], expenses = [], 
+            treasury = [],
+            purchaseOrders = []
         } = appData;
 
         if (activeReport === 'inventory') {
@@ -125,7 +135,7 @@ const App: React.FC = () => {
                     case Role.Admin:
                         return <Dashboard />;
                     case Role.Seller:
-                        return <SellerDashboard currentUser={currentUser} dailySales={dailySales} setActiveSection={setActiveSection} />;
+                        return <SellerDashboard currentUser={currentUser} setActiveSection={updateActiveSection} />;
                     case Role.BranchManager:
                         return <BranchManagerDashboard currentUser={currentUser} appData={appData} />;
                     case Role.Accountant:
@@ -134,16 +144,16 @@ const App: React.FC = () => {
                         return <Dashboard />;
                 }
             case Section.Treasury: return <Treasury treasury={treasury} />;
-            case Section.DailySales: return <DailySales dailySales={dailySales} setDailySales={setDailySales} products={products} setProducts={setProducts} addTreasuryTransaction={addTreasuryTransaction} currentUser={currentUser} />;
+            case Section.DailySales: return <DailySales currentUser={currentUser} />;
             case Section.StoreManagement: return <Inventory />;
-            case Section.Purchasing: return <Purchasing purchaseOrders={purchaseOrders} addPurchaseOrder={addPurchaseOrder} updatePurchaseOrder={updatePurchaseOrder} deletePurchaseOrder={deletePurchaseOrder} suppliers={suppliers} products={products} setProducts={setProducts} />;
-            case Section.Employees: return <Employees employees={employees} setEmployees={setEmployees} />;
+            case Section.Purchasing: return <Purchasing />;
+            case Section.Employees: return <Employees employees={employees} />;
             case Section.Advances: return <Advances advances={advances} addAdvance={addAdvance} updateAdvance={updateAdvance} deleteAdvance={deleteAdvance} employees={employees} />;
             case Section.Attendance: return <Attendance attendance={attendance} setAttendance={setAttendance} employees={employees} />;
             case Section.Payroll: return <Payroll payroll={payroll} addPayroll={addPayroll} updatePayroll={updatePayroll} deletePayroll={deletePayroll} employees={employees} />;
-            case Section.Suppliers: return <Suppliers suppliers={suppliers} setSuppliers={setSuppliers} payments={payments} addPayment={addPayment} updatePayment={updatePayment} deletePayment={deletePayment} purchaseOrders={purchaseOrders} />;
+            case Section.Suppliers: return <Suppliers suppliers={suppliers} payments={payments} addPayment={addPayment} updatePayment={updatePayment} deletePayment={deletePayment} purchaseOrders={purchaseOrders} />;
             case Section.Expenses: return <Expenses expenses={expenses} addExpense={addExpense} updateExpense={updateExpense} deleteExpense={deleteExpense} />;
-            case Section.DailyReview: return <DailyReview dailyReviews={dailyReview} setDailyReviews={setDailyReviews} />;
+            case Section.DailyReview: return <DailyReview />;
             case Section.Reports: return <Reports setActiveReport={setActiveReport} />;
             case Section.Orders: return <Orders />;
             default: return <Dashboard />;
@@ -153,25 +163,18 @@ const App: React.FC = () => {
     if (!isSeeded) {
         return <SeedData />;
     }
-
-    if (isLoading && !isInitialized) {
-        return <div className="flex justify-center items-center min-h-screen">جاري تحميل النظام...</div>;
-    }
     
-    if (!appData) {
-        return <div className="flex justify-center items-center min-h-screen">حدث خطأ أثناء تحميل البيانات.</div>;
-    }
-
     if (viewMode === 'store') {
-        return (
-            <Storefront 
-                setViewMode={setViewMode}
-            />
-        );
+        return <Storefront setViewMode={setViewMode} />;
     }
 
+    // --- Admin View Logic ---
     if (!currentUser) {
         return <LoginModal />;
+    }
+
+    if (isLoading || !isInitialized || !appData) {
+        return <div className="flex justify-center items-center min-h-screen">جاري تحميل النظام...</div>;
     }
 
     return (
@@ -184,7 +187,7 @@ const App: React.FC = () => {
             <Sidebar
                 isOpen={isSidebarOpen}
                 activeSection={activeSection}
-                setActiveSection={setActiveSection}
+                setActiveSection={updateActiveSection}
                 hasPermission={hasPermission}
             />
             <main className={`transition-all duration-300 ease-in-out pt-24 pb-8 px-4 sm:px-8 ${isSidebarOpen ? 'mr-64 sm:mr-72' : 'mr-20'}`}>

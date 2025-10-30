@@ -3,19 +3,21 @@ import useStore from '../../lib/store';
 import { Product, MainCategory } from '../../types';
 import SectionHeader from '../shared/SectionHeader';
 import ProductModal from './ProductModal';
-// Fix: Corrected import path for StorefrontSettings
 import StorefrontSettings from './StorefrontSettings';
+import ConfirmationModal from '../shared/ConfirmationModal';
 import { formatCurrency } from '../../lib/utils';
 
 const Inventory: React.FC = () => {
     const { 
         products, 
         setProducts, 
+        deleteProduct,
         storefrontSettings,
         updateStorefrontSettings 
     } = useStore(state => ({
         products: state.appData?.products || [],
         setProducts: state.setProducts,
+        deleteProduct: state.deleteProduct,
         storefrontSettings: state.appData?.storefrontSettings,
         updateStorefrontSettings: state.updateStorefrontSettings,
     }));
@@ -23,6 +25,8 @@ const Inventory: React.FC = () => {
     const [isProductModalOpen, setProductModalOpen] = useState(false);
     const [isSettingsModalOpen, setSettingsModalOpen] = useState(false);
     const [productToEdit, setProductToEdit] = useState<Product | null>(null);
+    const [productToDelete, setProductToDelete] = useState<Product | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
     const [filters, setFilters] = useState({
         search: '',
         category: '',
@@ -39,9 +43,17 @@ const Inventory: React.FC = () => {
         setProductModalOpen(true);
     };
 
-    const handleDeleteProduct = (productId: number) => {
-        if (window.confirm('هل أنت متأكد من حذف هذا المنتج؟')) {
-            setProducts(products.filter(p => p.id !== productId));
+    const confirmDeleteProduct = async () => {
+        if (!productToDelete) return;
+        setIsDeleting(true);
+        try {
+            await deleteProduct(productToDelete.id);
+            setProductToDelete(null);
+        } catch (error) {
+            console.error("Failed to delete product:", error);
+            alert(`فشل حذف المنتج: ${error instanceof Error ? error.message : String(error)}`);
+        } finally {
+            setIsDeleting(false);
         }
     };
 
@@ -124,7 +136,7 @@ const Inventory: React.FC = () => {
                                     <td className={`px-6 py-4 font-bold ${totalStock <= (p.reorderPoint || 0) ? 'text-red-500' : ''}`}>{totalStock}</td>
                                     <td className="px-6 py-4 flex gap-3">
                                         <button onClick={() => handleEditProduct(p)} className="text-blue-500 hover:text-blue-700 text-lg"><i className="fas fa-edit"></i></button>
-                                        <button onClick={() => handleDeleteProduct(p.id)} className="text-red-500 hover:text-red-700 text-lg"><i className="fas fa-trash"></i></button>
+                                        <button onClick={() => setProductToDelete(p)} className="text-red-500 hover:text-red-700 text-lg"><i className="fas fa-trash"></i></button>
                                     </td>
                                 </tr>
                             );
@@ -135,6 +147,17 @@ const Inventory: React.FC = () => {
 
             {isProductModalOpen && <ProductModal isOpen={isProductModalOpen} onClose={() => setProductModalOpen(false)} onSave={handleSaveProduct} existingProduct={productToEdit} />}
             {isSettingsModalOpen && storefrontSettings && <StorefrontSettings isOpen={isSettingsModalOpen} onClose={() => setSettingsModalOpen(false)} settings={storefrontSettings} onSave={updateStorefrontSettings} products={products} />}
+            
+            {productToDelete && (
+                <ConfirmationModal
+                    isOpen={!!productToDelete}
+                    onClose={() => setProductToDelete(null)}
+                    onConfirm={confirmDeleteProduct}
+                    title="تأكيد الحذف"
+                    message={`هل أنت متأكد من حذف المنتج "${productToDelete.name}"؟`}
+                    isLoading={isDeleting}
+                />
+            )}
         </div>
     );
 };

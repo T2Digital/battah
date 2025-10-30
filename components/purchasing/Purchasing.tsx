@@ -1,26 +1,37 @@
 import React, { useState, useMemo } from 'react';
-// Fix: Corrected import path
 import { PurchaseOrder, Supplier, Product } from '../../types';
 import SectionHeader from '../shared/SectionHeader';
 import PurchaseOrderModal from './PurchaseOrderModal';
 import ReceiveOrderModal from './ReceiveOrderModal';
+import ConfirmationModal from '../shared/ConfirmationModal';
 import { formatDate, formatCurrency } from '../../lib/utils';
+import useStore from '../../lib/store';
 
-interface PurchasingProps {
-    purchaseOrders: PurchaseOrder[];
-    addPurchaseOrder: (order: Omit<PurchaseOrder, 'id'>) => Promise<void>;
-    updatePurchaseOrder: (orderId: number, updates: Partial<PurchaseOrder>) => Promise<void>;
-    deletePurchaseOrder: (orderId: number) => Promise<void>;
-    suppliers: Supplier[];
-    products: Product[];
-    setProducts: (products: Product[]) => Promise<void>;
-}
+const Purchasing: React.FC = () => {
+    const { 
+        products, 
+        setProducts,
+        purchaseOrders,
+        addPurchaseOrder,
+        updatePurchaseOrder,
+        deletePurchaseOrder,
+        suppliers
+    } = useStore(state => ({
+        products: state.appData?.products || [],
+        setProducts: state.setProducts,
+        purchaseOrders: state.appData?.purchaseOrders || [],
+        addPurchaseOrder: state.addPurchaseOrder,
+        updatePurchaseOrder: state.updatePurchaseOrder,
+        deletePurchaseOrder: state.deletePurchaseOrder,
+        suppliers: state.appData?.suppliers || [],
+    }));
 
-const Purchasing: React.FC<PurchasingProps> = ({ purchaseOrders, addPurchaseOrder, updatePurchaseOrder, deletePurchaseOrder, suppliers, products, setProducts }) => {
     const [isOrderModalOpen, setOrderModalOpen] = useState(false);
     const [isReceiveModalOpen, setReceiveModalOpen] = useState(false);
     const [orderToEdit, setOrderToEdit] = useState<PurchaseOrder | null>(null);
     const [orderToReceive, setOrderToReceive] = useState<PurchaseOrder | null>(null);
+    const [orderToDelete, setOrderToDelete] = useState<PurchaseOrder | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     const getSupplierName = (id: number) => suppliers.find(s => s.id === id)?.name || 'غير معروف';
 
@@ -39,9 +50,17 @@ const Purchasing: React.FC<PurchasingProps> = ({ purchaseOrders, addPurchaseOrde
         setReceiveModalOpen(true);
     };
 
-    const handleDeleteOrder = (id: number) => {
-        if (window.confirm('هل أنت متأكد من حذف أمر الشراء هذا؟')) {
-            deletePurchaseOrder(id);
+    const confirmDeleteOrder = async () => {
+        if (!orderToDelete) return;
+        setIsDeleting(true);
+        try {
+            await deletePurchaseOrder(orderToDelete.id);
+            setOrderToDelete(null);
+        } catch (error) {
+            console.error("Failed to delete purchase order:", error);
+            alert(`فشل حذف أمر الشراء: ${error instanceof Error ? error.message : String(error)}`);
+        } finally {
+            setIsDeleting(false);
         }
     };
     
@@ -118,7 +137,9 @@ const Purchasing: React.FC<PurchasingProps> = ({ purchaseOrders, addPurchaseOrde
                                         <button onClick={() => handleReceiveOrder(po)} className="text-green-500 hover:text-green-700 text-lg" title="استلام البضاعة"><i className="fas fa-check-circle"></i></button>
                                     )}
                                     <button onClick={() => handleEditOrder(po)} className="text-blue-500 hover:text-blue-700 text-lg" title="تعديل"><i className="fas fa-edit"></i></button>
-                                    <button onClick={() => handleDeleteOrder(po.id)} className="text-red-500 hover:text-red-700 text-lg" title="حذف"><i className="fas fa-trash"></i></button>
+                                    <button onClick={() => setOrderToDelete(po)} className="text-red-500 hover:text-red-700 text-lg w-6 text-center" title="حذف">
+                                        <i className="fas fa-trash"></i>
+                                    </button>
                                 </td>
                             </tr>
                         ))}
@@ -143,6 +164,17 @@ const Purchasing: React.FC<PurchasingProps> = ({ purchaseOrders, addPurchaseOrde
                     onConfirm={handleConfirmReception}
                     order={orderToReceive}
                     products={products}
+                />
+            )}
+            
+            {orderToDelete && (
+                <ConfirmationModal
+                    isOpen={!!orderToDelete}
+                    onClose={() => setOrderToDelete(null)}
+                    onConfirm={confirmDeleteOrder}
+                    title="تأكيد الحذف"
+                    message={`هل أنت متأكد من حذف أمر الشراء رقم "PO-${orderToDelete.id.toString().padStart(4, '0')}"؟`}
+                    isLoading={isDeleting}
                 />
             )}
 

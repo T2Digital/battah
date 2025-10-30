@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Expense } from '../../types';
 import SectionHeader from '../shared/SectionHeader';
 import Modal from '../shared/Modal';
+import ConfirmationModal from '../shared/ConfirmationModal';
 import { formatDate, formatCurrency } from '../../lib/utils';
 
 interface ExpensesProps {
@@ -54,6 +55,8 @@ const ExpenseModal: React.FC<{
 const Expenses: React.FC<ExpensesProps> = ({ expenses, addExpense, updateExpense, deleteExpense }) => {
     const [isModalOpen, setModalOpen] = useState(false);
     const [expenseToEdit, setExpenseToEdit] = useState<Expense | null>(null);
+    const [expenseToDelete, setExpenseToDelete] = useState<Expense | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
     const [filters, setFilters] = useState({ search: '', type: '', date: '' });
     
     const handleSave = (expense: Omit<Expense, 'id'> & { id?: number }) => {
@@ -65,9 +68,17 @@ const Expenses: React.FC<ExpensesProps> = ({ expenses, addExpense, updateExpense
         setModalOpen(false);
     };
 
-    const handleDelete = (id: number) => {
-        if (window.confirm('هل أنت متأكد من حذف هذا المصروف؟')) {
-            deleteExpense(id);
+    const confirmDelete = async () => {
+        if (!expenseToDelete) return;
+        setIsDeleting(true);
+        try {
+            await deleteExpense(expenseToDelete.id);
+            setExpenseToDelete(null);
+        } catch (error) {
+            console.error("Failed to delete expense:", error);
+            alert(`فشل حذف المصروف: ${error instanceof Error ? error.message : String(error)}`);
+        } finally {
+            setIsDeleting(false);
         }
     };
 
@@ -118,7 +129,9 @@ const Expenses: React.FC<ExpensesProps> = ({ expenses, addExpense, updateExpense
                                 <td className="px-6 py-4 font-semibold">{formatCurrency(exp.amount)}</td>
                                 <td className="px-6 py-4 flex gap-3">
                                     <button onClick={() => { setExpenseToEdit(exp); setModalOpen(true); }} className="text-blue-500"><i className="fas fa-edit"></i></button>
-                                    <button onClick={() => handleDelete(exp.id)} className="text-red-500"><i className="fas fa-trash"></i></button>
+                                    <button onClick={() => setExpenseToDelete(exp)} className="text-red-500 w-6 text-center">
+                                        <i className="fas fa-trash"></i>
+                                    </button>
                                 </td>
                             </tr>
                         ))}
@@ -126,6 +139,17 @@ const Expenses: React.FC<ExpensesProps> = ({ expenses, addExpense, updateExpense
                 </table>
             </div>
             <ExpenseModal isOpen={isModalOpen} onClose={() => setModalOpen(false)} onSave={handleSave} expenseToEdit={expenseToEdit} />
+
+            {expenseToDelete && (
+                <ConfirmationModal
+                    isOpen={!!expenseToDelete}
+                    onClose={() => setExpenseToDelete(null)}
+                    onConfirm={confirmDelete}
+                    title="تأكيد الحذف"
+                    message={`هل أنت متأكد من حذف مصروف "${expenseToDelete.name}"؟`}
+                    isLoading={isDeleting}
+                />
+            )}
         </div>
     );
 };

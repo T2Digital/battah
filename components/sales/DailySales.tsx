@@ -1,24 +1,35 @@
-
-
 import React, { useState, useMemo } from 'react';
-import { DailySale, User, Product, TreasuryTransaction, Role, SaleItem } from '../../types';
+import { DailySale, User } from '../../types';
 import SectionHeader from '../shared/SectionHeader';
 import DailySaleModal from './DailySaleModal';
+import ConfirmationModal from '../shared/ConfirmationModal';
 import { formatCurrency, normalizeSaleItems } from '../../lib/utils';
 import { generateInvoiceContent } from '../../lib/reportTemplates';
+import useStore from '../../lib/store';
 
-interface DailySalesProps {
-    dailySales: DailySale[];
-    setDailySales: (sales: DailySale[]) => void;
-    products: Product[];
-    setProducts: (products: Product[]) => void;
-    addTreasuryTransaction: (transaction: Omit<TreasuryTransaction, 'id'>) => void;
-    currentUser: User;
-}
-
-const DailySales: React.FC<DailySalesProps> = ({ dailySales, setDailySales, products, setProducts, addTreasuryTransaction, currentUser }) => {
+const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
+    const { 
+        dailySales, 
+        products, 
+        addDailySale, 
+        updateDailySale, 
+        deleteDailySale,
+        addTreasuryTransaction, 
+        setProducts 
+    } = useStore(state => ({
+        dailySales: state.appData?.dailySales || [],
+        products: state.appData?.products || [],
+        addDailySale: state.addDailySale,
+        updateDailySale: state.updateDailySale,
+        deleteDailySale: state.deleteDailySale,
+        addTreasuryTransaction: state.addTreasuryTransaction,
+        setProducts: state.setProducts
+    }));
+    
     const [isModalOpen, setModalOpen] = useState(false);
     const [editingSale, setEditingSale] = useState<DailySale | null>(null);
+    const [saleToDelete, setSaleToDelete] = useState<DailySale | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     const today = new Date();
     const todayStr = today.toISOString().split('T')[0];
@@ -27,7 +38,7 @@ const DailySales: React.FC<DailySalesProps> = ({ dailySales, setDailySales, prod
     const todaySales = useMemo(() => {
         return dailySales
             .filter(sale => {
-                if (currentUser.role === Role.Seller) {
+                if (currentUser.role === 'seller') {
                     return sale.date === todayStr && sale.sellerId === currentUser.id;
                 }
                 return sale.date === todayStr;
@@ -54,64 +65,28 @@ const DailySales: React.FC<DailySalesProps> = ({ dailySales, setDailySales, prod
         setModalOpen(true);
     };
 
-    const handleDeleteSale = (saleId: number) => {
-        if (window.confirm('هل أنت متأكد من حذف هذه الفاتورة؟ سيتم إرجاع الكميات للمخزون وعكس الحركة المالية.')) {
-            const saleToDelete = dailySales.find(s => s.id === saleId);
-            if (!saleToDelete) return;
-            
-            const stockUpdates = new Map<number, number>();
-            const items = normalizeSaleItems(saleToDelete);
-            
-            items.forEach(item => {
-                const quantityToReturn = saleToDelete.direction === 'بيع' ? item.quantity : -item.quantity;
-                stockUpdates.set(item.productId, (stockUpdates.get(item.productId) || 0) + quantityToReturn);
-            });
-
-            const updatedProducts = products.map(p => {
-                if (stockUpdates.has(p.id)) {
-                    return {
-                        ...p,
-                        stock: {
-                            ...p.stock,
-                            [saleToDelete.branchSoldFrom]: p.stock[saleToDelete.branchSoldFrom] + (stockUpdates.get(p.id) || 0)
-                        }
-                    };
-                }
-                return p;
-            });
-            setProducts(updatedProducts);
-
-            if (saleToDelete.direction === 'بيع') {
-                 addTreasuryTransaction({
-                    date: saleToDelete.date, type: 'مرتجع مبيعات', description: `إلغاء فاتورة #${saleToDelete.invoiceNumber}`,
-                    amountIn: 0, amountOut: saleToDelete.totalAmount, relatedId: saleToDelete.id,
-                });
-            } else if (saleToDelete.direction === 'مرتجع') {
-                 addTreasuryTransaction({
-                    date: saleToDelete.date, type: 'إيراد مبيعات', description: `إلغاء مرتجع للفاتورة #${saleToDelete.invoiceNumber}`,
-                    amountIn: saleToDelete.totalAmount, amountOut: 0, relatedId: saleToDelete.id,
-                });
-            }
-
-            setDailySales(dailySales.filter(s => s.id !== saleId));
+    const confirmDeleteSale = async () => {
+        if (!saleToDelete) return;
+        setIsDeleting(true);
+        try {
+            await deleteDailySale(saleToDelete.id);
+            setSaleToDelete(null);
+        } catch (error) {
+            console.error("Failed to delete sale:", error);
+            alert(`فشل حذف الفاتورة: ${error instanceof Error ? error.message : String(error)}`);
+        } finally {
+            setIsDeleting(false);
         }
     };
     
-    const handleSaveSale = (saleData: Omit<DailySale, 'id'> & { id?: number }) => {
+    const handleSaveSale = async (saleData: Omit<DailySale, 'id'> & { id?: number }) => {
         const isEditing = saleData.id !== undefined;
-        let finalSale: DailySale;
-        const originalSale = isEditing ? dailySales.find(s => s.id === saleData.id) : undefined;
+        let finalSaleData: Omit<DailySale, 'id'> = saleData;
 
-        if (isEditing && originalSale) {
-            finalSale = { ...originalSale, ...saleData };
-        } else {
-            const newId = (dailySales.length > 0 ? Math.max(...dailySales.map(s => s.id)) : 0) + 1;
-            finalSale = { ...saleData, id: newId } as DailySale;
-        }
+        const originalSale = isEditing ? dailySales.find(s => s.id === saleData.id) : undefined;
 
         const stockChanges = new Map<number, number>();
         
-        // Revert old quantities if editing
         if (isEditing && originalSale) {
             const originalItems = normalizeSaleItems(originalSale);
             originalItems.forEach(item => {
@@ -120,35 +95,30 @@ const DailySales: React.FC<DailySalesProps> = ({ dailySales, setDailySales, prod
             });
         }
         
-        // Apply new quantities
-        const finalItems = normalizeSaleItems(finalSale);
+        const finalItems = normalizeSaleItems(finalSaleData as DailySale);
         finalItems.forEach(item => {
-            const quantityToApply = finalSale.direction === 'بيع' ? -item.quantity : item.quantity;
+            const quantityToApply = finalSaleData.direction === 'بيع' ? -item.quantity : item.quantity;
             stockChanges.set(item.productId, (stockChanges.get(item.productId) || 0) + quantityToApply);
         });
 
         const updatedProducts = products.map(p => {
             if (stockChanges.has(p.id)) {
-                return { ...p, stock: { ...p.stock, [finalSale.branchSoldFrom]: p.stock[finalSale.branchSoldFrom] + (stockChanges.get(p.id) || 0) } };
+                return { ...p, stock: { ...p.stock, [finalSaleData.branchSoldFrom]: p.stock[finalSaleData.branchSoldFrom] + (stockChanges.get(p.id) || 0) } };
             }
             return p;
         });
-        setProducts(updatedProducts);
+        await setProducts(updatedProducts);
 
-        if (!isEditing) {
-            const transactionType = finalSale.direction === 'بيع' ? 'إيراد مبيعات' : 'مرتجع مبيعات';
-            addTreasuryTransaction({
-                date: finalSale.date, type: transactionType, description: `${finalSale.direction} فاتورة #${finalSale.invoiceNumber}`,
-                amountIn: finalSale.direction === 'بيع' ? finalSale.totalAmount : 0,
-                amountOut: finalSale.direction !== 'بيع' ? finalSale.totalAmount : 0, relatedId: finalSale.id,
-            });
-        }
-        // TODO: Handle treasury update on edit if totalAmount changes
-        
-        if (isEditing) {
-            setDailySales(dailySales.map(s => s.id === finalSale.id ? finalSale : s));
+        if (isEditing && saleData.id) {
+            await updateDailySale(saleData.id, saleData);
         } else {
-            setDailySales([...dailySales, finalSale]);
+            const newSale = await addDailySale(finalSaleData);
+            const transactionType = newSale.direction === 'بيع' ? 'إيراد مبيعات' : 'مرتجع مبيعات';
+            await addTreasuryTransaction({
+                date: newSale.date, type: transactionType, description: `${newSale.direction} فاتورة #${newSale.invoiceNumber}`,
+                amountIn: newSale.direction === 'بيع' ? newSale.totalAmount : 0,
+                amountOut: newSale.direction !== 'بيع' ? newSale.totalAmount : 0, relatedId: newSale.id
+            });
         }
         
         setModalOpen(false);
@@ -221,7 +191,9 @@ const DailySales: React.FC<DailySalesProps> = ({ dailySales, setDailySales, prod
                                     <td className="px-6 py-4 flex gap-3">
                                         <button onClick={() => handlePrintInvoice(sale)} className="text-green-500 hover:text-green-700 text-lg" aria-label={`طباعة فاتورة ${sale.invoiceNumber}`}><i className="fas fa-print"></i></button>
                                         <button onClick={() => handleEditSale(sale)} className="text-blue-500 hover:text-blue-700 text-lg" aria-label={`تعديل فاتورة ${sale.invoiceNumber}`}><i className="fas fa-edit"></i></button>
-                                        <button onClick={() => handleDeleteSale(sale.id)} className="text-red-500 hover:text-red-700 text-lg" aria-label={`حذف فاتورة ${sale.invoiceNumber}`}><i className="fas fa-trash"></i></button>
+                                        <button onClick={() => setSaleToDelete(sale)} className="text-red-500 hover:text-red-700 text-lg w-6 text-center" aria-label={`حذف فاتورة ${sale.invoiceNumber}`}>
+                                            <i className="fas fa-trash"></i>
+                                        </button>
                                     </td>
                                 </tr>
                                 );
@@ -240,6 +212,16 @@ const DailySales: React.FC<DailySalesProps> = ({ dailySales, setDailySales, prod
                     existingSale={editingSale}
                     dailySales={dailySales}
                     products={products}
+                />
+            )}
+            {saleToDelete && (
+                <ConfirmationModal
+                    isOpen={!!saleToDelete}
+                    onClose={() => setSaleToDelete(null)}
+                    onConfirm={confirmDeleteSale}
+                    title="تأكيد الحذف"
+                    message={`هل أنت متأكد من حذف الفاتورة رقم "${saleToDelete.invoiceNumber}"؟ سيتم إرجاع الكميات للمخزون وعكس الحركة المالية.`}
+                    isLoading={isDeleting}
                 />
             )}
         </div>

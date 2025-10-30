@@ -1,15 +1,12 @@
 import React, { useState, useMemo } from 'react';
-// Fix: Corrected import path
 import { Employee } from '../../types';
 import { formatCurrency, formatDate } from '../../lib/utils';
 import SectionHeader from '../shared/SectionHeader';
 import Modal from '../shared/Modal';
+import useStore from '../../lib/store';
+import ConfirmationModal from '../shared/ConfirmationModal';
 
-interface EmployeesProps {
-    employees: Employee[];
-    setEmployees: (employees: Employee[]) => void;
-}
-
+// Fix: Correctly define EmployeeModal as a functional component.
 const EmployeeModal: React.FC<{
     isOpen: boolean;
     onClose: () => void;
@@ -98,11 +95,14 @@ const EmployeeModal: React.FC<{
 };
 
 
-const Employees: React.FC<EmployeesProps> = ({ employees, setEmployees }) => {
+const Employees: React.FC<{ employees: Employee[] }> = ({ employees }) => {
+    const { addEmployee, updateEmployee, deleteEmployee } = useStore();
     const [isModalOpen, setModalOpen] = useState(false);
     const [employeeToEdit, setEmployeeToEdit] = useState<Employee | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [positionFilter, setPositionFilter] = useState('');
+    const [employeeToDelete, setEmployeeToDelete] = useState<Employee | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     const handleAdd = () => {
         setEmployeeToEdit(null);
@@ -114,19 +114,26 @@ const Employees: React.FC<EmployeesProps> = ({ employees, setEmployees }) => {
         setModalOpen(true);
     };
 
-    const handleDelete = (employeeId: number) => {
-        if (window.confirm('هل أنت متأكد من حذف هذا الموظف؟ سيتم حذف جميع البيانات المرتبطة به.')) {
-            setEmployees(employees.filter(emp => emp.id !== employeeId));
-            // Note: In a real app, you'd also delete related data (advances, payroll etc.)
+    const confirmDelete = async () => {
+        if (!employeeToDelete) return;
+
+        setIsDeleting(true);
+        try {
+            await deleteEmployee(employeeToDelete.id);
+            setEmployeeToDelete(null);
+        } catch (error) {
+            console.error("Failed to delete employee:", error);
+            alert(`فشل حذف الموظف: ${error instanceof Error ? error.message : String(error)}`);
+        } finally {
+            setIsDeleting(false);
         }
     };
 
     const handleSave = (employee: Omit<Employee, 'id'> & { id?: number }) => {
         if (employee.id) {
-            setEmployees(employees.map(e => (e.id === employee.id ? { ...e, ...employee } : e)));
+            updateEmployee(employee.id, employee);
         } else {
-            const newId = Math.max(0, ...employees.map(e => e.id)) + 1;
-            setEmployees([...employees, { ...employee, id: newId }]);
+            addEmployee(employee);
         }
         setModalOpen(false);
     };
@@ -195,7 +202,9 @@ const Employees: React.FC<EmployeesProps> = ({ employees, setEmployees }) => {
                                 <td className="px-6 py-4">{formatDate(emp.hireDate)}</td>
                                 <td className="px-6 py-4 flex gap-3">
                                     <button onClick={() => handleEdit(emp)} className="text-blue-500 hover:text-blue-700 text-lg" aria-label={`تعديل ${emp.name}`}><i className="fas fa-edit"></i></button>
-                                    <button onClick={() => handleDelete(emp.id)} className="text-red-500 hover:text-red-700 text-lg" aria-label={`حذف ${emp.name}`}><i className="fas fa-trash"></i></button>
+                                    <button onClick={() => setEmployeeToDelete(emp)} className="text-red-500 hover:text-red-700 text-lg w-6 text-center" aria-label={`حذف ${emp.name}`}>
+                                        <i className="fas fa-trash"></i>
+                                    </button>
                                 </td>
                             </tr>
                         )) : (
@@ -208,6 +217,17 @@ const Employees: React.FC<EmployeesProps> = ({ employees, setEmployees }) => {
             </div>
             
             <EmployeeModal isOpen={isModalOpen} onClose={() => setModalOpen(false)} onSave={handleSave} employeeToEdit={employeeToEdit} />
+            
+            {employeeToDelete && (
+                <ConfirmationModal
+                    isOpen={!!employeeToDelete}
+                    onClose={() => setEmployeeToDelete(null)}
+                    onConfirm={confirmDelete}
+                    title="تأكيد الحذف"
+                    message={`هل أنت متأكد من حذف الموظف "${employeeToDelete.name}"؟ سيتم حذف جميع البيانات المرتبطة به.`}
+                    isLoading={isDeleting}
+                />
+            )}
         </div>
     );
 };

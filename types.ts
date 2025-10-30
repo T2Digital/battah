@@ -1,5 +1,8 @@
 
 
+
+
+
 export type Branch = 'main' | 'branch1' | 'branch2' | 'branch3';
 
 export enum Role {
@@ -57,7 +60,7 @@ export interface SaleItem {
     productId: number;
     quantity: number;
     unitPrice: number;
-    itemType: 'قطع غيار' | 'بطاريات' | 'زيوت' | 'كماليات' | 'خدمة' | 'أخرى';
+    itemType: MainCategory | 'خدمة' | 'أخرى';
 }
 
 export interface DailySale {
@@ -79,7 +82,7 @@ export interface DailySale {
     productId?: number;
     quantity?: number;
     unitPrice?: number;
-    itemType?: 'قطع غيار' | 'بطاريات' | 'زيوت' | 'كماليات' | 'خدمة' | 'أخرى';
+    itemType?: MainCategory | 'خدمة' | 'أخرى';
 }
 
 

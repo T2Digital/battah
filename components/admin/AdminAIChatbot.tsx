@@ -28,7 +28,6 @@ const AdminAIChatbot: React.FC<AdminAIChatbotProps> = ({ appData }) => {
                 mainCategory: p.mainCategory,
                 brand: p.brand,
                 sellingPrice: p.sellingPrice,
-                // FIX: Replaced reduce with a direct sum to avoid type inference issues and ensure the result is a number.
                 totalStock: p.stock.main + p.stock.branch1 + p.stock.branch2 + p.stock.branch3,
             })),
             dailySalesSummary: {

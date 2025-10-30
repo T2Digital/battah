@@ -1,14 +1,10 @@
 import React, { useState, useMemo } from 'react';
-// Fix: Corrected import path
-import { DailyReview as DailyReviewType, Branch } from '../../types';
+import useStore from '../../lib/store';
+import { DailyReview as DailyReviewType } from '../../types';
 import SectionHeader from '../shared/SectionHeader';
 import Modal from '../shared/Modal';
+import ConfirmationModal from '../shared/ConfirmationModal';
 import { formatDate, formatCurrency } from '../../lib/utils';
-
-interface DailyReviewProps {
-    dailyReviews: DailyReviewType[];
-    setDailyReviews: (reviews: DailyReviewType[]) => void;
-}
 
 const DailyReviewModal: React.FC<{
     isOpen: boolean; onClose: () => void; onSave: (r: Omit<DailyReviewType, 'id'> & { id?: number }) => void; reviewToEdit: DailyReviewType | null;
@@ -30,7 +26,6 @@ const DailyReviewModal: React.FC<{
     
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        // FIX: Calculate totalSales before saving, as it's required by the onSave prop's type.
         const totalSales = formData.salesCash + formData.salesElectronic;
         const reviewData = { ...formData, totalSales };
         onSave(reviewToEdit ? { ...reviewData, id: reviewToEdit.id } : reviewData);
@@ -61,23 +56,38 @@ const DailyReviewModal: React.FC<{
 };
 
 
-const DailyReview: React.FC<DailyReviewProps> = ({ dailyReviews, setDailyReviews }) => {
+const DailyReview: React.FC = () => {
+    const { dailyReviews, setDailyReviews, deleteDailyReview } = useStore(state => ({
+        dailyReviews: state.appData?.dailyReview || [],
+        setDailyReviews: state.setDailyReviews,
+        deleteDailyReview: state.deleteDailyReview,
+    }));
     const [isModalOpen, setModalOpen] = useState(false);
     const [reviewToEdit, setReviewToEdit] = useState<DailyReviewType | null>(null);
+    const [reviewToDelete, setReviewToDelete] = useState<DailyReviewType | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     const handleSave = (review: Omit<DailyReviewType, 'id'> & { id?: number }) => {
         if (review.id) {
-            setDailyReviews(dailyReviews.map(r => r.id === review.id ? { ...r, ...review } : r));
+            setDailyReviews(dailyReviews.map(r => r.id === review.id ? { ...r, ...review } as DailyReviewType : r));
         } else {
             const newId = Math.max(0, ...dailyReviews.map(r => r.id)) + 1;
-            setDailyReviews([...dailyReviews, { ...review, id: newId }]);
+            setDailyReviews([...dailyReviews, { ...review, id: newId } as DailyReviewType]);
         }
         setModalOpen(false);
     };
 
-    const handleDelete = (id: number) => {
-        if (window.confirm('هل أنت متأكد من حذف هذه المراجعة؟')) {
-            setDailyReviews(dailyReviews.filter(r => r.id !== id));
+    const confirmDelete = async () => {
+        if (!reviewToDelete) return;
+        setIsDeleting(true);
+        try {
+            await deleteDailyReview(reviewToDelete.id);
+            setReviewToDelete(null);
+        } catch (error) {
+            console.error("Failed to delete daily review:", error);
+            alert(`فشل حذف المراجعة: ${error instanceof Error ? error.message : String(error)}`);
+        } finally {
+            setIsDeleting(false);
         }
     };
     
@@ -122,7 +132,7 @@ const DailyReview: React.FC<DailyReviewProps> = ({ dailyReviews, setDailyReviews
                                 <td className="px-6 py-4 font-bold text-green-600 dark:text-green-400">{formatCurrency(r.drawerBalance)}</td>
                                 <td className="px-6 py-4 flex gap-3">
                                     <button onClick={() => { setReviewToEdit(r); setModalOpen(true); }} className="text-blue-500"><i className="fas fa-edit"></i></button>
-                                    <button onClick={() => handleDelete(r.id)} className="text-red-500"><i className="fas fa-trash"></i></button>
+                                    <button onClick={() => setReviewToDelete(r)} className="text-red-500"><i className="fas fa-trash"></i></button>
                                 </td>
                             </tr>
                         ))}
@@ -131,6 +141,17 @@ const DailyReview: React.FC<DailyReviewProps> = ({ dailyReviews, setDailyReviews
             </div>
 
             <DailyReviewModal isOpen={isModalOpen} onClose={() => setModalOpen(false)} onSave={handleSave} reviewToEdit={reviewToEdit} />
+            
+            {reviewToDelete && (
+                <ConfirmationModal
+                    isOpen={!!reviewToDelete}
+                    onClose={() => setReviewToDelete(null)}
+                    onConfirm={confirmDelete}
+                    title="تأكيد الحذف"
+                    message={`هل أنت متأكد من حذف مراجعة يوم ${formatDate(reviewToDelete.date)}؟`}
+                    isLoading={isDeleting}
+                />
+            )}
         </div>
     );
 };
