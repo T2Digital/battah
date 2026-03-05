@@ -16,9 +16,9 @@ const Notifications: React.FC = () => {
             await sendBroadcast(message);
             setMessage('');
             alert('تم إرسال الإشعار بنجاح');
-        } catch (error) {
+        } catch (error: any) {
             console.error(error);
-            alert('فشل إرسال الإشعار');
+            alert(`فشل إرسال الإشعار: ${error.message || 'خطأ غير معروف'}`);
         } finally {
             setIsSending(false);
         }

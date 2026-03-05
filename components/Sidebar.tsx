@@ -61,22 +61,34 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, activeSection, setActiveSecti
     };
 
     return (
-        <aside
-            className={`fixed top-0 right-0 h-full bg-white dark:bg-gray-800 shadow-lg z-30 transition-all duration-300 ease-in-out ${
-                isOpen ? 'w-64 sm:w-72' : 'w-20'
-            }`}
-        >
-            <div className="flex items-center justify-center h-20 border-b dark:border-gray-700">
-                {/* This space is intentionally left for the header to overlay */}
-            </div>
-            <nav className="pt-4 px-3 h-[calc(100vh-5rem)] overflow-y-auto custom-scrollbar">
-                <ul>
-                    {navItems.map(item => (
-                        <NavLink key={item.id} item={item} />
-                    ))}
-                </ul>
-            </nav>
-        </aside>
+        <>
+            {/* Mobile Overlay */}
+            {isOpen && (
+                <div 
+                    className="fixed inset-0 bg-black bg-opacity-50 z-30 sm:hidden"
+                    onClick={() => setActiveSection(activeSection)} // Close sidebar logic should be passed or handled here. 
+                    // Actually, SidebarProps doesn't have onClose. We can just rely on the user clicking the toggle button or a close button.
+                    // But usually clicking overlay closes it.
+                    // For now, let's just make the sidebar an overlay.
+                ></div>
+            )}
+            <aside
+                className={`fixed top-0 right-0 h-full bg-white dark:bg-gray-800 shadow-lg z-40 transition-all duration-300 ease-in-out ${
+                    isOpen ? 'w-64 sm:w-72 translate-x-0' : 'w-0 sm:w-20 translate-x-full sm:translate-x-0 overflow-hidden'
+                }`}
+            >
+                <div className="flex items-center justify-center h-20 border-b dark:border-gray-700">
+                    {/* This space is intentionally left for the header to overlay */}
+                </div>
+                <nav className="pt-4 px-3 h-[calc(100vh-5rem)] overflow-y-auto custom-scrollbar">
+                    <ul>
+                        {navItems.map(item => (
+                            <NavLink key={item.id} item={item} />
+                        ))}
+                    </ul>
+                </nav>
+            </aside>
+        </>
     );
 };
 

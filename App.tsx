@@ -271,7 +271,7 @@ const App: React.FC = () => {
                 setActiveSection={updateActiveSection}
                 hasPermission={hasPermission}
             />
-            <main className={`transition-all duration-300 ease-in-out pt-24 pb-8 px-4 sm:px-8 ${isSidebarOpen ? 'mr-64 sm:mr-72' : 'mr-20'}`}>
+            <main className={`transition-all duration-300 ease-in-out pt-24 pb-8 px-4 sm:px-8 ${isSidebarOpen ? 'sm:mr-72' : 'sm:mr-20'}`}>
                 <Suspense fallback={<div className="text-center p-8">جاري تحميل القسم...</div>}>
                     {renderAdminContent()}
                 </Suspense>

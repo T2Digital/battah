@@ -47,7 +47,6 @@ const LoginModal: React.FC = () => {
                             className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-primary focus:border-primary transition"
                             required
                         />
-                         <small className="text-gray-500 dark:text-gray-400 mt-1 block">جرب: admin@battah.com, seller@battah.com</small>
                     </div>
                     <div>
                         <label htmlFor="loginPassword"className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">🔑 كلمة المرور</label>
@@ -59,7 +58,6 @@ const LoginModal: React.FC = () => {
                             className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-primary focus:border-primary transition"
                             required
                         />
-                        <small className="text-gray-500 dark:text-gray-400 mt-1 block">كلمة المرور: 123123</small>
                     </div>
                     {error && <p className="text-red-500 text-sm text-center">{error}</p>}
                     <div>
