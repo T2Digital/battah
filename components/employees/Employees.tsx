@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Employee } from '../../types';
+import { Employee, Role, Branch } from '../../types';
 import { formatCurrency, formatDate } from '../../lib/utils';
 import SectionHeader from '../shared/SectionHeader';
 import Modal from '../shared/Modal';
@@ -19,12 +19,20 @@ const EmployeeModal: React.FC<{
         basicSalary: 0,
         hireDate: new Date().toISOString().split('T')[0],
         phone: '',
-        address: ''
+        address: '',
+        email: ''
     });
+
+    const { storefrontSettings } = useStore(state => ({
+        storefrontSettings: state.appData?.storefrontSettings
+    }));
+    const [securityPassword, setSecurityPassword] = useState('');
+    const [showSecurityCheck, setShowSecurityCheck] = useState(false);
+    const [securityError, setSecurityError] = useState('');
 
     React.useEffect(() => {
         if (employeeToEdit) {
-            setFormData(employeeToEdit);
+            setFormData({ ...employeeToEdit, email: employeeToEdit.email || '' });
         } else {
             setFormData({
                 name: '',
@@ -32,9 +40,13 @@ const EmployeeModal: React.FC<{
                 basicSalary: 0,
                 hireDate: new Date().toISOString().split('T')[0],
                 phone: '',
-                address: ''
+                address: '',
+                email: ''
             });
         }
+        setShowSecurityCheck(false);
+        setSecurityPassword('');
+        setSecurityError('');
     }, [employeeToEdit, isOpen]);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -42,17 +54,54 @@ const EmployeeModal: React.FC<{
         setFormData(prev => ({ ...prev, [name]: name === 'basicSalary' ? parseFloat(value) : value }));
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handlePreSubmit = (e: React.FormEvent) => {
         e.preventDefault();
+        if (storefrontSettings?.adminPassword) {
+            setShowSecurityCheck(true);
+        } else {
+            handleSubmit();
+        }
+    };
+
+    const handleSecuritySubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (securityPassword === storefrontSettings?.adminPassword) {
+            handleSubmit();
+        } else {
+            setSecurityError('كلمة المرور غير صحيحة');
+        }
+    };
+
+    const handleSubmit = () => {
         onSave(employeeToEdit ? { ...formData, id: employeeToEdit.id } : formData);
     };
+
+    if (showSecurityCheck) {
+        return (
+            <Modal isOpen={isOpen} onClose={() => setShowSecurityCheck(false)} title="تأكيد الأمان" onSave={handleSecuritySubmit} saveLabel="تأكيد">
+                <div className="space-y-4">
+                    <p className="text-gray-600 dark:text-gray-300">يرجى إدخال كلمة مرور العمليات الحساسة للمتابعة.</p>
+                    <input
+                        type="password"
+                        value={securityPassword}
+                        onChange={(e) => { setSecurityPassword(e.target.value); setSecurityError(''); }}
+                        className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
+                        placeholder="كلمة المرور"
+                        autoFocus
+                    />
+                    {securityError && <p className="text-red-500 text-sm">{securityError}</p>}
+                    <button type="button" onClick={() => setShowSecurityCheck(false)} className="text-sm text-gray-500 underline">رجوع</button>
+                </div>
+            </Modal>
+        );
+    }
 
     return (
         <Modal
             isOpen={isOpen}
             onClose={onClose}
             title={employeeToEdit ? 'تعديل بيانات الموظف' : 'إضافة موظف جديد'}
-            onSave={handleSubmit}
+            onSave={handlePreSubmit}
         >
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="md:col-span-2">
@@ -66,6 +115,7 @@ const EmployeeModal: React.FC<{
                         <option>مدير فرع</option>
                         <option>محاسب رئيسي</option>
                         <option>محاسب</option>
+                        <option>بائع</option>
                         <option>فني أول</option>
                         <option>فني</option>
                         <option>أمين مخزن</option>
@@ -76,6 +126,10 @@ const EmployeeModal: React.FC<{
                 <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">الراتب الأساسي *</label>
                     <input type="number" name="basicSalary" value={formData.basicSalary} onChange={handleChange} required min="0" className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700" />
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">البريد الإلكتروني</label>
+                    <input type="email" name="email" value={formData.email} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700" />
                 </div>
                 <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">تاريخ التوظيف *</label>
@@ -95,6 +149,79 @@ const EmployeeModal: React.FC<{
 };
 
 
+const CreateUserModal: React.FC<{
+    isOpen: boolean;
+    onClose: () => void;
+    employee: Employee | null;
+}> = ({ isOpen, onClose, employee }) => {
+    const { createUser } = useStore();
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [role, setRole] = useState<Role>(Role.Seller);
+    const [branch, setBranch] = useState<Branch>('main');
+    const [loading, setLoading] = useState(false);
+
+    React.useEffect(() => {
+        if (employee) {
+            setEmail(employee.email || '');
+            // Guess role based on position
+            if (employee.position.includes('مدير عام')) setRole(Role.Admin);
+            else if (employee.position.includes('مدير فرع')) setRole(Role.BranchManager);
+            else if (employee.position.includes('محاسب')) setRole(Role.Accountant);
+            else setRole(Role.Seller);
+        }
+    }, [employee]);
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!employee) return;
+        setLoading(true);
+        try {
+            await createUser(email, password, role, branch, employee.name);
+            onClose();
+        } catch (error) {
+            alert(error instanceof Error ? error.message : 'Failed to create user');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <Modal isOpen={isOpen} onClose={onClose} title={`إنشاء حساب دخول لـ ${employee?.name}`} onSave={handleSubmit}>
+            <div className="space-y-4">
+                <div>
+                    <label>البريد الإلكتروني *</label>
+                    <input type="email" value={email} onChange={e => setEmail(e.target.value)} required className="w-full mt-1 p-2 border rounded dark:bg-gray-700" />
+                </div>
+                <div>
+                    <label>كلمة المرور *</label>
+                    <input type="password" value={password} onChange={e => setPassword(e.target.value)} required minLength={6} className="w-full mt-1 p-2 border rounded dark:bg-gray-700" />
+                </div>
+                <div>
+                    <label>الدور *</label>
+                    <select value={role} onChange={e => setRole(e.target.value as Role)} className="w-full mt-1 p-2 border rounded dark:bg-gray-700">
+                        <option value={Role.Admin}>مدير عام</option>
+                        <option value={Role.BranchManager}>مدير فرع</option>
+                        <option value={Role.Accountant}>محاسب</option>
+                        <option value={Role.Seller}>بائع</option>
+                    </select>
+                </div>
+                <div>
+                    <label>الفرع *</label>
+                    <select value={branch} onChange={e => setBranch(e.target.value as Branch)} className="w-full mt-1 p-2 border rounded dark:bg-gray-700">
+                        <option value="main">المخزن الرئيسي</option>
+                        <option value="branch1">فرع 1</option>
+                        <option value="branch2">فرع 2</option>
+                        <option value="branch3">فرع 3</option>
+                    </select>
+                </div>
+                {loading && <p className="text-blue-500">جاري إنشاء الحساب...</p>}
+            </div>
+        </Modal>
+    );
+};
+
+
 const Employees: React.FC<{ employees: Employee[] }> = ({ employees }) => {
     const { addEmployee, updateEmployee, deleteEmployee } = useStore();
     const [isModalOpen, setModalOpen] = useState(false);
@@ -103,6 +230,8 @@ const Employees: React.FC<{ employees: Employee[] }> = ({ employees }) => {
     const [positionFilter, setPositionFilter] = useState('');
     const [employeeToDelete, setEmployeeToDelete] = useState<Employee | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
+    const [userModalOpen, setUserModalOpen] = useState(false);
+    const [employeeForUser, setEmployeeForUser] = useState<Employee | null>(null);
 
     const handleAdd = () => {
         setEmployeeToEdit(null);
@@ -174,6 +303,7 @@ const Employees: React.FC<{ employees: Employee[] }> = ({ employees }) => {
                     <option>مدير فرع</option>
                     <option>محاسب رئيسي</option>
                     <option>محاسب</option>
+                    <option>بائع</option>
                     <option>فني أول</option>
                     <option>فني</option>
                     <option>أمين مخزن</option>
@@ -201,6 +331,7 @@ const Employees: React.FC<{ employees: Employee[] }> = ({ employees }) => {
                                 <td className="px-6 py-4 font-semibold">{formatCurrency(emp.basicSalary)}</td>
                                 <td className="px-6 py-4">{formatDate(emp.hireDate)}</td>
                                 <td className="px-6 py-4 flex gap-3">
+                                    <button onClick={() => { setEmployeeForUser(emp); setUserModalOpen(true); }} className="text-green-500 hover:text-green-700 text-lg" title="إنشاء حساب دخول"><i className="fas fa-user-plus"></i></button>
                                     <button onClick={() => handleEdit(emp)} className="text-blue-500 hover:text-blue-700 text-lg" aria-label={`تعديل ${emp.name}`}><i className="fas fa-edit"></i></button>
                                     <button onClick={() => setEmployeeToDelete(emp)} className="text-red-500 hover:text-red-700 text-lg w-6 text-center" aria-label={`حذف ${emp.name}`}>
                                         <i className="fas fa-trash"></i>
@@ -217,6 +348,7 @@ const Employees: React.FC<{ employees: Employee[] }> = ({ employees }) => {
             </div>
             
             <EmployeeModal isOpen={isModalOpen} onClose={() => setModalOpen(false)} onSave={handleSave} employeeToEdit={employeeToEdit} />
+            <CreateUserModal isOpen={userModalOpen} onClose={() => setUserModalOpen(false)} employee={employeeForUser} />
             
             {employeeToDelete && (
                 <ConfirmationModal
@@ -226,6 +358,7 @@ const Employees: React.FC<{ employees: Employee[] }> = ({ employees }) => {
                     title="تأكيد الحذف"
                     message={`هل أنت متأكد من حذف الموظف "${employeeToDelete.name}"؟ سيتم حذف جميع البيانات المرتبطة به.`}
                     isLoading={isDeleting}
+                    requireSecurityCheck={true}
                 />
             )}
         </div>

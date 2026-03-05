@@ -1,11 +1,12 @@
+
 import { AppData, Role, Section } from '../types';
 
 export const initialData: AppData = {
     users: [
-        { id: 1, username: 'admin@battah.com', name: 'المدير العام', role: Role.Admin, branch: 'main', permissions: [] },
-        { id: 2, username: 'manager@battah.com', name: 'مدير فرع 1', role: Role.BranchManager, branch: 'branch1', permissions: [Section.Dashboard, Section.DailySales, Section.StoreManagement] },
-        { id: 3, username: 'seller@battah.com', name: 'بائع فرع 1', role: Role.Seller, branch: 'branch1', permissions: [Section.DailySales] },
-        { id: 4, username: 'accountant@battah.com', name: 'محاسب', role: Role.Accountant, branch: 'main', permissions: [Section.Treasury, Section.Expenses, Section.Suppliers, Section.Payroll] },
+        { id: '1', username: 'admin@battah.com', name: 'المدير العام', role: Role.Admin, branch: 'main', permissions: [] },
+        { id: '2', username: 'manager@battah.com', name: 'مدير فرع 1', role: Role.BranchManager, branch: 'branch1', permissions: [Section.Dashboard, Section.DailySales, Section.StoreManagement] },
+        { id: '3', username: 'seller@battah.com', name: 'بائع فرع 1', role: Role.Seller, branch: 'branch1', permissions: [Section.DailySales] },
+        { id: '4', username: 'accountant@battah.com', name: 'محاسب', role: Role.Accountant, branch: 'main', permissions: [Section.Treasury, Section.Expenses, Section.Suppliers, Section.Payroll] },
     ],
     employees: [
         { id: 1, name: 'أحمد محمود', position: 'مدير عام', basicSalary: 12000, hireDate: '2022-01-15', phone: '01012345678', address: 'القاهرة' },
@@ -21,7 +22,7 @@ export const initialData: AppData = {
       { id: 5, name: 'زيت محرك Mobil 1 5W-30', sku: 'MOB-530', mainCategory: 'زيوت وشحومات', category: 'زيت محرك', brand: 'Mobil', purchasePrice: 900, sellingPrice: 1200, stock: { main: 40, branch1: 15, branch2: 12, branch3: 10 }, reorderPoint: 10, description: 'زيت محرك تخليقي بالكامل من موبيل 1 لأقصى حماية للمحرك.', images: ['https://i.ibb.co/dKxYVvW/engine-oil.jpg'] },
       { id: 6, name: 'إطار Hankook Ventus S1', sku: 'HAN-S1', mainCategory: 'إطارات', category: 'إطارات صيفي', brand: 'Hankook', purchasePrice: 2200, sellingPrice: 2800, stock: { main: 16, branch1: 4, branch2: 4, branch3: 2 }, reorderPoint: 4, description: 'إطار هانكوك فينتوس S1، أداء رياضي وثبات على الطرق الجافة والمبتلة.', images: ['https://i.ibb.co/3cqC8wT/tire.jpg'] },
       { id: 7, name: 'مساعدين أمامي Sachs', sku: 'SAC-F02', mainCategory: 'قطع غيار', category: 'مساعدين', brand: 'Sachs', purchasePrice: 1300, sellingPrice: 1750, stock: { main: 25, branch1: 10, branch2: 7, branch3: 5 }, reorderPoint: 5, description: 'طقم مساعدين أمامي من ساكس الألمانية لتوفير أعلى درجات الراحة والثبات.', images: ['https://i.ibb.co/9G3tGvT/shocks.jpg'] },
-      { id: 8, name: 'معطر جو Little Trees', sku: 'ACC-001', mainCategory: 'كماليات', category: 'معطرات', brand: 'Little Trees', purchasePrice: 20, sellingPrice: 35, stock: { main: 200, branch1: 100, branch2: 80, branch3: 70 }, reorderPoint: 50, description: 'معطر جو برائحة الفانيليا المنعشة.', images: ['https://i.ibb.co/YyY1qgt/air-freshener.jpg'] },
+      { id: 8, name: 'معطر جو Little Trees', sku: 'ACC-001', mainCategory: 'كماليات واكسسوارات', category: 'معطرات', brand: 'Little Trees', purchasePrice: 20, sellingPrice: 35, stock: { main: 200, branch1: 100, branch2: 80, branch3: 70 }, reorderPoint: 50, description: 'معطر جو برائحة الفانيليا المنعشة.', images: ['https://i.ibb.co/YyY1qgt/air-freshener.jpg'] },
     ],
     dailySales: [],
     suppliers: [
@@ -38,8 +39,17 @@ export const initialData: AppData = {
     dailyReview: [],
     orders: [],
     notifications: [],
+    stockTransfers: [],
+    discountCodes: [],
     storefrontSettings: {
         featuredProductIds: [2, 4, 5],
         newArrivalProductIds: [7, 8],
+    },
+    toasts: [],
+    settings: {
+        enableIPRestriction: false,
+        enableTimeRestriction: false,
+        workStartTime: "09:00",
+        workEndTime: "23:00"
     }
 };

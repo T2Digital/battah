@@ -14,10 +14,13 @@ interface ProductModalProps {
 }
 
 const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, existingProduct }) => {
-    const uploadImage = useStore(state => state.uploadImage);
+    const { uploadImage, storefrontSettings } = useStore(state => ({
+        uploadImage: state.uploadImage,
+        storefrontSettings: state.appData?.storefrontSettings
+    }));
     const [formData, setFormData] = useState<Omit<Product, 'id'>>({
-        name: '', sku: '', mainCategory: 'قطع غيار', category: '', brand: '',
-        purchasePrice: 0, sellingPrice: 0,
+        name: '', sku: '', mainCategory: 'قطع غيار', category: '', brand: '', countryOfOrigin: '',
+        purchasePrice: 0, sellingPrice: 0, wholesalePrice: 0, retailPrice: 0,
         stock: { main: 0, branch1: 0, branch2: 0, branch3: 0 },
         reorderPoint: 5, description: '', images: [], compatibility: [],
     });
@@ -25,11 +28,17 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, ex
     const [isUploading, setIsUploading] = useState(false);
     const [imageFile, setImageFile] = useState<File | null>(null);
     const [imagePreview, setImagePreview] = useState<string | null>(null);
+    const [securityPassword, setSecurityPassword] = useState('');
+    const [showSecurityCheck, setShowSecurityCheck] = useState(false);
+    const [securityError, setSecurityError] = useState('');
 
     useEffect(() => {
         if (existingProduct) {
             setFormData({
                 ...existingProduct,
+                countryOfOrigin: existingProduct.countryOfOrigin || '',
+                wholesalePrice: existingProduct.wholesalePrice || 0,
+                retailPrice: existingProduct.retailPrice || existingProduct.sellingPrice || 0,
                 reorderPoint: existingProduct.reorderPoint || 5,
                 description: existingProduct.description || '',
                 images: existingProduct.images || [],
@@ -38,14 +47,17 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, ex
             setImagePreview(existingProduct.images[0] || null);
         } else {
             setFormData({
-                name: '', sku: '', mainCategory: 'قطع غيار', category: '', brand: '',
-                purchasePrice: 0, sellingPrice: 0,
+                name: '', sku: '', mainCategory: 'قطع غيار', category: '', brand: '', countryOfOrigin: '',
+                purchasePrice: 0, sellingPrice: 0, wholesalePrice: 0, retailPrice: 0,
                 stock: { main: 0, branch1: 0, branch2: 0, branch3: 0 },
                 reorderPoint: 5, description: '', images: [], compatibility: [],
             });
             setImagePreview(null);
         }
         setImageFile(null); // Reset file input on open
+        setShowSecurityCheck(false);
+        setSecurityPassword('');
+        setSecurityError('');
     }, [existingProduct, isOpen]);
 
     const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -58,8 +70,14 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, ex
     
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
-        const isNumericField = ['purchasePrice', 'sellingPrice', 'reorderPoint'].includes(name);
+        const isNumericField = ['purchasePrice', 'sellingPrice', 'wholesalePrice', 'retailPrice', 'reorderPoint'].includes(name);
         setFormData(prev => ({ ...prev, [name]: isNumericField ? Number(value) : value }));
+    };
+
+    const calculatePrice = (percentage: number) => {
+        const purchase = Number(formData.purchasePrice) || 0;
+        const newPrice = purchase + (purchase * (percentage / 100));
+        setFormData(prev => ({ ...prev, sellingPrice: parseFloat(newPrice.toFixed(2)), retailPrice: parseFloat(newPrice.toFixed(2)) }));
     };
 
     const handleStockChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -87,8 +105,25 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, ex
         }
     }, [formData.name, formData.brand, formData.category]);
 
-    const handleSubmit = async (e: React.FormEvent) => {
+    const handlePreSubmit = (e: React.FormEvent) => {
         e.preventDefault();
+        if (storefrontSettings?.adminPassword) {
+            setShowSecurityCheck(true);
+        } else {
+            handleSubmit();
+        }
+    };
+
+    const handleSecuritySubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (securityPassword === storefrontSettings?.adminPassword) {
+            handleSubmit();
+        } else {
+            setSecurityError('كلمة المرور غير صحيحة');
+        }
+    };
+
+    const handleSubmit = async () => {
         setIsUploading(true);
         let finalData = { ...formData };
         if (imageFile) {
@@ -106,8 +141,28 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, ex
         setIsUploading(false);
     };
 
+    if (showSecurityCheck) {
+        return (
+            <Modal isOpen={isOpen} onClose={() => setShowSecurityCheck(false)} title="تأكيد الأمان" onSave={handleSecuritySubmit} saveLabel="تأكيد">
+                <div className="space-y-4">
+                    <p className="text-gray-600 dark:text-gray-300">يرجى إدخال كلمة مرور العمليات الحساسة للمتابعة.</p>
+                    <input
+                        type="password"
+                        value={securityPassword}
+                        onChange={(e) => { setSecurityPassword(e.target.value); setSecurityError(''); }}
+                        className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
+                        placeholder="كلمة المرور"
+                        autoFocus
+                    />
+                    {securityError && <p className="text-red-500 text-sm">{securityError}</p>}
+                    <button type="button" onClick={() => setShowSecurityCheck(false)} className="text-sm text-gray-500 underline">رجوع</button>
+                </div>
+            </Modal>
+        );
+    }
+
     return (
-        <Modal isOpen={isOpen} onClose={onClose} title={existingProduct ? 'تعديل بيانات المنتج' : 'إضافة منتج جديد'} onSave={handleSubmit}>
+        <Modal isOpen={isOpen} onClose={onClose} title={existingProduct ? 'تعديل بيانات المنتج' : 'إضافة منتج جديد'} onSave={handlePreSubmit}>
              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {/* Image Section */}
                 <div className="md:col-span-1 space-y-3">
@@ -136,12 +191,27 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, ex
                         <input type="text" name="brand" value={formData.brand} onChange={handleChange} required className="mt-1 w-full input-base" />
                     </div>
                     <div>
+                        <label>بلد المنشأ</label>
+                        <input type="text" name="countryOfOrigin" value={formData.countryOfOrigin} onChange={handleChange} className="mt-1 w-full input-base" />
+                    </div>
+                    <div>
                         <label>سعر الشراء *</label>
                         <input type="number" name="purchasePrice" value={formData.purchasePrice} onChange={handleChange} required min="0" step="0.01" className="mt-1 w-full input-base" />
                     </div>
+                    <div className="sm:col-span-2">
+                        <label className="block mb-1">سعر البيع (قطاعي) *</label>
+                        <div className="flex gap-2 items-center">
+                            <input type="number" name="sellingPrice" value={formData.sellingPrice} onChange={handleChange} required min="0" step="0.01" className="flex-grow input-base" />
+                            <div className="flex gap-1">
+                                <button type="button" onClick={() => calculatePrice(25)} className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200">25%</button>
+                                <button type="button" onClick={() => calculatePrice(30)} className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200">30%</button>
+                                <button type="button" onClick={() => calculatePrice(35)} className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200">35%</button>
+                            </div>
+                        </div>
+                    </div>
                     <div>
-                        <label>سعر البيع *</label>
-                        <input type="number" name="sellingPrice" value={formData.sellingPrice} onChange={handleChange} required min="0" step="0.01" className="mt-1 w-full input-base" />
+                        <label>سعر البيع (جملة)</label>
+                        <input type="number" name="wholesalePrice" value={formData.wholesalePrice} onChange={handleChange} min="0" step="0.01" className="mt-1 w-full input-base" />
                     </div>
                     <div>
                         <label>حد الطلب</label>

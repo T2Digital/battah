@@ -1,15 +1,20 @@
 
 
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import { GoogleGenAI } from "@google/genai";
 import StatCard from './StatCard';
 import SalesChart from './SalesChart';
 import ExpensesChart from './ExpensesChart';
 import RecentActivities from './RecentActivities';
 import ActionableAlerts from './ActionableAlerts';
-import { AppData, User, DailySale, Product, Role } from '../../types';
+import { AppData, User, DailySale, Product, Role, Section } from '../../types';
 import useStore from '../../lib/store';
 import { normalizeSaleItems } from '../../lib/utils';
+import CustomizeDashboardModal from './CustomizeDashboardModal';
+
+interface DashboardProps {
+    setActiveSection: (section: Section) => void;
+}
 
 const AIInsights: React.FC<{ profit: number; balance: number }> = ({ profit, balance }) => {
     const [insight, setInsight] = useState('');
@@ -31,7 +36,7 @@ const AIInsights: React.FC<{ profit: number; balance: number }> = ({ profit, bal
                 .reduce((sum, e) => sum + e.amount, 0);
 
             const prompt = `
-                أنت محلل أعمال خبير في شركة "بطاح" لقطع غيار السيارات. بناءً على ملخص البيانات التالي لليوم، قدم 3 رؤى أو توصيات قابلة للتنفيذ باللغة العربية. اجعلها موجزة وفي نقاط.
+                أنت محلل أعمال خبير في شركة "بطاح الأصلي" لقطع غيار السيارات. بناءً على ملخص البيانات التالي لليوم، قدم 3 رؤى أو توصيات قابلة للتنفيذ باللغة العربية. اجعلها موجزة وفي نقاط.
 
                 - صافي الربح اليومي: ${profit.toFixed(2)} جنيه مصري
                 - رصيد الخزينة الحالي: ${balance.toFixed(2)} جنيه مصري
@@ -78,28 +83,55 @@ const AIInsights: React.FC<{ profit: number; balance: number }> = ({ profit, bal
     );
 };
 
-
-const Dashboard: React.FC = () => {
+const Dashboard: React.FC<DashboardProps> = ({ setActiveSection }) => {
     const { appData, currentUser } = useStore();
+    const [isCustomizeModalOpen, setCustomizeModalOpen] = useState(false);
+    
+    // Default visible cards
+    const defaultVisibleCards = {
+        treasury: true,
+        profit: true,
+        employees: true,
+        sellerSales: true,
+        todayInvoices: true,
+        todayExpenses: true,
+        reorderPoint: true,
+        pendingOrders: true,
+    };
+
+    const [visibleCards, setVisibleCards] = useState(() => {
+        try {
+            const saved = localStorage.getItem('dashboardVisibleCards');
+            const parsed = saved ? JSON.parse(saved) : {};
+            return { ...defaultVisibleCards, ...parsed }; // Merge to ensure new cards are visible by default
+        } catch (error) {
+            return defaultVisibleCards;
+        }
+    });
+
+    useEffect(() => {
+        localStorage.setItem('dashboardVisibleCards', JSON.stringify(visibleCards));
+    }, [visibleCards]);
     
     const { 
         employees = [], 
-        advances = [], 
+        advances = [],
         expenses = [], 
         dailyReview = [], 
         treasury = [], 
         dailySales = [], 
         products = [], 
-        users = [] 
+        users = [],
+        orders = []
     } = appData || {};
 
     const todayStr = new Date().toISOString().split('T')[0];
 
-    const { currentTreasuryBalance, dailyNetProfit, sellerTodaySales } = useMemo(() => {
-        let balance = 0;
-        (treasury || []).forEach(t => {
-            balance = balance + t.amountIn - t.amountOut;
-        });
+    const { 
+        currentTreasuryBalance, dailyNetProfit, sellerTodaySales,
+        todayInvoicesCount, todayExpensesTotal, reorderPointProductsCount, pendingOrdersCount
+    } = useMemo(() => {
+        let balance = (treasury || []).reduce((sum, t) => sum + t.amountIn - t.amountOut, 0);
 
         const salesToConsider = currentUser?.role === Role.BranchManager
             ? (dailySales || []).filter(s => (users || []).find(u => u.id === s.sellerId)?.branch === currentUser.branch)
@@ -130,8 +162,25 @@ const Dashboard: React.FC = () => {
                 .reduce((sum, s) => sum + (s.direction === 'بيع' ? s.totalAmount : -s.totalAmount), 0);
         }
 
-        return { currentTreasuryBalance: balance, dailyNetProfit: profit, sellerTodaySales: sellerSales };
-    }, [treasury, dailySales, products, todayStr, currentUser, users]);
+        const invoicesCount = todaySales.length;
+        const expensesTotal = (expenses || []).filter(e => e.date === todayStr).reduce((sum, e) => sum + e.amount, 0);
+        const lowStockCount = (products || []).filter(p => {
+            const totalStock = p.stock.main + p.stock.branch1 + p.stock.branch2 + p.stock.branch3;
+            return totalStock <= (p.reorderPoint || 0);
+        }).length;
+        const pendingCount = (orders || []).filter(o => o.status === 'pending').length;
+
+
+        return { 
+            currentTreasuryBalance: balance, 
+            dailyNetProfit: profit, 
+            sellerTodaySales: sellerSales,
+            todayInvoicesCount: invoicesCount,
+            todayExpensesTotal: expensesTotal,
+            reorderPointProductsCount: lowStockCount,
+            pendingOrdersCount: pendingCount
+        };
+    }, [treasury, dailySales, products, expenses, orders, todayStr, currentUser, users]);
 
     const lowStockProducts = useMemo(() => {
         return (products || []).filter(p => {
@@ -143,12 +192,49 @@ const Dashboard: React.FC = () => {
 
     return (
         <div className="space-y-8 animate-fade-in">
+            <div className="flex justify-between items-center">
+                 <h1 className="text-2xl font-bold text-gray-800 dark:text-white">لوحة التحكم الرئيسية</h1>
+                <button onClick={() => setCustomizeModalOpen(true)} className="px-4 py-2 text-sm bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-lg flex items-center gap-2 hover:bg-gray-100 dark:hover:bg-gray-600 transition shadow">
+                    <i className="fas fa-cog"></i>
+                    تخصيص
+                </button>
+            </div>
              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                <StatCard icon="fa-wallet" title="رصيد الخزينة الحالي" value={currentTreasuryBalance} isCurrency />
-                <StatCard icon="fa-chart-pie" title={currentUser?.role === Role.BranchManager ? `صافي ربح فرعك اليوم` : `صافي الربح اليومي`} value={dailyNetProfit} isCurrency />
-                <StatCard icon="fa-users" title="إجمالي الموظفين" value={(employees || []).length.toString()} />
-                {sellerTodaySales !== null && (
+                {visibleCards.treasury && (
+                    <div onClick={() => setActiveSection(Section.Treasury)} className="cursor-pointer">
+                        <StatCard icon="fa-wallet" title="رصيد الخزينة الحالي" value={currentTreasuryBalance} isCurrency />
+                    </div>
+                )}
+                {visibleCards.profit && (
+                    <div onClick={() => setActiveSection(Section.DailySales)} className="cursor-pointer">
+                        <StatCard icon="fa-chart-pie" title={currentUser?.role === Role.BranchManager ? `صافي ربح فرعك اليوم` : `صافي الربح اليومي`} value={dailyNetProfit} isCurrency />
+                    </div>
+                )}
+                {visibleCards.employees && (
+                     <div onClick={() => setActiveSection(Section.Employees)} className="cursor-pointer">
+                        <StatCard icon="fa-users" title="إجمالي الموظفين" value={(employees || []).length.toString()} />
+                    </div>
+                )}
+                {visibleCards.sellerSales && sellerTodaySales !== null && (
                      <StatCard icon="fa-user-tag" title="مبيعاتك اليوم" value={sellerTodaySales} isCurrency />
+                )}
+                {visibleCards.todayInvoices && (
+                     <StatCard icon="fa-file-invoice" title="عدد فواتير اليوم" value={todayInvoicesCount.toString()} />
+                )}
+                {visibleCards.todayExpenses && (
+                    <div onClick={() => setActiveSection(Section.Expenses)} className="cursor-pointer">
+                        <StatCard icon="fa-receipt" title="مصروفات اليوم" value={todayExpensesTotal} isCurrency />
+                    </div>
+                )}
+                {visibleCards.reorderPoint && (
+                    <div onClick={() => setActiveSection(Section.StoreManagement)} className="cursor-pointer">
+                        <StatCard icon="fa-exclamation-triangle" title="منتجات وصلت لحد الطلب" value={reorderPointProductsCount.toString()} />
+                    </div>
+                )}
+                {visibleCards.pendingOrders && (
+                    <div onClick={() => setActiveSection(Section.Orders)} className="cursor-pointer">
+                        <StatCard icon="fa-box" title="طلبات أونلاين معلقة" value={pendingOrdersCount.toString()} />
+                    </div>
                 )}
             </div>
 
@@ -174,6 +260,13 @@ const Dashboard: React.FC = () => {
              <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg">
                 <RecentActivities employees={employees || []} advances={advances || []} expenses={expenses || []} />
             </div>
+
+            <CustomizeDashboardModal
+                isOpen={isCustomizeModalOpen}
+                onClose={() => setCustomizeModalOpen(false)}
+                visibleCards={visibleCards}
+                setVisibleCards={setVisibleCards}
+            />
         </div>
     );
 };

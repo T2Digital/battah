@@ -4,6 +4,7 @@ import SectionHeader from '../shared/SectionHeader';
 import Modal from '../shared/Modal';
 import ConfirmationModal from '../shared/ConfirmationModal';
 import { formatDate, formatCurrency } from '../../lib/utils';
+import useStore from '../../lib/store';
 
 interface ExpensesProps {
     expenses: Expense[];
@@ -15,25 +16,74 @@ interface ExpensesProps {
 const ExpenseModal: React.FC<{
     isOpen: boolean; onClose: () => void; onSave: (e: Omit<Expense, 'id'> & { id?: number }) => void; expenseToEdit: Expense | null;
 }> = ({ isOpen, onClose, onSave, expenseToEdit }) => {
+    const { storefrontSettings } = useStore(state => ({
+        storefrontSettings: state.appData?.storefrontSettings
+    }));
     const [formData, setFormData] = useState({ date: new Date().toISOString().split('T')[0], type: 'عامة' as Expense['type'], name: '', amount: 0, notes: '' });
+    const [securityPassword, setSecurityPassword] = useState('');
+    const [showSecurityCheck, setShowSecurityCheck] = useState(false);
+    const [securityError, setSecurityError] = useState('');
+
     React.useEffect(() => {
         if (expenseToEdit) {
             setFormData({ ...expenseToEdit, notes: expenseToEdit.notes || '' });
         } else {
             setFormData({ date: new Date().toISOString().split('T')[0], type: 'عامة', name: '', amount: 0, notes: '' });
         }
+        setShowSecurityCheck(false);
+        setSecurityPassword('');
+        setSecurityError('');
     }, [expenseToEdit, isOpen]);
+
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
         setFormData(p => ({ ...p, [name]: name === 'amount' ? Number(value) : value }));
     };
-    const handleSubmit = (e: React.FormEvent) => {
+
+    const handlePreSubmit = (e: React.FormEvent) => {
         e.preventDefault();
+        if (storefrontSettings?.adminPassword) {
+            setShowSecurityCheck(true);
+        } else {
+            handleSubmit();
+        }
+    };
+
+    const handleSecuritySubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (securityPassword === storefrontSettings?.adminPassword) {
+            handleSubmit();
+        } else {
+            setSecurityError('كلمة المرور غير صحيحة');
+        }
+    };
+
+    const handleSubmit = () => {
         onSave(expenseToEdit ? { ...formData, id: expenseToEdit.id } : formData);
     };
 
+    if (showSecurityCheck) {
+        return (
+            <Modal isOpen={isOpen} onClose={() => setShowSecurityCheck(false)} title="تأكيد الأمان" onSave={handleSecuritySubmit} saveLabel="تأكيد">
+                <div className="space-y-4">
+                    <p className="text-gray-600 dark:text-gray-300">يرجى إدخال كلمة مرور العمليات الحساسة للمتابعة.</p>
+                    <input
+                        type="password"
+                        value={securityPassword}
+                        onChange={(e) => { setSecurityPassword(e.target.value); setSecurityError(''); }}
+                        className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
+                        placeholder="كلمة المرور"
+                        autoFocus
+                    />
+                    {securityError && <p className="text-red-500 text-sm">{securityError}</p>}
+                    <button type="button" onClick={() => setShowSecurityCheck(false)} className="text-sm text-gray-500 underline">رجوع</button>
+                </div>
+            </Modal>
+        );
+    }
+
     return (
-        <Modal isOpen={isOpen} onClose={onClose} title={expenseToEdit ? 'تعديل مصروف' : 'إضافة مصروف جديد'} onSave={handleSubmit}>
+        <Modal isOpen={isOpen} onClose={onClose} title={expenseToEdit ? 'تعديل مصروف' : 'إضافة مصروف جديد'} onSave={handlePreSubmit}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div><label>التاريخ *</label><input type="date" name="date" value={formData.date} onChange={handleChange} required className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700" /></div>
                 <div>
@@ -148,6 +198,7 @@ const Expenses: React.FC<ExpensesProps> = ({ expenses, addExpense, updateExpense
                     title="تأكيد الحذف"
                     message={`هل أنت متأكد من حذف مصروف "${expenseToDelete.name}"؟`}
                     isLoading={isDeleting}
+                    requireSecurityCheck={true}
                 />
             )}
         </div>

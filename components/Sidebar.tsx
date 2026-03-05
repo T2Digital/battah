@@ -1,5 +1,4 @@
 
-
 import React from 'react';
 import { Section } from '../types';
 
@@ -16,9 +15,11 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, activeSection, setActiveSecti
         { id: Section.Dashboard, icon: 'fa-tachometer-alt', label: 'لوحة التحكم', permission: Section.Dashboard },
         { id: Section.Treasury, icon: 'fa-cash-register', label: 'الخزينة', permission: Section.Treasury },
         { id: Section.DailySales, icon: 'fa-hand-holding-usd', label: 'مبيعات اليوم', permission: Section.DailySales },
-        { id: Section.Orders, icon: 'fa-receipt', label: 'الطلبات', permission: Section.Orders },
+        { id: Section.Orders, icon: 'fa-receipt', label: 'طلبات الأونلاين', permission: Section.Orders },
+        { id: Section.Customers, icon: 'fa-users-cog', label: 'العملاء', permission: Section.Customers },
         { id: Section.StoreManagement, icon: 'fa-warehouse', label: 'إدارة المخزن', permission: Section.StoreManagement },
         { id: Section.Purchasing, icon: 'fa-shopping-cart', label: 'المشتريات', permission: Section.Purchasing },
+        { id: Section.Promotions, icon: 'fa-tags', label: 'العروض', permission: Section.Promotions },
         { id: Section.Employees, icon: 'fa-users', label: 'الموظفين', permission: Section.Employees },
         { id: Section.Advances, icon: 'fa-file-invoice-dollar', label: 'السلف', permission: Section.Advances },
         { id: Section.Attendance, icon: 'fa-clock', label: 'الحضور', permission: Section.Attendance },
@@ -27,10 +28,11 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, activeSection, setActiveSecti
         { id: Section.Expenses, icon: 'fa-receipt', label: 'المصاريف', permission: Section.Expenses },
         { id: Section.DailyReview, icon: 'fa-chart-line', label: 'مراجعة اليوميات', permission: Section.DailyReview },
         { id: Section.Reports, icon: 'fa-file-alt', label: 'التقارير', permission: Section.Reports },
+        { id: Section.Settings, icon: 'fa-cogs', label: 'الإعدادات', permission: Section.Settings },
     ];
 
     const NavLink: React.FC<{ item: typeof navItems[0] }> = ({ item }) => {
-        if (!hasPermission(item.permission)) return null;
+        if (!hasPermission(item.permission) && item.permission !== Section.Promotions) return null; // Temp allow promotions for all
 
         const isActive = activeSection === item.id;
         return (
@@ -57,7 +59,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, activeSection, setActiveSecti
             <div className="flex items-center justify-center h-20 border-b dark:border-gray-700">
                 {/* This space is intentionally left for the header to overlay */}
             </div>
-            <nav className="pt-4 px-3">
+            <nav className="pt-4 px-3 h-[calc(100vh-5rem)] overflow-y-auto custom-scrollbar">
                 <ul>
                     {navItems.map(item => (
                         <NavLink key={item.id} item={item} />

@@ -6,11 +6,11 @@ interface ModalProps {
     title: string;
     children: React.ReactNode;
     onSave?: (e: React.FormEvent) => void;
-    saveButtonText?: string;
+    saveLabel?: string;
     isLoading?: boolean;
 }
 
-const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, onSave, saveButtonText, isLoading = false }) => {
+const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, onSave, saveLabel, isLoading = false }) => {
     if (!isOpen) return null;
 
     const content = (
@@ -35,7 +35,7 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, onSave,
                         ) : (
                             <>
                                 <i className="fas fa-save mr-2"></i>
-                                {saveButtonText || 'حفظ'}
+                                {saveLabel || 'حفظ'}
                             </>
                         )}
                     </button>

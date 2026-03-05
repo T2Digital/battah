@@ -67,9 +67,10 @@ const Orders: React.FC = () => {
 
     const sortedOrders = useMemo(() => {
         return [...orders].sort((a, b) => {
-            if (isNaN(a.id) && !isNaN(b.id)) return -1;
-            if (!isNaN(a.id) && isNaN(b.id)) return 1;
-            return new Date(b.date).getTime() - new Date(a.date).getTime();
+            // Sort by creation timestamp if available, otherwise by date
+            const dateA = a.createdAt ? a.createdAt.toMillis() : new Date(a.date).getTime();
+            const dateB = b.createdAt ? b.createdAt.toMillis() : new Date(b.date).getTime();
+            return dateB - dateA;
         });
     }, [orders]);
 
@@ -80,13 +81,13 @@ const Orders: React.FC = () => {
         cancelled: { text: 'ملغي', color: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300' },
     };
 
-    const handleStatusChange = async (orderId: number, newStatus: Order['status']) => {
+    const handleStatusChange = async (orderId: number | string, newStatus: Order['status']) => {
         await updateOrderStatus(orderId, newStatus);
     };
 
     const handleDeleteClick = (order: Order) => {
-        if (isNaN(order.id)) {
-            alert("هذا الطلب تالف ولا يمكن حذفه بالطريقة العادية. يرجى حذفه يدوياً من قاعدة بيانات Firebase.");
+        if (!order.id) {
+            alert("هذا الطلب تالف ولا يمكن حذفه. يرجى حذفه يدوياً من قاعدة بيانات Firebase.");
             return;
         }
         setOrderToDelete(order);
@@ -132,9 +133,11 @@ const Orders: React.FC = () => {
                         </tr>
                     </thead>
                     <tbody>
-                        {sortedOrders.map((order, index) => (
+                        {sortedOrders.map((order, index) => {
+                            const isCorrupted = !order.id;
+                            return (
                             <tr key={order.id || `corrupted-${index}`} className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
-                                <td className={`px-6 py-4 font-bold ${isNaN(order.id) ? 'text-red-500' : ''}`}>#{isNaN(order.id) ? 'NaN' : order.id}</td>
+                                <td className={`px-6 py-4 font-bold ${isCorrupted ? 'text-red-500' : ''}`}>#{order.id || 'N/A'}</td>
                                 <td className="px-6 py-4">{formatDate(order.date)}</td>
                                 <td className="px-6 py-4 font-medium text-gray-900 dark:text-white">{order.customerName}</td>
                                 <td className="px-6 py-4">{formatCurrency(order.totalAmount)}</td>
@@ -144,7 +147,7 @@ const Orders: React.FC = () => {
                                         value={order.status}
                                         onChange={(e) => handleStatusChange(order.id, e.target.value as Order['status'])}
                                         className={`p-1 rounded text-xs border-none ${statusMap[order.status].color}`}
-                                        disabled={isNaN(order.id)}
+                                        disabled={isCorrupted}
                                     >
                                         <option value="pending">معلق</option>
                                         <option value="confirmed">مؤكد</option>
@@ -168,7 +171,7 @@ const Orders: React.FC = () => {
                                     </button>
                                 </td>
                             </tr>
-                        ))}
+                        )})}
                     </tbody>
                 </table>
             </div>

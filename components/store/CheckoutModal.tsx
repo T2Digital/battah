@@ -1,5 +1,9 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { CartItem, Order } from '../../types';
+
+
+import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { getDoc, doc } from 'firebase/firestore';
+import { db } from '../../lib/firebase';
+import { CartItem, Order, DiscountCode } from '../../types';
 import Modal from '../shared/Modal';
 import { formatCurrency } from '../../lib/utils';
 
@@ -7,17 +11,20 @@ interface CheckoutModalProps {
     isOpen: boolean;
     onClose: () => void;
     cartItems: CartItem[];
-    onPlaceOrder: (customerDetails: { name: string; phone: string; address: string }, paymentMethod: Order['paymentMethod'], paymentProof?: File) => Promise<string | undefined>;
+    onPlaceOrder: (customerDetails: { name: string; phone: string; address: string }, paymentMethod: Order['paymentMethod'], paymentProof?: File, discountCode?: string) => Promise<string | undefined>;
 }
 
 const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, cartItems, onPlaceOrder }) => {
     const [customerDetails, setCustomerDetails] = useState({ name: '', phone: '', address: '' });
-    const [paymentMethod, setPaymentMethod] = useState<Order['paymentMethod']>('electronic');
+    const [paymentMethod, setPaymentMethod] = useState<Order['paymentMethod']>('cod');
     const [paymentProof, setPaymentProof] = useState<File | null>(null);
     const [isPlacingOrder, setIsPlacingOrder] = useState(false);
     const [isGettingLocation, setIsGettingLocation] = useState(false);
     const [locationUrl, setLocationUrl] = useState('');
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const [discountInput, setDiscountInput] = useState('');
+    const [appliedDiscount, setAppliedDiscount] = useState<DiscountCode | null>(null);
+    const [discountMessage, setDiscountMessage] = useState({ text: '', type: 'info' });
 
     // Persist form data to localStorage
     useEffect(() => {
@@ -26,6 +33,11 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, cartItem
             if (savedData) {
                 setCustomerDetails(JSON.parse(savedData));
             }
+        } else {
+            // Reset state on close
+            setDiscountInput('');
+            setAppliedDiscount(null);
+            setDiscountMessage({ text: '', type: 'info' });
         }
     }, [isOpen]);
 
@@ -35,11 +47,51 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, cartItem
         localStorage.setItem('checkoutData', JSON.stringify(newDetails));
     };
 
-
     const subtotal = cartItems.reduce((sum, item) => sum + item.product.sellingPrice * item.quantity, 0);
-    const deliveryFee = 50; // Example delivery fee
-    const totalAmount = subtotal + deliveryFee;
+    const deliveryFee = 50;
+    
+    const discountAmount = useMemo(() => {
+        if (!appliedDiscount) return 0;
+        if (subtotal < appliedDiscount.minPurchase) return 0;
+        if (appliedDiscount.type === 'fixed') {
+            return appliedDiscount.value;
+        }
+        return (subtotal * appliedDiscount.value) / 100;
+    }, [appliedDiscount, subtotal]);
 
+    const totalAmount = subtotal + deliveryFee - discountAmount;
+
+    const handleApplyDiscount = async () => {
+        if (!discountInput.trim()) {
+            setDiscountMessage({ text: 'يرجى إدخال كود الخصم.', type: 'error' });
+            return;
+        }
+
+        const codeRef = doc(db, "discountCodes", discountInput.toUpperCase());
+        const codeSnap = await getDoc(codeRef);
+
+        if (!codeSnap.exists()) {
+            setDiscountMessage({ text: 'كود الخصم غير صالح.', type: 'error' });
+            setAppliedDiscount(null);
+            return;
+        }
+
+        const codeData = codeSnap.data() as DiscountCode;
+        const today = new Date().toISOString().split('T')[0];
+
+        if (!codeData.isActive || today > codeData.expiresAt) {
+            setDiscountMessage({ text: 'هذا الكود منتهي الصلاحية.', type: 'error' });
+            setAppliedDiscount(null);
+            return;
+        }
+        if (subtotal < codeData.minPurchase) {
+            setDiscountMessage({ text: `يجب أن تكون قيمة المشتريات ${formatCurrency(codeData.minPurchase)} على الأقل لاستخدام هذا الكود.`, type: 'error' });
+            setAppliedDiscount(null);
+            return;
+        }
+        setAppliedDiscount(codeData);
+        setDiscountMessage({ text: 'تم تطبيق الخصم بنجاح!', type: 'success' });
+    };
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
@@ -75,14 +127,12 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, cartItem
         }
         setIsPlacingOrder(true);
         try {
-            const proofUrl = await onPlaceOrder(customerDetails, paymentMethod, paymentProof || undefined);
+            const proofUrl = await onPlaceOrder(customerDetails, paymentMethod, paymentProof || undefined, appliedDiscount?.code);
             
-            // Clear saved data on successful order
             localStorage.removeItem('checkoutData');
 
-            // Prepare WhatsApp message
             const businessPhoneNumber = '201068466666'; 
-            let message = `*طلب جديد من متجر بطاح*\n\n`;
+            let message = `*طلب جديد من متجر بطاح الأصلي*\n\n`;
             message += `*الاسم:* ${customerDetails.name}\n`;
             message += `*الهاتف:* ${customerDetails.phone}\n`;
             message += `*العنوان:* ${customerDetails.address}\n\n`;
@@ -90,6 +140,9 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, cartItem
             cartItems.forEach(item => {
                 message += `- ${item.product.name} (الكمية: ${item.quantity}) - ${formatCurrency(item.product.sellingPrice * item.quantity)}\n`;
             });
+            if (appliedDiscount && discountAmount > 0) {
+                message += `\n*الخصم (${appliedDiscount.code}):* -${formatCurrency(discountAmount)}\n`;
+            }
             message += `\n*الإجمالي:* ${formatCurrency(totalAmount)}\n`;
             message += `*طريقة الدفع:* ${paymentMethod === 'cod' ? 'عند الاستلام' : 'دفع إلكتروني'}\n`;
             if (proofUrl) {
@@ -119,7 +172,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, cartItem
             onClose={isPlacingOrder ? () => {} : onClose}
             title="إتمام الطلب" 
             onSave={handleSubmit}
-            saveButtonText="ارسال الطلب الآن"
+            saveLabel="ارسال الطلب الآن"
         >
             <div className="space-y-6">
                  {isPlacingOrder && (
@@ -143,6 +196,12 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, cartItem
                             <span>المجموع الفرعي</span>
                             <span>{formatCurrency(subtotal)}</span>
                         </div>
+                        {appliedDiscount && discountAmount > 0 && (
+                            <div className="flex justify-between text-sm text-green-600">
+                                <span>الخصم ({appliedDiscount.code})</span>
+                                <span>-{formatCurrency(discountAmount)}</span>
+                            </div>
+                        )}
                          <div className="flex justify-between text-sm">
                             <span>رسوم التوصيل</span>
                             <span>{formatCurrency(deliveryFee)}</span>
@@ -166,17 +225,26 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, cartItem
                          </button>
                      </div>
                 </div>
+
+                <div>
+                    <h3 className="font-bold text-lg mb-2">كود الخصم</h3>
+                    <div className="flex gap-2">
+                        <input type="text" value={discountInput} onChange={e => setDiscountInput(e.target.value)} placeholder="ادخل كود الخصم" className="flex-grow rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700" />
+                        <button type="button" onClick={handleApplyDiscount} className="px-4 py-2 bg-gray-200 text-gray-800 dark:bg-gray-600 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500">تطبيق</button>
+                    </div>
+                    {discountMessage.text && <p className={`text-xs mt-1 ${discountMessage.type === 'error' ? 'text-red-500' : 'text-green-600'}`}>{discountMessage.text}</p>}
+                </div>
                 
                 <div>
                     <h3 className="font-bold text-lg mb-2">اختر طريقة الدفع</h3>
                     <div className="flex gap-4">
                         <label className="flex items-center p-3 border rounded-lg cursor-pointer flex-grow dark:border-gray-600 has-[:checked]:border-primary has-[:checked]:bg-blue-50 dark:has-[:checked]:bg-blue-900/20">
-                            <input type="radio" name="paymentMethod" value="electronic" checked={paymentMethod === 'electronic'} onChange={() => setPaymentMethod('electronic')} className="h-4 w-4 text-primary focus:ring-primary"/>
-                            <span className="ml-2">دفع إلكتروني</span>
-                        </label>
-                         <label className="flex items-center p-3 border rounded-lg cursor-pointer flex-grow dark:border-gray-600 has-[:checked]:border-primary has-[:checked]:bg-blue-50 dark:has-[:checked]:bg-blue-900/20">
                             <input type="radio" name="paymentMethod" value="cod" checked={paymentMethod === 'cod'} onChange={() => setPaymentMethod('cod')} className="h-4 w-4 text-primary focus:ring-primary"/>
                             <span className="ml-2">الدفع عند الاستلام</span>
+                        </label>
+                         <label className="flex items-center p-3 border rounded-lg cursor-pointer flex-grow dark:border-gray-600 has-[:checked]:border-primary has-[:checked]:bg-blue-50 dark:has-[:checked]:bg-blue-900/20">
+                            <input type="radio" name="paymentMethod" value="electronic" checked={paymentMethod === 'electronic'} onChange={() => setPaymentMethod('electronic')} className="h-4 w-4 text-primary focus:ring-primary"/>
+                            <span className="ml-2">دفع إلكتروني</span>
                         </label>
                     </div>
                 </div>

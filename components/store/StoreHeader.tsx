@@ -1,21 +1,27 @@
+
 import React from 'react';
 
 interface StoreHeaderProps {
     onCartClick: () => void;
     cartItemCount: number;
     setViewMode: (mode: 'admin' | 'store') => void;
+    onMyOrdersClick: () => void;
 }
 
-const StoreHeader: React.FC<StoreHeaderProps> = ({ onCartClick, cartItemCount, setViewMode }) => {
+const StoreHeader: React.FC<StoreHeaderProps> = ({ onCartClick, cartItemCount, setViewMode, onMyOrdersClick }) => {
     return (
         <header className="bg-white bg-opacity-80 dark:bg-gray-800 dark:bg-opacity-80 backdrop-blur-sm shadow-md sticky top-0 z-30">
             <div className="container mx-auto px-4 sm:px-6 py-4 flex justify-between items-center">
                 <div className="flex items-center gap-3">
                     <i className="fas fa-car-battery text-3xl text-primary-dark"></i>
-                    <h1 className="text-xl font-bold text-gray-800 dark:text-white">متجر بطاح</h1>
+                    <h1 className="text-xl font-bold text-gray-800 dark:text-white">متجر بطاح الأصلي</h1>
                 </div>
 
                 <div className="flex items-center gap-4 sm:gap-6">
+                     <button onClick={onMyOrdersClick} className="text-gray-600 dark:text-gray-300 hover:text-primary dark:hover:text-primary-light flex items-center gap-2 text-sm">
+                        <i className="fas fa-receipt"></i>
+                        <span className="hidden sm:inline">طلباتي</span>
+                    </button>
                     <button onClick={onCartClick} className="relative text-gray-600 dark:text-gray-300 hover:text-primary dark:hover:text-primary-light">
                         <i className="fas fa-shopping-cart text-2xl"></i>
                         {cartItemCount > 0 && (

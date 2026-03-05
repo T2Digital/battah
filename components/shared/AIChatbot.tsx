@@ -70,7 +70,7 @@ const AIChatbot: React.FC<AIChatbotProps> = ({ setSelectedProduct, addToCart, op
                 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
                 const productList = products.map(p => `- ${p.name} (الماركة: ${p.brand}, السعر: ${p.sellingPrice} جنيه)`).join('\n');
                 const systemInstruction = `
-                    أنت "بطاح بوت"، مساعد ذكي خبير في متجر "بطاح" لقطع غيار السيارات في مصر. تحدث باللهجة المصرية العامية بشكل ودود ومساعد ومختصر جداً. هدفك مساعدة الزبائن في العثور على ما يحتاجونه وتنفيذ طلباتهم.
+                    أنت "بطاح بوت"، مساعد ذكي خبير في متجر "بطاح الأصلي" لقطع غيار السيارات في مصر. تحدث باللهجة المصرية العامية بشكل ودود ومساعد ومختصر جداً. هدفك مساعدة الزبائن في العثور على ما يحتاجونه وتنفيذ طلباتهم.
                     لديك صلاحية استخدام الأدوات التالية:
                     1. 'viewProductDetails': استخدمها عندما يطلب العميل رؤية تفاصيل منتج معين.
                     2. 'addProductToCart': استخدمها عندما يطلب العميل إضافة منتج إلى السلة.
@@ -160,11 +160,11 @@ const AIChatbot: React.FC<AIChatbotProps> = ({ setSelectedProduct, addToCart, op
             </button>
             <div className={`fixed bottom-24 left-6 w-80 h-[450px] bg-white dark:bg-gray-800 rounded-2xl shadow-2xl flex flex-col z-40 transition-all duration-300 ease-in-out ${isOpen ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'}`}>
                 <div className="p-4 bg-primary-dark text-white rounded-t-2xl flex justify-between items-center">
-                    <h3 className="font-bold text-lg">مساعد بطاح الذكي</h3>
+                    <h3 className="font-bold text-lg">مساعد بطاح الأصلي الذكي</h3>
                     <button onClick={() => setIsOpen(false)} className="text-white text-2xl font-bold">&times;</button>
                 </div>
                 <div ref={chatBodyRef} className="flex-grow p-4 overflow-y-auto space-y-4">
-                    {messages.length === 0 && <div className="text-center text-sm text-gray-500">أهلاً بك في متجر بطاح! إزاي أقدر أساعدك النهاردة؟</div>}
+                    {messages.length === 0 && <div className="text-center text-sm text-gray-500">أهلاً بك في متجر بطاح الأصلي! إزاي أقدر أساعدك النهاردة؟</div>}
                     {messages.map((msg, index) => (
                         <div key={index} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
                             <div className={`max-w-[80%] p-3 rounded-2xl ${msg.sender === 'user' ? 'bg-blue-500 text-white rounded-br-none' : 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-bl-none'}`}>

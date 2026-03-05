@@ -222,6 +222,7 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
                     title="تأكيد الحذف"
                     message={`هل أنت متأكد من حذف الفاتورة رقم "${saleToDelete.invoiceNumber}"؟ سيتم إرجاع الكميات للمخزون وعكس الحركة المالية.`}
                     isLoading={isDeleting}
+                    requireSecurityCheck={true}
                 />
             )}
         </div>

@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-// Fix: Corrected import path
+import * as XLSX from 'xlsx';
 import { Attendance as AttendanceType, Employee } from '../../types';
 import SectionHeader from '../shared/SectionHeader';
 import Modal from '../shared/Modal';
@@ -118,6 +118,76 @@ const Attendance: React.FC<AttendanceProps> = ({ attendance, setAttendance, empl
         setModalOpen(false);
     };
 
+    const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+            const bstr = evt.target?.result;
+            const wb = XLSX.read(bstr, { type: 'binary' });
+            const wsname = wb.SheetNames[0];
+            const ws = wb.Sheets[wsname];
+            const data = XLSX.utils.sheet_to_json(ws, { header: 1 });
+
+            // Expected Format: [Employee Name, Date (YYYY-MM-DD), CheckIn (HH:mm), CheckOut (HH:mm)]
+            const newRecords: AttendanceType[] = [];
+            let maxId = Math.max(0, ...attendance.map(a => a.id));
+
+            data.slice(1).forEach((row: any) => {
+                const empName = row[0];
+                const dateRaw = row[1];
+                const checkInRaw = row[2];
+                const checkOutRaw = row[3];
+
+                const employee = employees.find(e => e.name === empName);
+                if (employee) {
+                    let dateStr = dateRaw;
+                    // Handle Excel serial date
+                    if (typeof dateRaw === 'number') {
+                         const dateObj = new Date((dateRaw - (25567 + 2)) * 86400 * 1000);
+                         dateStr = dateObj.toISOString().split('T')[0];
+                    }
+
+                    let checkIn = checkInRaw;
+                    if (typeof checkInRaw === 'number') {
+                        const totalSeconds = Math.floor(checkInRaw * 86400);
+                        const hours = Math.floor(totalSeconds / 3600);
+                        const minutes = Math.floor((totalSeconds % 3600) / 60);
+                        checkIn = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+                    }
+
+                    let checkOut = checkOutRaw;
+                    if (typeof checkOutRaw === 'number') {
+                        const totalSeconds = Math.floor(checkOutRaw * 86400);
+                        const hours = Math.floor(totalSeconds / 3600);
+                        const minutes = Math.floor((totalSeconds % 3600) / 60);
+                        checkOut = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+                    }
+
+                    maxId++;
+                    newRecords.push({
+                        id: maxId,
+                        employeeId: employee.id,
+                        date: dateStr,
+                        checkIn: checkIn,
+                        checkOut: checkOut,
+                        notes: 'Imported from Excel'
+                    });
+                }
+            });
+
+            if (newRecords.length > 0) {
+                // Pass only new records to setAttendance (which upserts)
+                setAttendance(newRecords);
+                alert(`تم استيراد ${newRecords.length} سجل بنجاح.`);
+            } else {
+                alert("لم يتم العثور على بيانات صالحة أو لم يتم التعرف على أسماء الموظفين. تأكد من تطابق الأسماء مع النظام.");
+            }
+        };
+        reader.readAsBinaryString(file);
+    };
+
     const attendanceWithDetails = useMemo(() => {
         return attendance.map(att => ({
             ...att,
@@ -129,10 +199,17 @@ const Attendance: React.FC<AttendanceProps> = ({ attendance, setAttendance, empl
     return (
         <div className="animate-fade-in space-y-6">
             <SectionHeader icon="fa-clock" title="الحضور والانصراف">
-                <button onClick={handleAdd} className="px-4 py-2 bg-primary text-white rounded-lg flex items-center gap-2 hover:bg-primary-dark transition shadow-md">
-                    <i className="fas fa-plus"></i>
-                    إضافة سجل حضور
-                </button>
+                <div className="flex gap-2">
+                    <label className="px-4 py-2 bg-green-600 text-white rounded-lg flex items-center gap-2 hover:bg-green-700 transition shadow-md cursor-pointer">
+                        <i className="fas fa-file-excel"></i>
+                        استيراد ملف
+                        <input type="file" accept=".xlsx, .xls" onChange={handleFileUpload} className="hidden" />
+                    </label>
+                    <button onClick={handleAdd} className="px-4 py-2 bg-primary text-white rounded-lg flex items-center gap-2 hover:bg-primary-dark transition shadow-md">
+                        <i className="fas fa-plus"></i>
+                        إضافة سجل حضور
+                    </button>
+                </div>
             </SectionHeader>
             <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-x-auto">
                 <table className="w-full text-sm text-right text-gray-500 dark:text-gray-400">

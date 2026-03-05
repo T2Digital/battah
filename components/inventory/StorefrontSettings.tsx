@@ -13,11 +13,13 @@ interface StorefrontSettingsProps {
 const StorefrontSettings: React.FC<StorefrontSettingsProps> = ({ isOpen, onClose, settings, onSave, products }) => {
     const [featured, setFeatured] = useState<number[]>([]);
     const [newArrivals, setNewArrivals] = useState<number[]>([]);
+    const [adminPassword, setAdminPassword] = useState('');
 
     useEffect(() => {
         if (settings) {
             setFeatured(settings.featuredProductIds || []);
             setNewArrivals(settings.newArrivalProductIds || []);
+            setAdminPassword(settings.adminPassword || '');
         }
     }, [settings, isOpen]);
 
@@ -28,7 +30,7 @@ const StorefrontSettings: React.FC<StorefrontSettingsProps> = ({ isOpen, onClose
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        onSave({ featuredProductIds: featured, newArrivalProductIds: newArrivals });
+        onSave({ featuredProductIds: featured, newArrivalProductIds: newArrivals, adminPassword });
         onClose();
     };
 
@@ -54,9 +56,25 @@ const StorefrontSettings: React.FC<StorefrontSettingsProps> = ({ isOpen, onClose
 
     return (
         <Modal isOpen={isOpen} onClose={onClose} title="إعدادات واجهة المتجر" onSave={handleSubmit}>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <ProductList title="المنتجات المميزة (الأكثر مبيعاً)" selectedIds={featured} onToggle={(id) => handleToggle('featured', id)} />
-                <ProductList title="المنتجات الجديدة (وصل حديثاً)" selectedIds={newArrivals} onToggle={(id) => handleToggle('newArrivals', id)} />
+            <div className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <ProductList title="المنتجات المميزة (الأكثر مبيعاً)" selectedIds={featured} onToggle={(id) => handleToggle('featured', id)} />
+                    <ProductList title="المنتجات الجديدة (وصل حديثاً)" selectedIds={newArrivals} onToggle={(id) => handleToggle('newArrivals', id)} />
+                </div>
+                <div className="border-t pt-4">
+                    <h3 className="font-bold text-lg mb-2 text-red-600">إعدادات الأمان</h3>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">كلمة مرور العمليات الحساسة (للمدير)</label>
+                        <input
+                            type="password"
+                            value={adminPassword}
+                            onChange={(e) => setAdminPassword(e.target.value)}
+                            placeholder="اتركه فارغاً لتعطيل الخاصية"
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring focus:ring-primary focus:ring-opacity-50 dark:bg-gray-700 dark:border-gray-600"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">تستخدم لتأكيد الحذف والتعديل والإضافة في الأقسام الحساسة.</p>
+                    </div>
+                </div>
             </div>
         </Modal>
     );

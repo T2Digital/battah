@@ -1,21 +1,21 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { Helmet } from 'react-helmet-async';
-import useStore from '../../lib/store';
-import { Product, CartItem, OrderItem, Order } from '../../types';
 
-import StoreHeader from './StoreHeader';
-import StoreHero from './StoreHero';
-import StoreProducts from './StoreProducts';
-import StoreProductModal from './StoreProductModal';
-import StoreCart from './StoreCart';
-import CheckoutModal from './CheckoutModal';
-import FeaturedProductsSection from './FeaturedProductsSection';
-import NewArrivalsSection from './NewArrivalsSection';
-import PromotionBanner from './PromotionBanner';
-import CustomerNotifications from './CustomerNotifications';
-import CategoryHighlights from './CategoryHighlights';
-import AIChatbot from '../shared/AIChatbot';
-import MyOrdersModal from './MyOrdersModal';
+import React, { useState, useMemo, useEffect } from 'react';
+import useStore from './lib/store';
+import { Product, CartItem, OrderItem, Order } from './types';
+
+import StoreHeader from './components/store/StoreHeader';
+import StoreHero from './components/store/StoreHero';
+import StoreProducts from './components/store/StoreProducts';
+import StoreProductModal from './components/store/StoreProductModal';
+import StoreCart from './components/store/StoreCart';
+import CheckoutModal from './components/store/CheckoutModal';
+import FeaturedProductsSection from './components/store/FeaturedProductsSection';
+import NewArrivalsSection from './components/store/NewArrivalsSection';
+import PromotionBanner from './components/store/PromotionBanner';
+import CustomerNotifications from './components/store/CustomerNotifications';
+import CategoryHighlights from './components/store/CategoryHighlights';
+import AIChatbot from './components/shared/AIChatbot';
+import MyOrdersModal from './components/store/MyOrdersModal';
 
 interface StorefrontProps {
     setViewMode: (mode: 'admin' | 'store') => void;
@@ -35,27 +35,6 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
     const [cartItems, setCartItems] = useState<CartItem[]>([]);
     const [notification, setNotification] = useState('');
     const [filters, setFilters] = useState({ category: 'all', brand: 'all', search: '' });
-
-    // SEO Structured Data (JSON-LD)
-    const structuredData = useMemo(() => {
-        return {
-            "@context": "https://schema.org",
-            "@type": "AutoPartsStore",
-            "name": "بطاح الأصلي",
-            "image": "https://battah-system.vercel.app/pwa-512x512.png",
-            "description": "متجر بطاح الأصلي لقطع غيار السيارات وإكسسواراتها الأصلية.",
-            "address": {
-                "@type": "PostalAddress",
-                "streetAddress": "شارع دمشق",
-                "addressLocality": "القاهرة",
-                "addressCountry": "EG"
-            },
-            "telephone": "+201000000000",
-            "priceRange": "$$",
-            "openingHours": "Sa-Th 09:00-23:00",
-            "url": "https://battah-system.vercel.app/"
-        };
-    }, []);
 
     // Load cart from localStorage on initial render
     useEffect(() => {
@@ -123,12 +102,11 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
             quantity: item.quantity,
             unitPrice: item.product.sellingPrice,
         }));
-        // The total amount is calculated securely in the backend (store.ts) including discounts.
-        // We pass the subtotal here for the backend to use as a base.
         const subtotal = cartItems.reduce((sum, item) => sum + item.product.sellingPrice * item.quantity, 0);
-        
+        const totalAmount = subtotal + 50; // Include delivery fee
+
         try {
-            const proofUrl = await createOrder(customerDetails, orderItems, subtotal, paymentMethod, paymentProof, discountCode);
+            const proofUrl = await createOrder(customerDetails, orderItems, totalAmount, paymentMethod, paymentProof, discountCode);
             setCartItems([]);
             setCheckoutOpen(false);
             setNotification('تم إرسال طلبك بنجاح! سيتم التواصل معك للتأكيد.');
@@ -153,19 +131,6 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
 
     return (
         <div className="font-cairo bg-slate-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200">
-            <Helmet>
-                <title>بطاح الأصلي | قطع غيار سيارات أصلية</title>
-                <meta name="description" content="تسوق أفضل قطع غيار السيارات الأصلية والإكسسوارات من بطاح الأصلي. جودة عالية وأسعار تنافسية." />
-                <meta name="keywords" content="قطع غيار, سيارات, بطاح, اكسسوارات, زيوت, فلاتر, فرامل" />
-                <meta property="og:title" content="بطاح الأصلي | قطع غيار سيارات أصلية" />
-                <meta property="og:description" content="تسوق أفضل قطع غيار السيارات الأصلية والإكسسوارات من بطاح الأصلي." />
-                <meta property="og:image" content="https://battah-system.vercel.app/pwa-512x512.png" />
-                <meta property="og:type" content="website" />
-                <meta name="twitter:card" content="summary_large_image" />
-                <script type="application/ld+json">
-                    {JSON.stringify(structuredData)}
-                </script>
-            </Helmet>
             <PromotionBanner />
             <StoreHeader
                 onCartClick={() => setCartOpen(true)}
@@ -212,12 +177,12 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
                     onPlaceOrder={handlePlaceOrder}
                 />
             )}
-            {isMyOrdersOpen && (
-                <MyOrdersModal
+             {isMyOrdersOpen && (
+                <MyOrdersModal 
                     isOpen={isMyOrdersOpen}
                     onClose={() => setMyOrdersOpen(false)}
                 />
-            )}
+             )}
             <CustomerNotifications message={notification} />
             <AIChatbot 
                 setSelectedProduct={setSelectedProduct}

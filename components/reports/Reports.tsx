@@ -1,6 +1,6 @@
+
 import React from 'react';
 import SectionHeader from '../shared/SectionHeader';
-// Fix: Corrected import path
 import useStore from '../../lib/store';
 import { 
     generateEmployeesReportContent,
@@ -17,19 +17,6 @@ interface ReportsProps {
 }
 
 const Reports: React.FC<ReportsProps> = ({ setActiveReport }) => {
-    const appData = useStore(state => state.appData);
-
-    if (!appData) return <div>Loading report data...</div>;
-    
-    const openReportWindow = (title: string, content: string) => {
-        const reportWindow = window.open('', '_blank');
-        if (reportWindow) {
-            reportWindow.document.write(content);
-            reportWindow.document.close();
-        } else {
-            alert("يرجى السماح بالنوافذ المنبثقة لفتح التقرير.");
-        }
-    };
     
     const ReportCard: React.FC<{icon: string, title: string, description: string, onClick: () => void}> = ({icon, title, description, onClick}) => (
         <div onClick={onClick} className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg flex items-center gap-6 cursor-pointer transition-transform transform hover:-translate-y-1 hover:shadow-xl">
@@ -43,18 +30,28 @@ const Reports: React.FC<ReportsProps> = ({ setActiveReport }) => {
         </div>
     );
 
+    const reportsList = [
+        { key: 'inventory', icon: 'fa-warehouse', title: 'تقارير المخزون', description: 'حركة الأصناف، حد الطلب، تحليل المبيعات' },
+        { key: 'sales', icon: 'fa-dollar-sign', title: 'تقرير المبيعات', description: 'تحليل مفصل للمبيعات اليومية والأرباح' },
+        { key: 'employees', icon: 'fa-users', title: 'تقرير الموظفين', description: 'بيانات شاملة لجميع الموظفين' },
+        { key: 'financials', icon: 'fa-hand-holding-usd', title: 'التقارير المالية', description: 'السلف، المرتبات، والمصاريف' },
+        { key: 'suppliers', icon: 'fa-truck', title: 'تقرير الموردين', description: 'المدفوعات والفواتير' },
+    ];
+
+
     return (
         <div className="animate-fade-in">
             <SectionHeader icon="fa-file-alt" title="التقارير" />
              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <ReportCard icon="fa-warehouse" title="تقارير المخزون" description="حركة الأصناف، حد الطلب، تحليل المبيعات" onClick={() => setActiveReport('inventory')} />
-                <ReportCard icon="fa-dollar-sign" title="تقرير المبيعات" description="تحليل مفصل للمبيعات اليومية والأرباح" onClick={() => openReportWindow('تقرير المبيعات', generateSalesReportContent(appData))} />
-                <ReportCard icon="fa-users" title="تقرير الموظفين" description="بيانات شاملة لجميع الموظفين" onClick={() => openReportWindow('تقرير الموظفين', generateEmployeesReportContent(appData))} />
-                <ReportCard icon="fa-hand-holding-usd" title="تقرير السلف" description="سلف الموظفين والمتبقي منها" onClick={() => openReportWindow('تقرير السلف', generateAdvancesReportContent(appData))} />
-                <ReportCard icon="fa-clock" title="تقرير الحضور" description="حضور وانصراف الموظفين" onClick={() => openReportWindow('تقرير الحضور', generateAttendanceReportContent(appData))} />
-                <ReportCard icon="fa-money-check-alt" title="تقرير المرتبات" description="دفعات الرواتب والمستحقات" onClick={() => openReportWindow('تقرير المرتبات', generatePayrollReportContent(appData))} />
-                <ReportCard icon="fa-receipt" title="تقرير المصاريف" description="تفصيل المصاريف حسب النوع" onClick={() => openReportWindow('تقرير المصاريف', generateExpensesReportContent(appData))} />
-                <ReportCard icon="fa-truck" title="تقرير الموردين" description="المدفوعات والفواتير" onClick={() => openReportWindow('تقرير الموردين', generateSuppliersReportContent(appData))} />
+                {reportsList.map(report => (
+                    <ReportCard 
+                        key={report.key}
+                        icon={report.icon} 
+                        title={report.title} 
+                        description={report.description} 
+                        onClick={() => setActiveReport(report.key)} 
+                    />
+                ))}
             </div>
         </div>
     );

@@ -178,7 +178,7 @@ export const generateInvoiceContent = (sale: DailySale, products: Product[]) => 
                     <table>
                         <tr>
                             <td class="title">
-                                <h1>بطاح</h1>
+                                <h1>بطاح الأصلي</h1>
                             </td>
                             <td>
                                 فاتورة رقم: ${sale.invoiceNumber}<br>
@@ -194,9 +194,11 @@ export const generateInvoiceContent = (sale: DailySale, products: Product[]) => 
                     <table>
                         <tr>
                             <td>
-                                شركة بطاح لقطع غيار السيارات<br>
-                                شارع الجلاء، وسط البلد<br>
-                                القاهرة، مصر
+                                شركة بطاح الأصلي لقطع غيار السيارات<br>
+                                79 شارع رمسيس ناصية التوفيقية امام سنترال رمسيس<br>
+                                19 شارع رمسيس ناصية التوفيقية امام سنترال رمسيس<br>
+                                6 شارع البورصة ناصية التوفيقية بجوار سينما ريفولى<br>
+                                1 شارع البورصة ناصية التوفيقية امام دار القضاء العالى
                             </td>
                         </tr>
                     </table>
@@ -269,7 +271,7 @@ export const generateSalesReportContent = (appData: AppData) => {
 
     const content = `
         <div class="header">
-            <h1>شركة بطاح لقطع غيار السيارات</h1>
+            <h1>شركة بطاح الأصلي لقطع غيار السيارات</h1>
             <h2>تقرير المبيعات</h2>
             <p>تاريخ التقرير: ${formatDate(new Date().toISOString())}</p>
         </div>
@@ -294,7 +296,7 @@ export const generateSalesReportContent = (appData: AppData) => {
             </tbody>
         </table>
         <div class="footer">
-            <p>تم إنشاء هذا التقرير بواسطة نظام إدارة شركة بطاح المتكامل</p>
+            <p>تم إنشاء هذا التقرير بواسطة نظام إدارة شركة بطاح الأصلي المتكامل</p>
         </div>
     `;
     return generateReportHTML('تقرير المبيعات', '#059669', content);
@@ -307,7 +309,7 @@ export const generateEmployeesReportContent = (appData: AppData) => {
     
     const content = `
         <div class="header">
-            <h1>شركة بطاح لقطع غيار السيارات</h1>
+            <h1>شركة بطاح الأصلي لقطع غيار السيارات</h1>
             <h2>تقرير الموظفين</h2>
             <p>تاريخ التقرير: ${formatDate(new Date().toISOString())}</p>
         </div>
@@ -337,7 +339,7 @@ export const generateEmployeesReportContent = (appData: AppData) => {
             </tbody>
         </table>
         <div class="footer">
-            <p>تم إنشاء هذا التقرير بواسطة نظام إدارة شركة بطاح المتكامل</p>
+            <p>تم إنشاء هذا التقرير بواسطة نظام إدارة شركة بطاح الأصلي المتكامل</p>
         </div>
         `;
     return generateReportHTML('تقرير الموظفين', '#1e40af', content);
@@ -351,7 +353,7 @@ export const generateAdvancesReportContent = (appData: AppData) => {
     const totalRemaining = totalAmount - totalPaid;
     
     const content = `
-        <div class="header"><h1>شركة بطاح لقطع غيار السيارات</h1><h2>تقرير السلف</h2><p>تاريخ التقرير: ${formatDate(new Date().toISOString())}</p></div>
+        <div class="header"><h1>شركة بطاح الأصلي لقطع غيار السيارات</h1><h2>تقرير السلف</h2><p>تاريخ التقرير: ${formatDate(new Date().toISOString())}</p></div>
         <div class="summary">
             <h3>ملخص السلف</h3>
             <div class="summary-grid">
@@ -383,7 +385,7 @@ export const generateAdvancesReportContent = (appData: AppData) => {
                 </tr>
             </tbody>
         </table>
-        <div class="footer"><p>تم إنشاء هذا التقرير بواسطة نظام إدارة شركة بطاح المتكامل</p></div>
+        <div class="footer"><p>تم إنشاء هذا التقرير بواسطة نظام إدارة شركة بطاح الأصلي المتكامل</p></div>
         `;
     return generateReportHTML('تقرير السلف', '#f59e0b', content);
 };
@@ -394,7 +396,7 @@ export const generateAttendanceReportContent = (appData: AppData) => {
     const totalHours = attendance.reduce((s, a) => s + calculateHours(a.checkIn, a.checkOut), 0);
 
     const content = `
-        <div class="header"><h1>شركة بطاح لقطع غيار السيارات</h1><h2>تقرير الحضور</h2><p>تاريخ التقرير: ${formatDate(new Date().toISOString())}</p></div>
+        <div class="header"><h1>شركة بطاح الأصلي لقطع غيار السيارات</h1><h2>تقرير الحضور</h2><p>تاريخ التقرير: ${formatDate(new Date().toISOString())}</p></div>
         <div class="summary"><h3>ملخص الحضور</h3><div class="summary-grid"><div class="summary-item"><p>إجمالي الساعات</p><strong>${totalHours.toFixed(2)} ساعة</strong></div></div></div>
         <table>
             <thead><tr><th>التاريخ</th><th>الموظف</th><th>الحاضر</th><th>الانصراف</th><th>الساعات</th></tr></thead>
@@ -408,7 +410,7 @@ export const generateAttendanceReportContent = (appData: AppData) => {
                 </tr>`).join('')}
             </tbody>
         </table>
-        <div class="footer"><p>تم إنشاء هذا التقرير بواسطة نظام إدارة شركة بطاح المتكامل</p></div>
+        <div class="footer"><p>تم إنشاء هذا التقرير بواسطة نظام إدارة شركة بطاح الأصلي المتكامل</p></div>
         `;
     return generateReportHTML('تقرير الحضور', '#059669', content);
 };
@@ -419,7 +421,7 @@ export const generatePayrollReportContent = (appData: AppData) => {
     const totalDisbursed = payroll.reduce((s, p) => s + p.disbursed, 0);
 
     const content = `
-        <div class="header"><h1>شركة بطاح لقطع غيار السيارات</h1><h2>تقرير المرتبات</h2><p>تاريخ التقرير: ${formatDate(new Date().toISOString())}</p></div>
+        <div class="header"><h1>شركة بطاح الأصلي لقطع غيار السيارات</h1><h2>تقرير المرتبات</h2><p>تاريخ التقرير: ${formatDate(new Date().toISOString())}</p></div>
         <div class="summary"><h3>ملخص المرتبات</h3><div class="summary-grid"><div class="summary-item"><p>إجمالي المصروف</p><strong>${formatCurrency(totalDisbursed)}</strong></div></div></div>
         <table>
             <thead><tr><th>التاريخ</th><th>الموظف</th><th>الراتب الأساسي</th><th>المصروف</th><th>المتبقي</th></tr></thead>
@@ -433,7 +435,7 @@ export const generatePayrollReportContent = (appData: AppData) => {
                 </tr>`).join('')}
             </tbody>
         </table>
-        <div class="footer"><p>تم إنشاء هذا التقرير بواسطة نظام إدارة شركة بطاح المتكامل</p></div>
+        <div class="footer"><p>تم إنشاء هذا التقرير بواسطة نظام إدارة شركة بطاح الأصلي المتكامل</p></div>
         `;
     return generateReportHTML('تقرير المرتبات', '#6366f1', content);
 };
@@ -442,7 +444,7 @@ export const generateExpensesReportContent = (appData: AppData) => {
     const { expenses } = appData;
     const totalAmount = expenses.reduce((s, e) => s + e.amount, 0);
     const content = `
-        <div class="header"><h1>شركة بطاح لقطع غيار السيارات</h1><h2>تقرير المصاريف</h2><p>تاريخ التقرير: ${formatDate(new Date().toISOString())}</p></div>
+        <div class="header"><h1>شركة بطاح الأصلي لقطع غيار السيارات</h1><h2>تقرير المصاريف</h2><p>تاريخ التقرير: ${formatDate(new Date().toISOString())}</p></div>
         <div class="summary"><h3>ملخص المصاريف</h3><div class="summary-grid"><div class="summary-item"><p>إجمالي المصاريف</p><strong>${formatCurrency(totalAmount)}</strong></div></div></div>
         <table>
             <thead><tr><th>التاريخ</th><th>النوع</th><th>الاسم</th><th>المبلغ</th></tr></thead>
@@ -456,7 +458,7 @@ export const generateExpensesReportContent = (appData: AppData) => {
                 <tr class="total-row"><td colspan="3">الإجمالي</td><td>${formatCurrency(totalAmount)}</td></tr>
             </tbody>
         </table>
-        <div class="footer"><p>تم إنشاء هذا التقرير بواسطة نظام إدارة شركة بطاح المتكامل</p></div>
+        <div class="footer"><p>تم إنشاء هذا التقرير بواسطة نظام إدارة شركة بطاح الأصلي المتكامل</p></div>
         `;
     return generateReportHTML('تقرير المصاريف', '#ef4444', content);
 };
@@ -468,7 +470,7 @@ export const generateSuppliersReportContent = (appData: AppData) => {
     const totalInvoices = payments.reduce((s, p) => s + p.invoiceTotal, 0);
     
     const content = `
-        <div class="header"><h1>شركة بطاح لقطع غيار السيارات</h1><h2>تقرير الموردين</h2><p>تاريخ التقرير: ${formatDate(new Date().toISOString())}</p></div>
+        <div class="header"><h1>شركة بطاح الأصلي لقطع غيار السيارات</h1><h2>تقرير الموردين</h2><p>تاريخ التقرير: ${formatDate(new Date().toISOString())}</p></div>
         <div class="summary"><h3>ملخص الموردين</h3><div class="summary-grid">
             <div class="summary-item"><p>إجمالي المدفوعات</p><strong>${formatCurrency(totalPayments)}</strong></div>
             <div class="summary-item"><p>إجمالي الفواتير</p><strong>${formatCurrency(totalInvoices)}</strong></div>
@@ -485,7 +487,7 @@ export const generateSuppliersReportContent = (appData: AppData) => {
                 </tr>`).join('')}
             </tbody>
         </table>
-        <div class="footer"><p>تم إنشاء هذا التقرير بواسطة نظام إدارة شركة بطاح المتكامل</p></div>
+        <div class="footer"><p>تم إنشاء هذا التقرير بواسطة نظام إدارة شركة بطاح الأصلي المتكامل</p></div>
         `;
     return generateReportHTML('تقرير الموردين', '#10b981', content);
 };
@@ -502,7 +504,7 @@ export const generateProductCardexReportContent = (appData: AppData, productId: 
         
     const content = `
         <div class="header">
-            <h1>شركة بطاح لقطع غيار السيارات</h1>
+            <h1>شركة بطاح الأصلي لقطع غيار السيارات</h1>
             <h2>تقرير حركة صنف (كارت الصنف)</h2>
             <p>تاريخ التقرير: ${formatDate(new Date().toISOString())}</p>
         </div>
@@ -531,7 +533,7 @@ export const generateProductCardexReportContent = (appData: AppData, productId: 
                 }).join('') : `<tr><td colspan="6" style="text-align: center; padding: 20px;">لا توجد حركات مسجلة لهذا الصنف.</td></tr>`}
             </tbody>
         </table>
-        <div class="footer"><p>تم إنشاء هذا التقرير بواسطة نظام إدارة شركة بطاح المتكامل</p></div>
+        <div class="footer"><p>تم إنشاء هذا التقرير بواسطة نظام إدارة شركة بطاح الأصلي المتكامل</p></div>
     `;
     return generateReportHTML(`كارت الصنف - ${product.name}`, '#1e40af', content);
 };
@@ -544,7 +546,7 @@ export const generateReorderPointReportContent = (appData: AppData) => {
     });
 
     const content = `
-        <div class="header"><h1>شركة بطاح لقطع غيار السيارات</h1><h2>تقرير حد الطلب</h2><p>تاريخ التقرير: ${formatDate(new Date().toISOString())}</p></div>
+        <div class="header"><h1>شركة بطاح الأصلي لقطع غيار السيارات</h1><h2>تقرير حد الطلب</h2><p>تاريخ التقرير: ${formatDate(new Date().toISOString())}</p></div>
         <table>
             <thead><tr><th>الصنف</th><th>الكود</th><th>الرصيد الحالي</th><th>حد الطلب</th></tr></thead>
             <tbody>
@@ -559,7 +561,7 @@ export const generateReorderPointReportContent = (appData: AppData) => {
                 }).join('') : `<tr><td colspan="4" style="text-align: center; padding: 20px;">لا توجد أصناف وصلت إلى حد الطلب.</td></tr>`}
             </tbody>
         </table>
-        <div class="footer"><p>تم إنشاء هذا التقرير بواسطة نظام إدارة شركة بطاح المتكامل</p></div>
+        <div class="footer"><p>تم إنشاء هذا التقرير بواسطة نظام إدارة شركة بطاح الأصلي المتكامل</p></div>
     `;
     return generateReportHTML('تقرير حد الطلب', '#f59e0b', content);
 };
@@ -587,7 +589,7 @@ export const generateSalesAnalysisReportContent = (appData: AppData) => {
     const worstSellers = sortedSales.filter(p => p.quantity <= 0).slice(0, 10);
 
     const content = `
-        <div class="header"><h1>شركة بطاح لقطع غيار السيارات</h1><h2>تقرير تحليل المبيعات</h2><p>تاريخ التقرير: ${formatDate(new Date().toISOString())}</p></div>
+        <div class="header"><h1>شركة بطاح الأصلي لقطع غيار السيارات</h1><h2>تقرير تحليل المبيعات</h2><p>تاريخ التقرير: ${formatDate(new Date().toISOString())}</p></div>
         
         <div class="sub-header">الأصناف الأكثر مبيعاً (حسب الكمية)</div>
         <table>
@@ -616,7 +618,7 @@ export const generateSalesAnalysisReportContent = (appData: AppData) => {
             </tbody>
         </table>
 
-        <div class="footer"><p>تم إنشاء هذا التقرير بواسطة نظام إدارة شركة بطاح المتكامل</p></div>
+        <div class="footer"><p>تم إنشاء هذا التقرير بواسطة نظام إدارة شركة بطاح الأصلي المتكامل</p></div>
     `;
     return generateReportHTML('تحليل المبيعات', '#059669', content);
 };

@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import Modal from './Modal';
+import useStore from '../../lib/store';
 
 interface ConfirmationModalProps {
     isOpen: boolean;
@@ -8,13 +9,43 @@ interface ConfirmationModalProps {
     title: string;
     message: string;
     isLoading: boolean;
+    requireSecurityCheck?: boolean;
 }
 
-const ConfirmationModal: React.FC<ConfirmationModalProps> = ({ isOpen, onClose, onConfirm, title, message, isLoading }) => {
+const ConfirmationModal: React.FC<ConfirmationModalProps> = ({ isOpen, onClose, onConfirm, title, message, isLoading, requireSecurityCheck }) => {
+    const { storefrontSettings } = useStore(state => ({
+        storefrontSettings: state.appData?.storefrontSettings
+    }));
+    const [password, setPassword] = useState('');
+    const [error, setError] = useState('');
+
+    const handleConfirm = () => {
+        if (requireSecurityCheck && storefrontSettings?.adminPassword) {
+            if (password !== storefrontSettings.adminPassword) {
+                setError('كلمة المرور غير صحيحة');
+                return;
+            }
+        }
+        onConfirm();
+    };
+
     return (
         <Modal isOpen={isOpen} onClose={onClose} title={title}>
             <div className="space-y-4">
                 <p className="text-gray-600 dark:text-gray-300">{message}</p>
+                {requireSecurityCheck && storefrontSettings?.adminPassword && (
+                    <div className="mt-4">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">كلمة مرور العمليات الحساسة</label>
+                        <input
+                            type="password"
+                            value={password}
+                            onChange={(e) => { setPassword(e.target.value); setError(''); }}
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring focus:ring-red-500 focus:ring-opacity-50 dark:bg-gray-700 dark:border-gray-600 p-2"
+                            placeholder="كلمة المرور"
+                        />
+                        {error && <p className="text-red-500 text-sm mt-1">{error}</p>}
+                    </div>
+                )}
                 <div className="flex justify-end gap-3 pt-4">
                     <button
                         type="button"
@@ -26,7 +57,7 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({ isOpen, onClose, 
                     </button>
                     <button
                         type="button"
-                        onClick={onConfirm}
+                        onClick={handleConfirm}
                         disabled={isLoading}
                         className="px-5 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition shadow-md flex items-center justify-center w-36 disabled:bg-red-400"
                     >

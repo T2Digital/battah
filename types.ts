@@ -1,7 +1,6 @@
 
 
-
-
+import { Timestamp } from 'firebase/firestore';
 
 export type Branch = 'main' | 'branch1' | 'branch2' | 'branch3';
 
@@ -27,10 +26,13 @@ export enum Section {
     DailyReview = 'daily-review',
     Reports = 'reports',
     Orders = 'orders',
+    Customers = 'customers',
+    Promotions = 'promotions',
+    Settings = 'settings',
 }
 
 export interface User {
-    id: number;
+    id: string;
     username: string; // email
     name: string;
     role: Role;
@@ -38,7 +40,7 @@ export interface User {
     permissions: Section[];
 }
 
-export type MainCategory = 'قطع غيار' | 'كماليات' | 'زيوت وشحومات' | 'بطاريات' | 'إطارات';
+export type MainCategory = 'قطع غيار' | 'كماليات واكسسوارات' | 'زيوت وشحومات' | 'بطاريات' | 'إطارات';
 
 export interface Product {
     id: number;
@@ -47,8 +49,11 @@ export interface Product {
     mainCategory: MainCategory;
     category: string;
     brand: string;
+    countryOfOrigin?: string; // Added
     purchasePrice: number;
-    sellingPrice: number;
+    sellingPrice: number; // Default selling price (can be retail)
+    wholesalePrice?: number; // Added
+    retailPrice?: number; // Added
     stock: Record<Branch, number>;
     reorderPoint?: number;
     description?: string;
@@ -67,11 +72,13 @@ export interface DailySale {
     id: number;
     date: string;
     invoiceNumber: string;
-    sellerId: number;
+    sellerId: string;
     sellerName: string;
     source: 'المحل' | 'أونلاين';
     branchSoldFrom: Branch;
     direction: 'بيع' | 'مرتجع' | 'تبديل' | 'ضمان';
+    invoiceType?: 'wholesale' | 'retail'; // Added
+    discount?: number; // Added (percentage)
     totalAmount: number;
     notes?: string;
 
@@ -94,6 +101,7 @@ export interface Employee {
     hireDate: string;
     phone?: string;
     address?: string;
+    email?: string; // Added for linking to auth
 }
 
 export interface Advance {
@@ -119,6 +127,7 @@ export interface Payroll {
     date: string;
     employeeId: number;
     basicSalary: number;
+    incentives?: number; // Added
     disbursed: number;
     notes?: string;
 }
@@ -173,7 +182,7 @@ export interface TreasuryTransaction {
     description: string;
     amountIn: number;
     amountOut: number;
-    relatedId?: number; // e.g., saleId, expenseId
+    relatedId?: number | string; // e.g., saleId, expenseId, orderId (string)
 }
 
 export interface DailyReview {
@@ -197,8 +206,9 @@ export interface OrderItem {
 }
 
 export interface Order {
-    id: number;
+    id: number | string;
     date: string;
+    createdAt: Timestamp; // To track new orders for notifications
     customerName: string;
     customerPhone: string;
     customerAddress: string;
@@ -207,25 +217,57 @@ export interface Order {
     status: 'pending' | 'confirmed' | 'shipped' | 'cancelled';
     paymentMethod: 'cod' | 'electronic';
     paymentProofUrl?: string;
+    // New fields
+    customerId?: string; // For future use with customer accounts
+    discountCode?: string;
+    discountAmount?: number;
 }
 
 export interface Notification {
-    id: number;
+    id: string;
     date: string;
     message: string;
     read: boolean;
-    orderId?: number;
+    orderId?: number | string;
 }
 
 export interface StorefrontSettings {
     featuredProductIds: number[];
     newArrivalProductIds: number[];
+    adminPassword?: string;
 }
 
 
 export interface CartItem {
     product: Product;
     quantity: number;
+}
+
+export interface StockTransfer {
+    id: number;
+    date: string;
+    productId: number;
+    productName: string;
+    quantity: number;
+    fromBranch: Branch;
+    toBranch: Branch;
+    notes?: string;
+}
+
+export interface DiscountCode {
+    id: string; // Use the code itself as the ID
+    code: string;
+    type: 'fixed' | 'percentage';
+    value: number;
+    minPurchase: number;
+    expiresAt: string;
+    isActive: boolean;
+}
+
+export interface Toast {
+    id: number;
+    message: string;
+    type: 'info' | 'success' | 'error';
 }
 
 export interface AppData {
@@ -245,4 +287,16 @@ export interface AppData {
     orders: Order[];
     notifications: Notification[];
     storefrontSettings: StorefrontSettings;
+    stockTransfers: StockTransfer[];
+    discountCodes: DiscountCode[];
+    toasts: Toast[];
+    settings: Settings;
+}
+
+export interface Settings {
+    allowedIP?: string;
+    enableIPRestriction: boolean;
+    enableTimeRestriction: boolean;
+    workStartTime: string; // "09:00"
+    workEndTime: string; // "23:00"
 }

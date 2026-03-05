@@ -25,19 +25,21 @@ const PayrollModal: React.FC<{
         date: new Date().toISOString().split('T')[0],
         employeeId: 0,
         basicSalary: 0,
+        incentives: 0,
         disbursed: 0,
         notes: ''
     });
 
     React.useEffect(() => {
         if (recordToEdit) {
-            setFormData({ ...recordToEdit, notes: recordToEdit.notes || '' });
+            setFormData({ ...recordToEdit, incentives: recordToEdit.incentives || 0, notes: recordToEdit.notes || '' });
         } else {
             const firstEmployee = employees[0];
             setFormData({
                 date: new Date().toISOString().split('T')[0],
                 employeeId: firstEmployee?.id || 0,
                 basicSalary: firstEmployee?.basicSalary || 0,
+                incentives: 0,
                 disbursed: 0,
                 notes: ''
             });
@@ -56,7 +58,7 @@ const PayrollModal: React.FC<{
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: ['disbursed'].includes(name) ? Number(value) : value }));
+        setFormData(prev => ({ ...prev, [name]: ['disbursed', 'incentives'].includes(name) ? Number(value) : value }));
     };
 
     const handleSubmit = (e: React.FormEvent) => {
@@ -80,6 +82,10 @@ const PayrollModal: React.FC<{
                 <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">الراتب الأساسي</label>
                     <input type="number" name="basicSalary" value={formData.basicSalary} readOnly className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700 bg-gray-100 dark:bg-gray-600" />
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">حوافز</label>
+                    <input type="number" name="incentives" value={formData.incentives} onChange={handleChange} min="0" className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700" />
                 </div>
                 <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">المبلغ المصروف *</label>
@@ -139,7 +145,7 @@ const Payroll: React.FC<PayrollProps> = ({ payroll, addPayroll, updatePayroll, d
         return payroll.map(p => ({
             ...p,
             employeeName: getEmployeeName(p.employeeId),
-            remaining: p.basicSalary - p.disbursed
+            remaining: (p.basicSalary + (p.incentives || 0)) - p.disbursed
         })).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     }, [payroll, employees]);
 
@@ -158,6 +164,7 @@ const Payroll: React.FC<PayrollProps> = ({ payroll, addPayroll, updatePayroll, d
                             <th scope="col" className="px-6 py-3">التاريخ</th>
                             <th scope="col" className="px-6 py-3">اسم الموظف</th>
                             <th scope="col" className="px-6 py-3">الراتب الأساسي</th>
+                            <th scope="col" className="px-6 py-3">حوافز</th>
                             <th scope="col" className="px-6 py-3">المبلغ المصروف</th>
                             <th scope="col" className="px-6 py-3">المتبقي</th>
                             <th scope="col" className="px-6 py-3">الإجراءات</th>
@@ -169,6 +176,7 @@ const Payroll: React.FC<PayrollProps> = ({ payroll, addPayroll, updatePayroll, d
                                 <td className="px-6 py-4">{formatDate(p.date)}</td>
                                 <td className="px-6 py-4 font-medium text-gray-900 whitespace-nowrap dark:text-white">{p.employeeName}</td>
                                 <td className="px-6 py-4">{formatCurrency(p.basicSalary)}</td>
+                                <td className="px-6 py-4 text-green-600">{formatCurrency(p.incentives || 0)}</td>
                                 <td className="px-6 py-4">{formatCurrency(p.disbursed)}</td>
                                 <td className={`px-6 py-4 font-bold ${p.remaining > 0 ? 'text-amber-500' : 'text-green-500'}`}>{formatCurrency(p.remaining)}</td>
                                 <td className="px-6 py-4 flex gap-3">
