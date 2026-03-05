@@ -66,12 +66,23 @@ const Orders: React.FC = () => {
     const [isDeleting, setIsDeleting] = useState(false);
 
     const sortedOrders = useMemo(() => {
-        if (!orders) return [];
+        if (!orders || !Array.isArray(orders)) return [];
         return [...orders].sort((a, b) => {
-            // Sort by creation timestamp if available, otherwise by date
-            const dateA = a.createdAt ? (a.createdAt.toMillis ? a.createdAt.toMillis() : new Date(a.createdAt).getTime()) : new Date(a.date).getTime();
-            const dateB = b.createdAt ? (b.createdAt.toMillis ? b.createdAt.toMillis() : new Date(b.createdAt).getTime()) : new Date(b.date).getTime();
-            return dateB - dateA;
+            const getTime = (dateObj: any, dateStr: string) => {
+                if (!dateObj) return new Date(dateStr).getTime() || 0;
+                // Handle Firestore Timestamp instance
+                if (typeof dateObj.toMillis === 'function') return dateObj.toMillis();
+                // Handle serialized Timestamp object (e.g. from JSON)
+                if (typeof dateObj.seconds === 'number') return dateObj.seconds * 1000;
+                // Handle Date object or string
+                const time = new Date(dateObj).getTime();
+                return isNaN(time) ? (new Date(dateStr).getTime() || 0) : time;
+            };
+            
+            const timeA = getTime(a.createdAt, a.date);
+            const timeB = getTime(b.createdAt, b.date);
+            
+            return timeB - timeA;
         });
     }, [orders]);
 

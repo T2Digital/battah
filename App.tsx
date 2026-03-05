@@ -177,6 +177,14 @@ const App: React.FC = () => {
         return currentUser?.permissions.includes(permission) || false;
     };
     
+    useEffect(() => {
+        const handleNavigation = (e: CustomEvent<Section>) => {
+            setActiveSection(e.detail);
+        };
+        window.addEventListener('navigate-to-section', handleNavigation as EventListener);
+        return () => window.removeEventListener('navigate-to-section', handleNavigation as EventListener);
+    }, []);
+
     const renderAdminContent = () => {
         if (!appData || !currentUser) return null;
 

@@ -1,13 +1,18 @@
 import React, { useState, useMemo } from 'react';
 import useStore from '../../lib/store';
 import { formatDate } from '../../lib/utils';
-import { Notification } from '../../types';
+import { Notification, Section } from '../../types';
 
-const NotificationsDropdown: React.FC = () => {
+interface NotificationsDropdownProps {
+    setActiveSection?: (section: Section) => void;
+}
+
+const NotificationsDropdown: React.FC<NotificationsDropdownProps> = ({ setActiveSection }) => {
     const [isOpen, setIsOpen] = useState(false);
-    const { notifications, markNotificationAsRead } = useStore(state => ({
+    const { notifications, markNotificationAsRead, setPendingOrderIdToOpen } = useStore(state => ({
         notifications: state.appData?.notifications || [],
         markNotificationAsRead: state.markNotificationAsRead,
+        setPendingOrderIdToOpen: state.setPendingOrderIdToOpen
     }));
 
     const unreadCount = useMemo(() => {
@@ -22,7 +27,23 @@ const NotificationsDropdown: React.FC = () => {
         if (!notification.read) {
             markNotificationAsRead(notification.id);
         }
-        // Potentially navigate to the related order here
+        
+        if (notification.orderId) {
+            setPendingOrderIdToOpen(String(notification.orderId));
+            // We need to switch to Orders section. 
+            // Since this component is in Header, and Header is used in App.tsx where activeSection state lives,
+            // we should ideally pass setActiveSection prop or use a global state for activeSection.
+            // For now, I will assume setActiveSection is passed or I will use a hack if not available.
+            // But wait, Header.tsx doesn't receive setActiveSection for the main dashboard content switching.
+            // It receives setViewMode.
+            // The Dashboard component manages activeSection.
+            // If we are in Admin view, we need to tell Dashboard to switch to Orders.
+            // This requires lifting state up or using a global store for activeSection.
+            
+            // Let's modify the store to hold activeSection as well, or dispatch a custom event.
+            // Dispatching a custom event is easier for now without refactoring everything.
+            window.dispatchEvent(new CustomEvent('navigate-to-section', { detail: Section.Orders }));
+        }
         handleClose();
     };
 

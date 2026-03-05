@@ -57,20 +57,28 @@ const StockTransfersList: React.FC<{ transfers: StockTransfer[] }> = ({ transfer
 
 const Inventory: React.FC = () => {
     const { 
-        products, 
         stockTransfers,
         setProducts, 
         deleteProduct,
         storefrontSettings,
-        updateStorefrontSettings 
+        updateStorefrontSettings,
+        fetchProducts,
+        searchProducts
     } = useStore(state => ({
-        products: state.appData?.products || [],
         stockTransfers: state.appData?.stockTransfers || [],
         setProducts: state.setProducts,
         deleteProduct: state.deleteProduct,
         storefrontSettings: state.appData?.storefrontSettings,
         updateStorefrontSettings: state.updateStorefrontSettings,
+        fetchProducts: state.fetchProducts,
+        searchProducts: state.searchProducts
     }));
+
+    const [products, setLocalProducts] = useState<Product[]>([]);
+    const [lastDoc, setLastDoc] = useState<any>(null);
+    const [loading, setLoading] = useState(false);
+    const [hasMore, setHasMore] = useState(true);
+    const [isSearching, setIsSearching] = useState(false);
 
     const [activeTab, setActiveTab] = useState<'products' | 'transfers'>('products');
     const [isProductModalOpen, setProductModalOpen] = useState(false);
@@ -84,6 +92,50 @@ const Inventory: React.FC = () => {
         category: '',
         stockStatus: 'all',
     });
+
+    // Initial fetch
+    React.useEffect(() => {
+        loadProducts();
+    }, []);
+
+    const loadProducts = async (reset = false) => {
+        if (loading) return;
+        setLoading(true);
+        try {
+            const result = await fetchProducts(reset ? null : lastDoc);
+            if (reset) {
+                setLocalProducts(result.products);
+            } else {
+                setLocalProducts(prev => [...prev, ...result.products]);
+            }
+            setLastDoc(result.lastDoc);
+            setHasMore(result.products.length === 20); // Assuming limit is 20
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleSearch = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!filters.search.trim()) {
+            setIsSearching(false);
+            loadProducts(true);
+            return;
+        }
+        setIsSearching(true);
+        setLoading(true);
+        try {
+            const results = await searchProducts(filters.search);
+            setLocalProducts(results);
+            setHasMore(false); // Disable load more for search results for now
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const handleAddProduct = () => {
         setProductToEdit(null);
@@ -100,6 +152,7 @@ const Inventory: React.FC = () => {
         setIsDeleting(true);
         try {
             await deleteProduct(productToDelete.id);
+            setLocalProducts(prev => prev.filter(p => p.id !== productToDelete.id));
             setProductToDelete(null);
         } catch (error) {
             console.error("Failed to delete product:", error);
@@ -110,24 +163,29 @@ const Inventory: React.FC = () => {
     };
 
     const handleSaveProduct = (product: Omit<Product, 'id'> & { id?: number }) => {
+        // Optimistic update or reload
         if (product.id) {
-            setProducts(products.map(p => (p.id === product.id ? { ...p, ...product } as Product : p)));
+            setLocalProducts(prev => prev.map(p => (p.id === product.id ? { ...p, ...product } as Product : p)));
         } else {
-            const newId = (products.length > 0 ? Math.max(...products.map(p => p.id)) : 0) + 1;
-            setProducts([...products, { ...product, id: newId } as Product]);
+            // For new products, we might want to reload to get the correct ID/order
+            // Or just prepend it
+            const newId = Date.now(); // Temporary ID until refresh
+            setLocalProducts(prev => [{ ...product, id: newId } as Product, ...prev]);
         }
         setProductModalOpen(false);
     };
     
+    // Client-side filtering for the currently loaded batch (mostly for category/stock status)
     const filteredProducts = useMemo(() => {
         return products.filter(p => {
             const totalStock = p.stock.main + p.stock.branch1 + p.stock.branch2 + p.stock.branch3;
-            const matchesSearch = p.name.toLowerCase().includes(filters.search.toLowerCase()) || p.sku.toLowerCase().includes(filters.search.toLowerCase());
+            // Search is handled server-side now, but we keep this for local filtering if needed
+            // const matchesSearch = p.name.toLowerCase().includes(filters.search.toLowerCase()) || p.sku.toLowerCase().includes(filters.search.toLowerCase());
             const matchesCategory = filters.category ? p.mainCategory === filters.category : true;
             const matchesStock = filters.stockStatus === 'all' || (filters.stockStatus === 'low' && totalStock <= (p.reorderPoint || 0)) || (filters.stockStatus === 'out' && totalStock === 0);
-            return matchesSearch && matchesCategory && matchesStock;
+            return matchesCategory && matchesStock;
         });
-    }, [products, filters]);
+    }, [products, filters.category, filters.stockStatus]);
 
     return (
         <div className="animate-fade-in space-y-6">
@@ -150,13 +208,18 @@ const Inventory: React.FC = () => {
             {activeTab === 'products' && (
                 <>
                     <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-lg flex flex-col md:flex-row gap-4 items-center">
-                        <input
-                            type="text"
-                            placeholder="ابحث بالاسم أو الكود..."
-                            value={filters.search}
-                            onChange={e => setFilters(f => ({ ...f, search: e.target.value }))}
-                            className="flex-grow p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600"
-                        />
+                        <form onSubmit={handleSearch} className="flex-grow flex gap-2 w-full">
+                            <input
+                                type="text"
+                                placeholder="ابحث بالاسم (اضغط Enter للبحث)..."
+                                value={filters.search}
+                                onChange={e => setFilters(f => ({ ...f, search: e.target.value }))}
+                                className="flex-grow p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600"
+                            />
+                            <button type="submit" className="bg-primary text-white px-4 py-2 rounded-md hover:bg-primary-dark">
+                                <i className="fas fa-search"></i>
+                            </button>
+                        </form>
                         <select value={filters.category} onChange={e => setFilters(f => ({ ...f, category: e.target.value }))} className="p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600">
                             <option value="">كل الفئات</option>
                             {(['قطع غيار', 'كماليات', 'زيوت وشحومات', 'بطاريات', 'إطارات'] as MainCategory[]).map(cat => <option key={cat} value={cat}>{cat}</option>)}

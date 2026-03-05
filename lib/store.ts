@@ -20,7 +20,10 @@ import {
     Unsubscribe,
     query,
     where,
-    getDocs
+    getDocs,
+    orderBy,
+    limit,
+    startAfter
 } from 'firebase/firestore';
 import { auth, db, firebaseConfig } from './firebase';
 import { 
@@ -63,9 +66,11 @@ type AppState = {
     isLoading: boolean;
     isSeeded: boolean;
     appData: AppData | null;
+    pendingOrderIdToOpen: string | null;
 };
 
 type AppActions = {
+    setPendingOrderIdToOpen: (id: string | null) => void;
     initPublicListeners: () => Promise<void>;
     initAdminListeners: () => Promise<void>;
     clearAdminListeners: () => void;
@@ -83,6 +88,11 @@ type AppActions = {
     setProducts: (products: Product[]) => Promise<void>;
     deleteProduct: (productId: number) => Promise<void>;
     
+    // Product Actions (Scalable)
+    fetchProducts: (lastDoc?: any, limitCount?: number, filter?: { category?: string }) => Promise<{ products: Product[], lastDoc: any }>;
+    fetchProductsByIds: (ids: number[]) => Promise<Product[]>;
+    searchProducts: (searchQuery: string) => Promise<Product[]>;
+
     // Employee Actions (Atomic)
     addEmployee: (employee: Omit<Employee, 'id'>) => Promise<void>;
     updateEmployee: (employeeId: number, updates: Partial<Employee>) => Promise<void>;
@@ -147,6 +157,7 @@ const useStore = create<AppState & AppActions>((set, get) => ({
     isPublicInitialized: false,
     isLoading: false,
     isSeeded: true, 
+    pendingOrderIdToOpen: null,
     appData: {
         users: [], products: [], dailySales: [], employees: [], advances: [],
         attendance: [], payroll: [], suppliers: [], purchaseOrders: [],
@@ -160,6 +171,9 @@ const useStore = create<AppState & AppActions>((set, get) => ({
             workStartTime: "09:00",
             workEndTime: "23:00"
         }
+    },
+    setPendingOrderIdToOpen: (id: string | null) => {
+        set({ pendingOrderIdToOpen: id });
     },
     addToast: (message: string, type: Toast['type'] = 'info') => {
         set(state => {
@@ -182,7 +196,7 @@ const useStore = create<AppState & AppActions>((set, get) => ({
             publicUnsubscribers.forEach(unsub => unsub());
             publicUnsubscribers = [];
         
-            const publicCollections: (keyof AppData)[] = ['products', 'discountCodes', 'broadcasts'];
+            const publicCollections: (keyof AppData)[] = ['discountCodes', 'broadcasts'];
 
             publicCollections.forEach(name => {
                 const unsub = onSnapshot(collection(db, name as string), (snapshot) => {
@@ -287,6 +301,7 @@ const useStore = create<AppState & AppActions>((set, get) => ({
 
             const collectionsToListen: (keyof AppData)[] = [
                 // 'users' is already fetched. No need for a listener that might fail.
+                // 'products' is now fetched via pagination to support scalability.
                 'dailySales', 'employees', 'advances', 'attendance', 'payroll', 'suppliers', 
                 'purchaseOrders', 'payments', 'expenses', 'treasury', 'dailyReview', 
                 'notifications', 'stockTransfers', 'orders', 'broadcasts'
@@ -493,6 +508,78 @@ const useStore = create<AppState & AppActions>((set, get) => ({
         }
     },
     
+    fetchProducts: async (lastDoc = null, limitCount = 20, filter?: { category?: string }) => {
+        try {
+            let constraints: any[] = [orderBy('id', 'desc'), limit(limitCount)];
+            
+            if (filter?.category && filter.category !== 'all') {
+                // Note: Ordering by 'id' with a 'where' filter requires an index on 'mainCategory' + 'id'.
+                // If index is missing, this will fail. 
+                // Fallback: Filter by category ONLY, then sort client-side or rely on default sort if possible.
+                // For now, let's try simple filtering.
+                constraints = [where('mainCategory', '==', filter.category), limit(limitCount)];
+            }
+
+            if (lastDoc) {
+                constraints.push(startAfter(lastDoc));
+            }
+
+            const q = query(collection(db, 'products'), ...constraints);
+            const snapshot = await getDocs(q);
+            const products = snapshot.docs.map(d => ({ ...(d.data() as Product), id: d.data().id ?? d.id }));
+            return { products, lastDoc: snapshot.docs[snapshot.docs.length - 1] };
+        } catch (error) {
+            console.error("Error fetching products:", error);
+            // Fallback for missing index error
+            return { products: [], lastDoc: null };
+        }
+    },
+    fetchProductsByIds: async (ids: number[]) => {
+        if (!ids || ids.length === 0) return [];
+        try {
+            // Firestore 'in' query supports up to 10 items.
+            // If more, we need to batch or just fetch individually.
+            // For simplicity, we'll fetch individually or use 'in' batches.
+            // But 'id' is a number field we manage, not the document ID.
+            // So we must query where('id', 'in', ids).
+            
+            const chunks = [];
+            for (let i = 0; i < ids.length; i += 10) {
+                chunks.push(ids.slice(i, i + 10));
+            }
+            
+            const results: Product[] = [];
+            for (const chunk of chunks) {
+                const q = query(collection(db, 'products'), where('id', 'in', chunk));
+                const snapshot = await getDocs(q);
+                results.push(...snapshot.docs.map(d => ({ ...(d.data() as Product), id: d.data().id ?? d.id })));
+            }
+            return results;
+        } catch (error) {
+            console.error("Error fetching products by IDs:", error);
+            return [];
+        }
+    },
+    searchProducts: async (searchQuery: string) => {
+        if (!searchQuery.trim()) return [];
+        try {
+            // Simple search by name (requires exact start match or client-side filtering of a larger set)
+            // For true full-text search, Algolia/Typesense is recommended.
+            // Here we use a simple range query for "starts with" logic on 'name'
+            const q = query(
+                collection(db, 'products'), 
+                where('name', '>=', searchQuery), 
+                where('name', '<=', searchQuery + '\uf8ff'),
+                limit(50)
+            );
+            const snapshot = await getDocs(q);
+            return snapshot.docs.map(d => ({ ...(d.data() as Product), id: d.data().id ?? d.id }));
+        } catch (error) {
+            console.error("Error searching products:", error);
+            return [];
+        }
+    },
+
     addEmployee: async (employee) => {
         const maxId = Math.max(0, ...(get().appData?.employees.map(e => Number(e.id) || 0) || []));
         const newEmployee = { ...employee, id: maxId + 1 };

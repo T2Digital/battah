@@ -24,13 +24,19 @@ interface StorefrontProps {
 }
 
 const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
-    const { products, storefrontSettings, createOrder, broadcasts } = useStore(state => ({
-        products: state.appData?.products || [],
+    const { storefrontSettings, createOrder, broadcasts, fetchProducts, searchProducts, fetchProductsByIds } = useStore(state => ({
         storefrontSettings: state.appData?.storefrontSettings,
         createOrder: state.createOrder,
-        broadcasts: state.appData?.broadcasts || []
+        broadcasts: state.appData?.broadcasts || [],
+        fetchProducts: state.fetchProducts,
+        searchProducts: state.searchProducts,
+        fetchProductsByIds: state.fetchProductsByIds
     }));
 
+    const [products, setProducts] = useState<Product[]>([]);
+    const [featuredProducts, setFeaturedProducts] = useState<Product[]>([]);
+    const [newArrivals, setNewArrivals] = useState<Product[]>([]);
+    const [loading, setLoading] = useState(false);
     const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
     const [isCartOpen, setCartOpen] = useState(false);
     const [isCheckoutOpen, setCheckoutOpen] = useState(false);
@@ -38,6 +44,45 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
     const [cartItems, setCartItems] = useState<CartItem[]>([]);
     const [notification, setNotification] = useState('');
     const [filters, setFilters] = useState({ category: 'all', brand: 'all', search: '' });
+
+    // Fetch featured and new arrivals
+    useEffect(() => {
+        const loadFeatured = async () => {
+            if (storefrontSettings?.featuredProductIds?.length) {
+                const results = await fetchProductsByIds(storefrontSettings.featuredProductIds);
+                setFeaturedProducts(results);
+            }
+            if (storefrontSettings?.newArrivalProductIds?.length) {
+                const results = await fetchProductsByIds(storefrontSettings.newArrivalProductIds);
+                setNewArrivals(results);
+            }
+        };
+        loadFeatured();
+    }, [storefrontSettings]);
+
+    // Fetch products based on filters
+    useEffect(() => {
+        const load = async () => {
+            setLoading(true);
+            try {
+                if (filters.search) {
+                    const results = await searchProducts(filters.search);
+                    setProducts(results);
+                } else {
+                    const result = await fetchProducts(null, 50, { category: filters.category });
+                    setProducts(result.products);
+                }
+            } catch (error) {
+                console.error(error);
+            } finally {
+                setLoading(false);
+            }
+        };
+        
+        // Debounce search
+        const timer = setTimeout(load, filters.search ? 500 : 0);
+        return () => clearTimeout(timer);
+    }, [filters.category, filters.search]);
 
     // Broadcast Logic
     useEffect(() => {
@@ -160,17 +205,6 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
             throw error;
         }
     };
-    
-    const featuredProducts = useMemo(() => {
-        if (!storefrontSettings) return [];
-        return storefrontSettings.featuredProductIds.map(id => products.find(p => p.id === id)).filter(Boolean) as Product[];
-    }, [products, storefrontSettings]);
-
-    const newArrivals = useMemo(() => {
-        if (!storefrontSettings) return [];
-        return storefrontSettings.newArrivalProductIds.map(id => products.find(p => p.id === id)).filter(Boolean) as Product[];
-    }, [products, storefrontSettings]);
-
 
     return (
         <div className="font-cairo bg-slate-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200">
