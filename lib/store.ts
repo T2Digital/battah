@@ -138,6 +138,7 @@ type AppActions = {
     updateAttendanceRecord: (id: number, updates: Partial<Attendance>) => Promise<void>;
     createUser: (email: string, pass: string, role: Role, branch: Branch, name: string) => Promise<void>;
     updateSettings: (settings: Partial<Settings>) => Promise<void>;
+    sendBroadcast: (message: string) => Promise<void>;
 };
 
 const useStore = create<AppState & AppActions>((set, get) => ({
@@ -150,7 +151,7 @@ const useStore = create<AppState & AppActions>((set, get) => ({
         users: [], products: [], dailySales: [], employees: [], advances: [],
         attendance: [], payroll: [], suppliers: [], purchaseOrders: [],
         payments: [], expenses: [], treasury: [], dailyReview: [],
-        orders: [], notifications: [], stockTransfers: [], discountCodes: [],
+        orders: [], notifications: [], broadcasts: [], stockTransfers: [], discountCodes: [],
         storefrontSettings: { featuredProductIds: [], newArrivalProductIds: [] },
         toasts: [],
         settings: {
@@ -181,11 +182,17 @@ const useStore = create<AppState & AppActions>((set, get) => ({
             publicUnsubscribers.forEach(unsub => unsub());
             publicUnsubscribers = [];
         
-            const publicCollections: (keyof AppData)[] = ['products', 'discountCodes'];
+            const publicCollections: (keyof AppData)[] = ['products', 'discountCodes', 'broadcasts'];
 
             publicCollections.forEach(name => {
                 const unsub = onSnapshot(collection(db, name as string), (snapshot) => {
                     const data = snapshot.docs.map(d => ({ ...d.data(), id: d.data().id ?? (isNaN(parseInt(d.id, 10)) ? d.id : parseInt(d.id, 10)) }));
+                    
+                    if (name === 'broadcasts') {
+                        // Sort broadcasts by date descending
+                        (data as any[]).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+                    }
+
                     set(state => ({
                         appData: { ...(state.appData as AppData), [name]: data }
                     }));
@@ -282,7 +289,7 @@ const useStore = create<AppState & AppActions>((set, get) => ({
                 // 'users' is already fetched. No need for a listener that might fail.
                 'dailySales', 'employees', 'advances', 'attendance', 'payroll', 'suppliers', 
                 'purchaseOrders', 'payments', 'expenses', 'treasury', 'dailyReview', 
-                'notifications', 'stockTransfers', 'orders'
+                'notifications', 'stockTransfers', 'orders', 'broadcasts'
             ];
     
             collectionsToListen.forEach(name => {
@@ -292,6 +299,16 @@ const useStore = create<AppState & AppActions>((set, get) => ({
                         const id = docData.id ?? d.id; // Prefer self-managed ID, fallback to Firestore's doc ID
                         return { ...docData, id };
                     });
+                    
+                    if (name === 'notifications') {
+                        // Sort notifications by date/createdAt descending
+                        (data as any[]).sort((a, b) => {
+                            const dateA = a.createdAt ? (a.createdAt.seconds ? a.createdAt.seconds * 1000 : a.createdAt) : new Date(a.date).getTime();
+                            const dateB = b.createdAt ? (b.createdAt.seconds ? b.createdAt.seconds * 1000 : b.createdAt) : new Date(b.date).getTime();
+                            return dateB - dateA;
+                        });
+                    }
+                    
                     set(state => ({ appData: { ...(state.appData as AppData), [name]: data } }));
                 }, (error) => {
                     console.error(`Error listening to ${name}:`, error);
@@ -772,10 +789,25 @@ const useStore = create<AppState & AppActions>((set, get) => ({
             totalAmount: finalTotal, 
             status: 'pending', 
             paymentMethod, 
-            paymentProofUrl: imageUrl,
+            paymentProofUrl: imageUrl || undefined, // Ensure undefined if null/empty
             ...validDiscountInfo, // Conditionally adds discountCode and discountAmount
         };
-        await setDoc(newOrderRef, { ...newOrderData, id: newOrderRef.id }); 
+        // Remove undefined fields to prevent Firestore errors if strict
+        const cleanOrderData = JSON.parse(JSON.stringify(newOrderData));
+        await setDoc(newOrderRef, { ...cleanOrderData, id: newOrderRef.id }); 
+
+        // Add notification for admin
+        const notificationRef = doc(collection(db, "notifications"));
+        await setDoc(notificationRef, {
+            id: notificationRef.id,
+            date: newOrderData.date,
+            createdAt: Timestamp.now(),
+            message: `طلب جديد من ${customerDetails.name} بقيمة ${formatCurrency(finalTotal)}`,
+            read: false,
+            orderId: newOrderRef.id,
+            type: 'order',
+            targetGroup: 'admin'
+        });
 
         return imageUrl;
     },
@@ -794,6 +826,19 @@ const useStore = create<AppState & AppActions>((set, get) => ({
     
         const batch = writeBatch(db);
         batch.update(doc(db, "orders", String(orderId)), { status });
+
+        // Add notification for customer/system
+        const notificationRef = doc(collection(db, "notifications"));
+        batch.set(notificationRef, {
+            id: notificationRef.id,
+            date: new Date().toISOString().split('T')[0],
+            createdAt: Timestamp.now(),
+            message: `تم تغيير حالة الطلب #${orderId} إلى ${status === 'confirmed' ? 'تم التأكيد' : status === 'shipped' ? 'تم الشحن' : status === 'cancelled' ? 'ملغي' : 'قيد الانتظار'}`,
+            read: false,
+            orderId: String(orderId),
+            type: 'status_change',
+            targetGroup: 'customer' // This can be filtered in the UI for customers
+        });
     
         if (isNowBeingProcessed && !wasAlreadyProcessed) {
             // Logic to create transactions when confirming an order
@@ -956,6 +1001,26 @@ const useStore = create<AppState & AppActions>((set, get) => ({
     },
     updateSettings: async (settings) => {
         await setDoc(doc(db, "settings", "general"), settings, { merge: true });
+    },
+    sendBroadcast: async (message) => {
+        const newBroadcast: Broadcast = {
+            id: Date.now().toString(),
+            message,
+            date: new Date().toISOString(),
+            sentBy: get().currentUser?.name || 'Admin'
+        };
+        await setDoc(doc(db, "broadcasts", newBroadcast.id), newBroadcast);
+        // Also add a system notification for admin history
+        const notificationRef = doc(collection(db, "notifications"));
+        await setDoc(notificationRef, {
+            id: notificationRef.id,
+            date: newBroadcast.date,
+            createdAt: Timestamp.now(),
+            message: `تم إرسال إشعار عام: ${message}`,
+            read: true,
+            type: 'system',
+            targetGroup: 'all'
+        });
     },
 }));
 

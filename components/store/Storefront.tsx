@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Helmet } from 'react-helmet-async';
 import useStore from '../../lib/store';
-import { Product, CartItem, OrderItem, Order } from '../../types';
+import { Product, CartItem, OrderItem, Order, Broadcast } from '../../types';
 
 import StoreHeader from './StoreHeader';
 import StoreHero from './StoreHero';
@@ -16,16 +16,18 @@ import CustomerNotifications from './CustomerNotifications';
 import CategoryHighlights from './CategoryHighlights';
 import AIChatbot from '../shared/AIChatbot';
 import MyOrdersModal from './MyOrdersModal';
+import InstallPrompt from '../shared/InstallPrompt';
 
 interface StorefrontProps {
     setViewMode: (mode: 'admin' | 'store') => void;
 }
 
 const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
-    const { products, storefrontSettings, createOrder } = useStore(state => ({
+    const { products, storefrontSettings, createOrder, broadcasts } = useStore(state => ({
         products: state.appData?.products || [],
         storefrontSettings: state.appData?.storefrontSettings,
         createOrder: state.createOrder,
+        broadcasts: state.appData?.broadcasts || []
     }));
 
     const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -35,6 +37,24 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
     const [cartItems, setCartItems] = useState<CartItem[]>([]);
     const [notification, setNotification] = useState('');
     const [filters, setFilters] = useState({ category: 'all', brand: 'all', search: '' });
+
+    // Broadcast Logic
+    useEffect(() => {
+        if (broadcasts.length > 0) {
+            const latestBroadcast = broadcasts[0];
+            const seenBroadcasts = JSON.parse(localStorage.getItem('seenBroadcasts') || '[]');
+            
+            // Check if latest broadcast is seen
+            if (!seenBroadcasts.includes(latestBroadcast.id)) {
+                // Show notification
+                setNotification(`📢 ${latestBroadcast.message}`);
+                
+                // Mark as seen
+                seenBroadcasts.push(latestBroadcast.id);
+                localStorage.setItem('seenBroadcasts', JSON.stringify(seenBroadcasts));
+            }
+        }
+    }, [broadcasts]);
 
     // SEO Structured Data (JSON-LD)
     const structuredData = useMemo(() => {
@@ -224,6 +244,7 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
                 addToCart={addToCart}
                 openCart={() => setCartOpen(true)}
             />
+            <InstallPrompt />
         </div>
     );
 };

@@ -74,10 +74,14 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, ex
         setFormData(prev => ({ ...prev, [name]: isNumericField ? Number(value) : value }));
     };
 
-    const calculatePrice = (percentage: number) => {
+    const calculatePrice = (percentage: number, field: 'sellingPrice' | 'wholesalePrice' = 'sellingPrice') => {
         const purchase = Number(formData.purchasePrice) || 0;
         const newPrice = purchase + (purchase * (percentage / 100));
-        setFormData(prev => ({ ...prev, sellingPrice: parseFloat(newPrice.toFixed(2)), retailPrice: parseFloat(newPrice.toFixed(2)) }));
+        setFormData(prev => ({ 
+            ...prev, 
+            [field]: parseFloat(newPrice.toFixed(2)),
+            ...(field === 'sellingPrice' ? { retailPrice: parseFloat(newPrice.toFixed(2)) } : {})
+        }));
     };
 
     const handleStockChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -211,7 +215,14 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, ex
                     </div>
                     <div>
                         <label>سعر البيع (جملة)</label>
-                        <input type="number" name="wholesalePrice" value={formData.wholesalePrice} onChange={handleChange} min="0" step="0.01" className="mt-1 w-full input-base" />
+                        <div className="flex gap-2 items-center">
+                            <input type="number" name="wholesalePrice" value={formData.wholesalePrice} onChange={handleChange} min="0" step="0.01" className="flex-grow input-base" />
+                            <div className="flex gap-1">
+                                <button type="button" onClick={() => calculatePrice(10, 'wholesalePrice')} className="px-2 py-1 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200">10%</button>
+                                <button type="button" onClick={() => calculatePrice(15, 'wholesalePrice')} className="px-2 py-1 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200">15%</button>
+                                <button type="button" onClick={() => calculatePrice(20, 'wholesalePrice')} className="px-2 py-1 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200">20%</button>
+                            </div>
+                        </div>
                     </div>
                     <div>
                         <label>حد الطلب</label>

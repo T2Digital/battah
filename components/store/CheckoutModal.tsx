@@ -251,12 +251,53 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, cartItem
 
                 {paymentMethod === 'electronic' && (
                      <div>
-                        <h3 className="font-bold text-lg mb-2">إثبات الدفع</h3>
-                        <p className="text-sm text-gray-500 mb-2 dark:text-gray-400">
-                            يرجى تحويل المبلغ الإجمالي إلى أحد الحسابات التالية ثم إرفاق إيصال الدفع:
-                            <br/>- <strong>فودافون كاش:</strong> 01012345678
-                            <br/>- <strong>انستاباي:</strong> 01012345678
+                        <h3 className="font-bold text-lg mb-2">اختر وسيلة الدفع الإلكتروني</h3>
+                        <p className="text-sm text-gray-500 mb-4 dark:text-gray-400">
+                            اضغط على الوسيلة المناسبة لإظهار تفاصيل التحويل أو الرابط.
                         </p>
+                        
+                        <div className="grid grid-cols-2 gap-3 mb-4">
+                            <button type="button" onClick={() => window.open('https://instapay.com.eg', '_blank')} className="flex flex-col items-center justify-center p-3 border rounded-lg hover:bg-purple-50 border-purple-200 text-purple-700 transition">
+                                <i className="fas fa-mobile-alt text-2xl mb-1"></i>
+                                <span className="font-bold">InstaPay</span>
+                                <span className="text-xs mt-1">تطبيق انستاباي</span>
+                            </button>
+                            
+                            <button type="button" onClick={() => window.location.href = `tel:*9*7*01012345678*${totalAmount}#`} className="flex flex-col items-center justify-center p-3 border rounded-lg hover:bg-red-50 border-red-200 text-red-700 transition">
+                                <i className="fas fa-wallet text-2xl mb-1"></i>
+                                <span className="font-bold">Vodafone Cash</span>
+                                <span className="text-xs mt-1 ltr" dir="ltr">*9*7*...#{totalAmount}</span>
+                            </button>
+
+                            <button type="button" onClick={() => window.location.href = `tel:*115*01012345678*${totalAmount}#`} className="flex flex-col items-center justify-center p-3 border rounded-lg hover:bg-orange-50 border-orange-200 text-orange-700 transition">
+                                <i className="fas fa-wallet text-2xl mb-1"></i>
+                                <span className="font-bold">Orange Cash</span>
+                                <span className="text-xs mt-1 ltr" dir="ltr">*115*...#{totalAmount}</span>
+                            </button>
+
+                            <button type="button" onClick={() => window.location.href = `tel:*777*01012345678*${totalAmount}#`} className="flex flex-col items-center justify-center p-3 border rounded-lg hover:bg-green-50 border-green-200 text-green-700 transition">
+                                <i className="fas fa-wallet text-2xl mb-1"></i>
+                                <span className="font-bold">Etisalat Cash</span>
+                                <span className="text-xs mt-1 ltr" dir="ltr">*777*...#{totalAmount}</span>
+                            </button>
+
+                            <button type="button" onClick={() => window.location.href = `tel:*322*01012345678*${totalAmount}#`} className="flex flex-col items-center justify-center p-3 border rounded-lg hover:bg-indigo-50 border-indigo-200 text-indigo-700 transition col-span-2 sm:col-span-1">
+                                <i className="fas fa-wallet text-2xl mb-1"></i>
+                                <span className="font-bold">WE Pay</span>
+                                <span className="text-xs mt-1 ltr" dir="ltr">*322*...#{totalAmount}</span>
+                            </button>
+                        </div>
+
+                        <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg border border-blue-100 dark:border-blue-800 mb-4">
+                            <p className="text-sm text-blue-800 dark:text-blue-300 font-semibold mb-1">تعليمات هامة:</p>
+                            <ul className="text-xs text-blue-700 dark:text-blue-400 list-disc list-inside space-y-1">
+                                <li>قم بتحويل المبلغ الإجمالي: <strong>{formatCurrency(totalAmount)}</strong></li>
+                                <li>رقم المحفظة للتحويل: <strong>01012345678</strong></li>
+                                <li>بعد التحويل، يرجى التقاط صورة للإيصال ورفعها بالأسفل.</li>
+                            </ul>
+                        </div>
+
+                        <h4 className="font-bold text-sm mb-2">إرفاق إيصال الدفع *</h4>
                         <input type="file" ref={fileInputRef} accept="image/*" onChange={handleFileChange} required className="text-sm w-full file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 dark:file:bg-blue-900/50 dark:file:text-blue-300 dark:hover:file:bg-blue-900"/>
                         {paymentProof && <p className="text-xs text-green-600 mt-1">تم اختيار الملف: {paymentProof.name}</p>}
                     </div>

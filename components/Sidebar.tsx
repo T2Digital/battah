@@ -1,6 +1,7 @@
 
 import React from 'react';
 import { Section } from '../types';
+import useStore from '../lib/store';
 
 interface SidebarProps {
     isOpen: boolean;
@@ -10,12 +11,15 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, activeSection, setActiveSection, hasPermission }) => {
-    
+    const { appData } = useStore();
+    const pendingOrdersCount = appData?.orders.filter(o => o.status === 'pending').length || 0;
+    const unreadNotificationsCount = appData?.notifications.filter(n => !n.read).length || 0;
+
     const navItems = [
         { id: Section.Dashboard, icon: 'fa-tachometer-alt', label: 'لوحة التحكم', permission: Section.Dashboard },
         { id: Section.Treasury, icon: 'fa-cash-register', label: 'الخزينة', permission: Section.Treasury },
         { id: Section.DailySales, icon: 'fa-hand-holding-usd', label: 'مبيعات اليوم', permission: Section.DailySales },
-        { id: Section.Orders, icon: 'fa-receipt', label: 'طلبات الأونلاين', permission: Section.Orders },
+        { id: Section.Orders, icon: 'fa-receipt', label: 'طلبات الأونلاين', permission: Section.Orders, badge: pendingOrdersCount },
         { id: Section.Customers, icon: 'fa-users-cog', label: 'العملاء', permission: Section.Customers },
         { id: Section.StoreManagement, icon: 'fa-warehouse', label: 'إدارة المخزن', permission: Section.StoreManagement },
         { id: Section.Purchasing, icon: 'fa-shopping-cart', label: 'المشتريات', permission: Section.Purchasing },
@@ -38,7 +42,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, activeSection, setActiveSecti
         return (
             <li
                 onClick={() => setActiveSection(item.id)}
-                className={`flex items-center p-3 my-1 rounded-lg cursor-pointer transition-all duration-200 ${
+                className={`flex items-center p-3 my-1 rounded-lg cursor-pointer transition-all duration-200 relative ${
                     isActive
                         ? 'bg-primary text-white shadow-md'
                         : 'text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
@@ -46,6 +50,11 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, activeSection, setActiveSecti
             >
                 <i className={`fas ${item.icon} text-xl w-8 text-center ${isOpen ? 'mr-1' : ''}`}></i>
                 <span className={`transition-all duration-200 ${isOpen ? 'opacity-100' : 'opacity-0 w-0'}`}>{item.label}</span>
+                {item.badge && item.badge > 0 && (
+                    <span className={`absolute top-2 left-2 bg-red-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full ${!isOpen ? 'top-0 right-0' : ''}`}>
+                        {item.badge}
+                    </span>
+                )}
             </li>
         );
     };

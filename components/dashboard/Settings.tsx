@@ -140,6 +140,43 @@ const Settings: React.FC = () => {
                     </p>
                 </div>
 
+                {/* Broadcast Notification Section */}
+                <div className="border-b dark:border-gray-700 pb-6">
+                    <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
+                        <i className="fas fa-bullhorn text-primary"></i>
+                        إرسال إشعار عام للمستخدمين
+                    </h3>
+                    <div className="flex flex-col gap-4">
+                        <textarea
+                            className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700"
+                            rows={3}
+                            placeholder="اكتب نص الإشعار هنا..."
+                            id="broadcast-message"
+                        ></textarea>
+                        <button
+                            onClick={async () => {
+                                const msg = (document.getElementById('broadcast-message') as HTMLTextAreaElement).value;
+                                if (!msg) return alert('الرجاء كتابة رسالة');
+                                try {
+                                    await useStore.getState().sendBroadcast(msg);
+                                    (document.getElementById('broadcast-message') as HTMLTextAreaElement).value = '';
+                                    addToast('تم إرسال الإشعار بنجاح', 'success');
+                                } catch (e) {
+                                    console.error(e);
+                                    addToast('فشل إرسال الإشعار', 'error');
+                                }
+                            }}
+                            className="self-end px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+                        >
+                            <i className="fas fa-paper-plane ml-2"></i>
+                            إرسال للجميع
+                        </button>
+                    </div>
+                    <p className="text-sm text-gray-500 mt-2">
+                        سيظهر هذا الإشعار لجميع المستخدمين الذين يفتحون التطبيق.
+                    </p>
+                </div>
+
                 <div className="flex justify-end pt-4">
                     <button 
                         onClick={handleSave} 

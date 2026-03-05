@@ -226,9 +226,19 @@ export interface Order {
 export interface Notification {
     id: string;
     date: string;
+    createdAt?: Timestamp | number; // Added for sorting
     message: string;
     read: boolean;
     orderId?: number | string;
+    type?: 'order' | 'system' | 'status_change'; // Added
+    targetGroup?: 'admin' | 'all' | 'customer'; // Added
+}
+
+export interface Broadcast {
+    id: string;
+    message: string;
+    date: string;
+    sentBy: string;
 }
 
 export interface StorefrontSettings {
@@ -286,6 +296,7 @@ export interface AppData {
     dailyReview: DailyReview[];
     orders: Order[];
     notifications: Notification[];
+    broadcasts: Broadcast[];
     storefrontSettings: StorefrontSettings;
     stockTransfers: StockTransfer[];
     discountCodes: DiscountCode[];
