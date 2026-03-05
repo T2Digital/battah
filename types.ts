@@ -60,6 +60,7 @@ export interface Product {
     description?: string;
     images: string[];
     compatibility?: string[];
+    hasSerialNumber?: boolean; // Added
 }
 
 export interface SaleItem {
@@ -67,6 +68,7 @@ export interface SaleItem {
     quantity: number;
     unitPrice: number;
     itemType: MainCategory | 'خدمة' | 'أخرى';
+    serialNumbers?: string[]; // Added
 }
 
 export interface DailySale {

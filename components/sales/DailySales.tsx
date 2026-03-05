@@ -133,6 +133,24 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
         }
     };
 
+    const handleShareWhatsApp = (sale: DailySale) => {
+        const items = normalizeSaleItems(sale);
+        const itemsList = items.map(item => {
+            const product = products.find(p => p.id === item.productId);
+            return `- ${product?.name || 'صنف'} (${item.quantity}) ${formatCurrency(item.unitPrice)}`;
+        }).join('%0a');
+
+        const message = `*فاتورة رقم: ${sale.invoiceNumber}*%0a` +
+            `*التاريخ:* ${sale.date}%0a` +
+            `*الإجمالي:* ${formatCurrency(sale.totalAmount)}%0a` +
+            `------------------%0a` +
+            `*الأصناف:*%0a${itemsList}%0a` +
+            `------------------%0a` +
+            `شكراً لتعاملكم مع بطاح الأصلي!`;
+
+        window.open(`https://wa.me/?text=${message}`, '_blank');
+    };
+
     return (
         <div className="animate-fade-in space-y-6">
             <SectionHeader icon="fa-hand-holding-usd" title="مبيعات اليوم">
@@ -190,6 +208,7 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
                                     <td className="px-6 py-4">{sale.sellerName}</td>
                                     <td className="px-6 py-4 flex gap-3">
                                         <button onClick={() => handlePrintInvoice(sale)} className="text-green-500 hover:text-green-700 text-lg" aria-label={`طباعة فاتورة ${sale.invoiceNumber}`}><i className="fas fa-print"></i></button>
+                                        <button onClick={() => handleShareWhatsApp(sale)} className="text-green-600 hover:text-green-800 text-lg" aria-label={`إرسال واتساب ${sale.invoiceNumber}`}><i className="fab fa-whatsapp"></i></button>
                                         <button onClick={() => handleEditSale(sale)} className="text-blue-500 hover:text-blue-700 text-lg" aria-label={`تعديل فاتورة ${sale.invoiceNumber}`}><i className="fas fa-edit"></i></button>
                                         <button onClick={() => setSaleToDelete(sale)} className="text-red-500 hover:text-red-700 text-lg w-6 text-center" aria-label={`حذف فاتورة ${sale.invoiceNumber}`}>
                                             <i className="fas fa-trash"></i>

@@ -161,14 +161,21 @@ export const generateInvoiceContent = (sale: DailySale, products: Product[]) => 
     const getProductName = (productId: number) => products.find(p => p.id === productId)?.name || 'صنف غير معروف';
     const items = normalizeSaleItems(sale);
 
-    const itemsRows = items.map(item => `
+    const itemsRows = items.map(item => {
+        const serialsHtml = item.serialNumbers && item.serialNumbers.length > 0 
+            ? `<div style="font-size: 10px; color: #666; margin-top: 2px;">S/N: ${item.serialNumbers.join(', ')}</div>` 
+            : '';
+        return `
         <tr class="item">
-            <td>${getProductName(item.productId)}</td>
+            <td>
+                ${getProductName(item.productId)}
+                ${serialsHtml}
+            </td>
             <td style="text-align:center;">${item.quantity}</td>
             <td style="text-align:center;">${formatCurrency(item.unitPrice)}</td>
             <td style="text-align:left;">${formatCurrency(item.quantity * item.unitPrice)}</td>
         </tr>
-    `).join('');
+    `}).join('');
 
     const content = `
     <div class="invoice-box">
@@ -178,12 +185,13 @@ export const generateInvoiceContent = (sale: DailySale, products: Product[]) => 
                     <table>
                         <tr>
                             <td class="title">
-                                <h1>بطاح الأصلي</h1>
+                                <h1 style="margin: 0; color: #2563eb;">بطاح الأصلي</h1>
+                                <p style="font-size: 14px; margin: 0; color: #555;">لقطع غيار السيارات</p>
                             </td>
-                            <td>
-                                فاتورة رقم: ${sale.invoiceNumber}<br>
-                                تاريخ: ${formatDate(sale.date)}<br>
-                                البائع: ${sale.sellerName}
+                            <td style="text-align: left;">
+                                <strong>فاتورة رقم:</strong> ${sale.invoiceNumber}<br>
+                                <strong>تاريخ:</strong> ${formatDate(sale.date)}<br>
+                                <strong>البائع:</strong> ${sale.sellerName}
                             </td>
                         </tr>
                     </table>
@@ -191,14 +199,17 @@ export const generateInvoiceContent = (sale: DailySale, products: Product[]) => 
             </tr>
             <tr class="information">
                 <td colspan="4">
-                    <table>
+                    <table style="border-bottom: 2px solid #eee; padding-bottom: 10px; margin-bottom: 10px;">
                         <tr>
                             <td>
-                                شركة بطاح الأصلي لقطع غيار السيارات<br>
-                                79 شارع رمسيس ناصية التوفيقية امام سنترال رمسيس<br>
-                                19 شارع رمسيس ناصية التوفيقية امام سنترال رمسيس<br>
-                                6 شارع البورصة ناصية التوفيقية بجوار سينما ريفولى<br>
-                                1 شارع البورصة ناصية التوفيقية امام دار القضاء العالى
+                                <strong>العنوان:</strong><br>
+                                79 شارع رمسيس ناصية التوفيقية<br>
+                                امام سنترال رمسيس، القاهرة
+                            </td>
+                            <td style="text-align: left;">
+                                <strong>تليفون:</strong> 01000000000<br>
+                                <strong>س.ت:</strong> 123456<br>
+                                <strong>ب.ض:</strong> 123-456-789
                             </td>
                         </tr>
                     </table>
@@ -212,11 +223,27 @@ export const generateInvoiceContent = (sale: DailySale, products: Product[]) => 
             </tr>
             ${itemsRows}
             <tr class="total">
-                <td colspan="3" style="text-align:left; font-weight:bold;">الإجمالي</td>
-                <td style="text-align:left; font-weight:bold;">${formatCurrency(sale.totalAmount)}</td>
+                <td colspan="3" style="text-align:left; font-weight:bold; padding-top: 10px;">الإجمالي</td>
+                <td style="text-align:left; font-weight:bold; padding-top: 10px;">${formatCurrency(sale.totalAmount)}</td>
             </tr>
+            ${sale.discount ? `
+            <tr>
+                <td colspan="3" style="text-align:left; color: red;">خصم (${sale.discount}%)</td>
+                <td style="text-align:left; color: red;">-${formatCurrency((sale.totalAmount / (1 - (sale.discount/100))) * (sale.discount/100))}</td>
+            </tr>
+            ` : ''}
+             ${sale.notes ? `
+            <tr>
+                <td colspan="4" style="padding-top: 20px; font-size: 12px; color: #666;">
+                    <strong>ملاحظات:</strong> ${sale.notes}
+                </td>
+            </tr>
+            ` : ''}
         </table>
-        <div class="footer" style="margin-top: 50px;">شكراً لتعاملكم معنا!</div>
+        <div class="footer" style="margin-top: 40px; text-align: center; border-top: 1px solid #eee; padding-top: 20px;">
+            <p style="font-weight: bold; margin-bottom: 5px;">شكراً لتعاملكم معنا!</p>
+            <p style="font-size: 12px; color: #888;">البضاعة المباعة ترد وتستبدل خلال 14 يوم بحالتها الأصلية وبالفاتورة.</p>
+        </div>
     </div>
     `;
     return generateReportHTML(`فاتورة ${sale.invoiceNumber}`, '#3b82f6', content, true);

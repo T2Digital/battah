@@ -22,7 +22,7 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, ex
         name: '', sku: '', mainCategory: 'قطع غيار', category: '', brand: '', countryOfOrigin: '',
         purchasePrice: 0, sellingPrice: 0, wholesalePrice: 0, retailPrice: 0,
         stock: { main: 0, branch1: 0, branch2: 0, branch3: 0 },
-        reorderPoint: 5, description: '', images: [], compatibility: [],
+        reorderPoint: 5, description: '', images: [], compatibility: [], hasSerialNumber: false,
     });
     const [isGenerating, setIsGenerating] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
@@ -43,6 +43,7 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, ex
                 description: existingProduct.description || '',
                 images: existingProduct.images || [],
                 compatibility: existingProduct.compatibility || [],
+                hasSerialNumber: existingProduct.hasSerialNumber || false,
             });
             setImagePreview(existingProduct.images[0] || null);
         } else {
@@ -50,7 +51,7 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, ex
                 name: '', sku: '', mainCategory: 'قطع غيار', category: '', brand: '', countryOfOrigin: '',
                 purchasePrice: 0, sellingPrice: 0, wholesalePrice: 0, retailPrice: 0,
                 stock: { main: 0, branch1: 0, branch2: 0, branch3: 0 },
-                reorderPoint: 5, description: '', images: [], compatibility: [],
+                reorderPoint: 5, description: '', images: [], compatibility: [], hasSerialNumber: false,
             });
             setImagePreview(null);
         }
@@ -227,6 +228,19 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, ex
                     <div>
                         <label>حد الطلب</label>
                         <input type="number" name="reorderPoint" value={formData.reorderPoint} onChange={handleChange} required min="0" className="mt-1 w-full input-base" />
+                    </div>
+                    <div className="sm:col-span-2 flex items-center mt-4">
+                        <input
+                            type="checkbox"
+                            id="hasSerialNumber"
+                            name="hasSerialNumber"
+                            checked={formData.hasSerialNumber || false}
+                            onChange={(e) => setFormData(prev => ({ ...prev, hasSerialNumber: e.target.checked }))}
+                            className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                        />
+                        <label htmlFor="hasSerialNumber" className="mr-2 text-sm font-medium text-gray-900 dark:text-gray-300">
+                            يتطلب رقم تسلسلي (للبطاريات والإطارات)
+                        </label>
                     </div>
                 </div>
             </div>

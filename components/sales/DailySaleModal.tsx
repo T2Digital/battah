@@ -4,7 +4,7 @@ import { formatCurrency, normalizeSaleItems } from '../../lib/utils';
 import Modal from '../shared/Modal';
 import useStore from '../../lib/store';
 
-type EditableSaleItem = SaleItem & { productName: string; stock: number };
+type EditableSaleItem = SaleItem & { productName: string; stock: number; hasSerialNumber?: boolean };
 
 interface DailySaleModalProps {
     isOpen: boolean;
@@ -74,6 +74,8 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
                     ...item,
                     productName: product?.name || 'صنف محذوف',
                     stock: product?.stock[existingSale.branchSoldFrom] || 0,
+                    hasSerialNumber: product?.hasSerialNumber || false,
+                    serialNumbers: item.serialNumbers || [],
                 };
             });
             setItems(editableItems);
@@ -168,15 +170,41 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
             unitPrice: price,
             itemType: product.category as SaleItem['itemType'] || 'أخرى',
             stock: product.stock[branchSoldFrom],
+            hasSerialNumber: product.hasSerialNumber,
+            serialNumbers: [],
         };
         setItems(prev => [...prev, newItem]);
         setProductSearch('');
         setShowSuggestions(false);
     };
 
+    const handleSerialNumberChange = (index: number, serialIndex: number, value: string) => {
+        const newItems = [...items];
+        const serials = [...(newItems[index].serialNumbers || [])];
+        serials[serialIndex] = value;
+        newItems[index] = { ...newItems[index], serialNumbers: serials };
+        setItems(newItems);
+    };
+
     const handleItemChange = (index: number, field: 'quantity' | 'unitPrice', value: number) => {
         const newItems = [...items];
         newItems[index] = { ...newItems[index], [field]: value };
+        
+        // Adjust serial numbers array size if quantity changes
+        if (field === 'quantity' && newItems[index].hasSerialNumber) {
+            const currentSerials = newItems[index].serialNumbers || [];
+            if (value > currentSerials.length) {
+                // Add empty strings for new items
+                newItems[index].serialNumbers = [
+                    ...currentSerials, 
+                    ...Array(value - currentSerials.length).fill('')
+                ];
+            } else if (value < currentSerials.length) {
+                // Remove excess serials
+                newItems[index].serialNumbers = currentSerials.slice(0, value);
+            }
+        }
+        
         setItems(newItems);
     };
 
@@ -213,6 +241,13 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
              if (product && item.quantity > product.stock[branchSoldFrom] && direction === 'بيع') {
                 alert(`الكمية المطلوبة (${item.quantity}) من صنف "${item.productName}" أكبر من الرصيد المتاح في هذا الفرع (${product.stock[branchSoldFrom]})`);
                 return;
+             }
+             if (item.hasSerialNumber) {
+                 const enteredSerials = item.serialNumbers?.filter(s => s.trim() !== '') || [];
+                 if (enteredSerials.length !== item.quantity) {
+                     alert(`يرجى إدخال جميع الأرقام التسلسلية للصنف "${item.productName}". مطلوب ${item.quantity}، تم إدخال ${enteredSerials.length}.`);
+                     return;
+                 }
              }
         }
 
@@ -316,14 +351,34 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
                         {items.map((item, index) => {
                             const product = products.find(p => p.id === item.productId);
                             return (
-                                <div key={item.productId} className="grid grid-cols-12 gap-2 items-center p-2 bg-gray-50 dark:bg-gray-700/50 rounded">
-                                    <div className="col-span-5">
-                                        <span className="truncate block">{item.productName}</span>
-                                        {product && <small className="text-xs text-gray-500 dark:text-gray-400 block">{getStockBreakdown(product)}</small>}
+                                <div key={item.productId} className="p-2 bg-gray-50 dark:bg-gray-700/50 rounded mb-2">
+                                    <div className="grid grid-cols-12 gap-2 items-center">
+                                        <div className="col-span-5">
+                                            <span className="truncate block font-medium">{item.productName}</span>
+                                            {product && <small className="text-xs text-gray-500 dark:text-gray-400 block">{getStockBreakdown(product)}</small>}
+                                            {item.hasSerialNumber && <span className="text-xs text-blue-600 dark:text-blue-400 font-bold">يتطلب سيريال</span>}
+                                        </div>
+                                        <input type="number" value={item.quantity} onChange={e => handleItemChange(index, 'quantity', Number(e.target.value))} placeholder="الكمية" className="col-span-3 p-1 border rounded dark:bg-gray-600" ref={index === items.length - 1 ? lastAddedItemRef : null} min="1" />
+                                        <input type="number" value={item.unitPrice} onChange={e => handleItemChange(index, 'unitPrice', Number(e.target.value))} placeholder="السعر" className="col-span-3 p-1 border rounded dark:bg-gray-600" step="0.01" />
+                                        <button type="button" onClick={() => handleRemoveItem(index)} className="col-span-1 text-red-500 hover:text-red-700"><i className="fas fa-trash"></i></button>
                                     </div>
-                                    <input type="number" value={item.quantity} onChange={e => handleItemChange(index, 'quantity', Number(e.target.value))} placeholder="الكمية" className="col-span-3 p-1 border rounded dark:bg-gray-600" ref={index === items.length - 1 ? lastAddedItemRef : null} />
-                                    <input type="number" value={item.unitPrice} onChange={e => handleItemChange(index, 'unitPrice', Number(e.target.value))} placeholder="السعر" className="col-span-3 p-1 border rounded dark:bg-gray-600" step="0.01" />
-                                    <button type="button" onClick={() => handleRemoveItem(index)} className="col-span-1 text-red-500 hover:text-red-700"><i className="fas fa-trash"></i></button>
+                                    
+                                    {/* Serial Number Inputs */}
+                                    {item.hasSerialNumber && item.quantity > 0 && (
+                                        <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                            {Array.from({ length: item.quantity }).map((_, serialIndex) => (
+                                                <input
+                                                    key={serialIndex}
+                                                    type="text"
+                                                    placeholder={`سيريال قطعة ${serialIndex + 1}`}
+                                                    value={item.serialNumbers?.[serialIndex] || ''}
+                                                    onChange={(e) => handleSerialNumberChange(index, serialIndex, e.target.value)}
+                                                    className="p-1 text-sm border rounded dark:bg-gray-600 border-blue-300 dark:border-blue-500"
+                                                    required
+                                                />
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
                             );
                         })}
