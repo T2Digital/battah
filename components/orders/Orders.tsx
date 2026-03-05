@@ -66,15 +66,16 @@ const Orders: React.FC = () => {
     const [isDeleting, setIsDeleting] = useState(false);
 
     const sortedOrders = useMemo(() => {
+        if (!orders) return [];
         return [...orders].sort((a, b) => {
             // Sort by creation timestamp if available, otherwise by date
-            const dateA = a.createdAt ? a.createdAt.toMillis() : new Date(a.date).getTime();
-            const dateB = b.createdAt ? b.createdAt.toMillis() : new Date(b.date).getTime();
+            const dateA = a.createdAt ? (a.createdAt.toMillis ? a.createdAt.toMillis() : new Date(a.createdAt).getTime()) : new Date(a.date).getTime();
+            const dateB = b.createdAt ? (b.createdAt.toMillis ? b.createdAt.toMillis() : new Date(b.createdAt).getTime()) : new Date(b.date).getTime();
             return dateB - dateA;
         });
     }, [orders]);
 
-    const statusMap: Record<Order['status'], { text: string; color: string }> = {
+    const statusMap: Record<string, { text: string; color: string }> = {
         pending: { text: 'معلق', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300' },
         confirmed: { text: 'مؤكد', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300' },
         shipped: { text: 'تم الشحن', color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300' },

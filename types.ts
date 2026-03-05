@@ -29,6 +29,7 @@ export enum Section {
     Customers = 'customers',
     Promotions = 'promotions',
     Settings = 'settings',
+    Notifications = 'notifications',
 }
 
 export interface User {

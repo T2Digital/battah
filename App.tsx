@@ -40,6 +40,7 @@ const Orders = React.lazy(() => import('./components/orders/Orders'));
 const Customers = React.lazy(() => import('./components/customers/Customers'));
 const Promotions = React.lazy(() => import('./components/promotions/Promotions'));
 const Settings = React.lazy(() => import('./components/dashboard/Settings'));
+const Notifications = React.lazy(() => import('./components/notifications/Notifications'));
 
 
 type ViewMode = 'admin' | 'store';
@@ -226,6 +227,7 @@ const App: React.FC = () => {
             case Section.Customers: return <Customers />;
             case Section.Promotions: return <Promotions />;
             case Section.Settings: return <Settings />;
+            case Section.Notifications: return <Notifications />;
             default: return <Dashboard setActiveSection={updateActiveSection} />;
         }
     };

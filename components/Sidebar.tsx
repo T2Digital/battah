@@ -32,6 +32,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, activeSection, setActiveSecti
         { id: Section.Expenses, icon: 'fa-receipt', label: 'المصاريف', permission: Section.Expenses },
         { id: Section.DailyReview, icon: 'fa-chart-line', label: 'مراجعة اليوميات', permission: Section.DailyReview },
         { id: Section.Reports, icon: 'fa-file-alt', label: 'التقارير', permission: Section.Reports },
+        { id: Section.Notifications, icon: 'fa-bell', label: 'الإشعارات', permission: Section.Notifications, badge: unreadNotificationsCount },
         { id: Section.Settings, icon: 'fa-cogs', label: 'الإعدادات', permission: Section.Settings },
     ];
 

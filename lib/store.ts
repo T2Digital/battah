@@ -313,7 +313,10 @@ const useStore = create<AppState & AppActions>((set, get) => ({
                 }, (error) => {
                     console.error(`Error listening to ${name}:`, error);
                     if (error.code === 'permission-denied') {
-                        get().addToast(`خطأ في الصلاحيات عند تحميل بيانات: ${name}`, 'error');
+                        // Suppress broadcast permission errors as they are expected for non-admin users if rules are strict
+                        if (name !== 'broadcasts') {
+                            get().addToast(`خطأ في الصلاحيات عند تحميل بيانات: ${name}`, 'error');
+                        }
                     }
                 });
                 adminUnsubscribers.push(unsub);
@@ -796,18 +799,22 @@ const useStore = create<AppState & AppActions>((set, get) => ({
         const cleanOrderData = JSON.parse(JSON.stringify(newOrderData));
         await setDoc(newOrderRef, { ...cleanOrderData, id: newOrderRef.id }); 
 
-        // Add notification for admin
-        const notificationRef = doc(collection(db, "notifications"));
-        await setDoc(notificationRef, {
-            id: notificationRef.id,
-            date: newOrderData.date,
-            createdAt: Timestamp.now(),
-            message: `طلب جديد من ${customerDetails.name} بقيمة ${formatCurrency(finalTotal)}`,
-            read: false,
-            orderId: newOrderRef.id,
-            type: 'order',
-            targetGroup: 'admin'
-        });
+        // Add notification for admin (Try-catch to prevent order failure if notification fails due to permissions)
+        try {
+            const notificationRef = doc(collection(db, "notifications"));
+            await setDoc(notificationRef, {
+                id: notificationRef.id,
+                date: newOrderData.date,
+                createdAt: Timestamp.now(),
+                message: `طلب جديد من ${customerDetails.name} بقيمة ${formatCurrency(finalTotal)}`,
+                read: false,
+                orderId: newOrderRef.id,
+                type: 'order',
+                targetGroup: 'admin'
+            });
+        } catch (error) {
+            console.warn("Failed to create admin notification for new order:", error);
+        }
 
         return imageUrl;
     },

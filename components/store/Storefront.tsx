@@ -17,6 +17,7 @@ import CategoryHighlights from './CategoryHighlights';
 import AIChatbot from '../shared/AIChatbot';
 import MyOrdersModal from './MyOrdersModal';
 import InstallPrompt from '../shared/InstallPrompt';
+import FloatingCheckoutButton from './FloatingCheckoutButton';
 
 interface StorefrontProps {
     setViewMode: (mode: 'admin' | 'store') => void;
@@ -245,6 +246,11 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
                 openCart={() => setCartOpen(true)}
             />
             <InstallPrompt />
+            <FloatingCheckoutButton 
+                itemCount={cartItems.reduce((sum, item) => sum + item.quantity, 0)}
+                totalAmount={cartItems.reduce((sum, item) => sum + item.product.sellingPrice * item.quantity, 0)}
+                onCheckout={handleCheckout}
+            />
         </div>
     );
 };
