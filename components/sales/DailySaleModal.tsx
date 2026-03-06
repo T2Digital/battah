@@ -252,13 +252,23 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
         }
 
         const saleData = {
-            date, invoiceNumber, direction, branchSoldFrom, notes, totalAmount,
+            date, 
+            invoiceNumber, 
+            direction, 
+            branchSoldFrom, 
+            notes: notes || '', // Ensure notes is not undefined
+            totalAmount,
             sellerId: currentUser.id,
             sellerName: currentUser.name,
             source: 'المحل' as const,
             invoiceType,
-            discount,
-            items: items.map(({ productName, stock, ...rest }) => rest), // Remove productName & stock before saving
+            discount: discount || 0, // Ensure discount is not undefined
+            items: items.map(({ productName, stock, ...rest }) => ({
+                ...rest,
+                hasSerialNumber: rest.hasSerialNumber || false, // Ensure boolean
+                serialNumbers: rest.serialNumbers || [], // Ensure array
+                itemType: rest.itemType || 'أخرى' // Ensure string
+            })), 
         };
         onSave(existingSale ? { ...saleData, id: existingSale.id } : saleData);
     };

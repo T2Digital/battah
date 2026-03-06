@@ -8,9 +8,10 @@ interface SidebarProps {
     activeSection: Section;
     setActiveSection: (section: Section) => void;
     hasPermission: (permission: Section) => boolean;
+    onClose?: () => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ isOpen, activeSection, setActiveSection, hasPermission }) => {
+const Sidebar: React.FC<SidebarProps> = ({ isOpen, activeSection, setActiveSection, hasPermission, onClose }) => {
     const { appData } = useStore();
     const pendingOrdersCount = appData?.orders.filter(o => o.status === 'pending').length || 0;
     const unreadNotificationsCount = appData?.notifications.filter(n => !n.read).length || 0;
@@ -42,7 +43,12 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, activeSection, setActiveSecti
         const isActive = activeSection === item.id;
         return (
             <li
-                onClick={() => setActiveSection(item.id)}
+                onClick={() => {
+                    setActiveSection(item.id);
+                    if (window.innerWidth < 640 && onClose) {
+                        onClose();
+                    }
+                }}
                 className={`flex items-center p-3 my-1 rounded-lg cursor-pointer transition-all duration-200 relative ${
                     isActive
                         ? 'bg-primary text-white shadow-md'

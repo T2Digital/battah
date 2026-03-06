@@ -254,7 +254,13 @@ const useStore = create<AppState & AppActions>((set, get) => ({
             // Fetch users once to avoid permission issues with listeners
             const usersSnapshot = await getDocs(collection(db, 'users'));
             const usersData = usersSnapshot.docs.map(d => ({ ...(d.data() as User), id: d.data().id ?? d.id }));
-            set(state => ({ appData: { ...(state.appData as AppData), users: usersData } }));
+            
+            // Fetch products once (since we removed the listener for scalability)
+            // Ideally this should be paginated, but for now we fetch all to ensure DailySales works.
+            const productsSnapshot = await getDocs(collection(db, 'products'));
+            const productsData = productsSnapshot.docs.map(d => ({ ...(d.data() as Product), id: d.data().id ?? (isNaN(parseInt(d.id, 10)) ? d.id : parseInt(d.id, 10)) }));
+
+            set(state => ({ appData: { ...(state.appData as AppData), users: usersData, products: productsData } }));
             
             // Fetch all orders and notifications once to find any orders that were placed while admin was offline
             const [ordersSnapshot, notificationsSnapshot] = await Promise.all([
@@ -866,7 +872,13 @@ const useStore = create<AppState & AppActions>((set, get) => ({
         
         // 2. Upload payment proof if exists
         if (paymentMethod === 'electronic' && paymentProof) {
-            imageUrl = await get().uploadImage(paymentProof, `payment_proofs/${Date.now()}_${paymentProof.name}`);
+            try {
+                imageUrl = await get().uploadImage(paymentProof, `payment_proofs/${Date.now()}_${paymentProof.name}`);
+            } catch (error) {
+                console.warn("Failed to upload payment proof. Proceeding without it.", error);
+                // We proceed without the image URL, effectively treating it as if no proof was uploaded,
+                // but the order is still created. The admin can request proof later.
+            }
         }
 
         // 3. Create order document with conditional discount fields

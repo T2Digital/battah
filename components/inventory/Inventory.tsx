@@ -63,7 +63,8 @@ const Inventory: React.FC = () => {
         storefrontSettings,
         updateStorefrontSettings,
         fetchProducts,
-        searchProducts
+        searchProducts,
+        globalProducts // Get global products from store
     } = useStore(state => ({
         stockTransfers: state.appData?.stockTransfers || [],
         setProducts: state.setProducts,
@@ -71,7 +72,8 @@ const Inventory: React.FC = () => {
         storefrontSettings: state.appData?.storefrontSettings,
         updateStorefrontSettings: state.updateStorefrontSettings,
         fetchProducts: state.fetchProducts,
-        searchProducts: state.searchProducts
+        searchProducts: state.searchProducts,
+        globalProducts: state.appData?.products || [] // Access global products
     }));
 
     const [products, setLocalProducts] = useState<Product[]>([]);
@@ -93,13 +95,18 @@ const Inventory: React.FC = () => {
         stockStatus: 'all',
     });
 
-    // Initial fetch
+    // Initial fetch - Sync with global products if available, otherwise fetch
     React.useEffect(() => {
-        loadProducts();
-    }, []);
+        if (globalProducts.length > 0) {
+            setLocalProducts(globalProducts);
+            setHasMore(false); // Since we have all products
+        } else {
+            loadProducts();
+        }
+    }, [globalProducts]); // React to changes in global products
 
     const loadProducts = async (reset = false) => {
-        if (loading) return;
+        if (loading || (globalProducts.length > 0 && !reset)) return; // Don't load if we have global products
         setLoading(true);
         try {
             const result = await fetchProducts(reset ? null : lastDoc);
@@ -109,7 +116,7 @@ const Inventory: React.FC = () => {
                 setLocalProducts(prev => [...prev, ...result.products]);
             }
             setLastDoc(result.lastDoc);
-            setHasMore(result.products.length === 20); // Assuming limit is 20
+            setHasMore(result.products.length === 20); 
         } catch (error) {
             console.error(error);
         } finally {
@@ -119,6 +126,15 @@ const Inventory: React.FC = () => {
 
     const handleSearch = async (e: React.FormEvent) => {
         e.preventDefault();
+        // Search is now handled by client-side filtering on `products` state
+        // which is synced with `globalProducts`.
+        // We just need to ensure `products` contains everything.
+        if (globalProducts.length > 0) {
+             // Already have all products, filtering happens in `filteredProducts`
+             return;
+        }
+
+        // Fallback to server search if global products are empty (shouldn't happen for admin)
         if (!filters.search.trim()) {
             setIsSearching(false);
             loadProducts(true);
@@ -129,7 +145,7 @@ const Inventory: React.FC = () => {
         try {
             const results = await searchProducts(filters.search);
             setLocalProducts(results);
-            setHasMore(false); // Disable load more for search results for now
+            setHasMore(false);
         } catch (error) {
             console.error(error);
         } finally {
@@ -180,12 +196,14 @@ const Inventory: React.FC = () => {
         return products.filter(p => {
             const totalStock = p.stock.main + p.stock.branch1 + p.stock.branch2 + p.stock.branch3;
             // Search is handled server-side now, but we keep this for local filtering if needed
-            // const matchesSearch = p.name.toLowerCase().includes(filters.search.toLowerCase()) || p.sku.toLowerCase().includes(filters.search.toLowerCase());
+            const matchesSearch = filters.search 
+                ? (p.name.toLowerCase().includes(filters.search.toLowerCase()) || p.sku.toLowerCase().includes(filters.search.toLowerCase()))
+                : true;
             const matchesCategory = filters.category ? p.mainCategory === filters.category : true;
             const matchesStock = filters.stockStatus === 'all' || (filters.stockStatus === 'low' && totalStock <= (p.reorderPoint || 0)) || (filters.stockStatus === 'out' && totalStock === 0);
-            return matchesCategory && matchesStock;
+            return matchesCategory && matchesStock && matchesSearch;
         });
-    }, [products, filters.category, filters.stockStatus]);
+    }, [products, filters.category, filters.stockStatus, filters.search]);
 
     return (
         <div className="animate-fade-in space-y-6">

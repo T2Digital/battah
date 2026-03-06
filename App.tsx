@@ -270,6 +270,7 @@ const App: React.FC = () => {
                 activeSection={activeSection}
                 setActiveSection={updateActiveSection}
                 hasPermission={hasPermission}
+                onClose={() => setSidebarOpen(false)}
             />
             <main className={`transition-all duration-300 ease-in-out pt-24 pb-8 px-4 sm:px-8 ${isSidebarOpen ? 'sm:mr-72' : 'sm:mr-20'}`}>
                 <Suspense fallback={<div className="text-center p-8">جاري تحميل القسم...</div>}>
