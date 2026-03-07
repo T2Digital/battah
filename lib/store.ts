@@ -831,9 +831,12 @@ const useStore = create<AppState & AppActions>((set, get) => ({
             // Use environment variable VITE_IMGBB_API_KEY first
             let apiKey = import.meta.env.VITE_IMGBB_API_KEY;
             
-            // Fallback to a known working key if env var is missing or invalid
-            if (!apiKey || apiKey === 'undefined') {
-                 console.warn("VITE_IMGBB_API_KEY missing, using fallback key.");
+            // Known broken key that might be lingering in user's env vars
+            const brokenKey = "f59b6629158302506353901404390509";
+
+            // Fallback to a known working key if env var is missing, invalid, or is the known broken key
+            if (!apiKey || apiKey === 'undefined' || apiKey === brokenKey) {
+                 console.warn("VITE_IMGBB_API_KEY missing or invalid, using fallback key.");
                  // This key is a public demo key, might be rate limited but should work for testing
                  apiKey = "6d207e02198a847aa98d0a2a901485a5"; 
             }
