@@ -828,23 +828,28 @@ const useStore = create<AppState & AppActions>((set, get) => ({
             const base64Image = await toBase64(file);
             
             // Direct client-side upload
-            // Use environment variable VITE_IMGBB_API_KEY first
-            let apiKey = import.meta.env.VITE_IMGBB_API_KEY;
+            // 1. Try to get key from environment
+            let envApiKey = import.meta.env.VITE_IMGBB_API_KEY;
             
-            // Known broken key that might be lingering in user's env vars
+            // 2. Define the known working key (Hardcoded fallback)
+            const workingKey = "6d207e02198a847aa98d0a2a901485a5";
+            
+            // 3. Define the known broken key to blacklist it
             const brokenKey = "f59b6629158302506353901404390509";
 
-            // Fallback to a known working key if env var is missing, invalid, or is the known broken key
-            if (!apiKey || apiKey === 'undefined' || apiKey === brokenKey) {
-                 console.warn("VITE_IMGBB_API_KEY missing or invalid, using fallback key.");
-                 // This key is a public demo key, might be rate limited but should work for testing
-                 apiKey = "6d207e02198a847aa98d0a2a901485a5"; 
+            let apiKey = envApiKey;
+
+            // 4. Validate and select the correct key
+            if (!apiKey || apiKey === 'undefined' || apiKey === brokenKey || apiKey.length < 10) {
+                 console.warn("VITE_IMGBB_API_KEY is missing, invalid, or blacklisted. Switching to hardcoded working key.");
+                 apiKey = workingKey;
             }
+
+            // Debug log to confirm which key is being used (safe to log partial key)
+            console.log(`ImgBB Upload: Using key ending in ...${apiKey.slice(-4)}`);
 
             const uploadData = new FormData();
             uploadData.append('image', file);
-
-            console.log("Uploading image to ImgBB with key ending in...", apiKey.slice(-4));
 
             const response = await fetch(`https://api.imgbb.com/1/upload?key=${apiKey}`, {
                 method: 'POST',
