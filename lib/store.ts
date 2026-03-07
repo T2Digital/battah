@@ -195,6 +195,17 @@ const useStore = create<AppState & AppActions>((set, get) => ({
         set({ isLoading: true });
     
         try {
+            // Ensure anonymous authentication for public access
+            if (!auth.currentUser) {
+                try {
+                    await signInAnonymously(auth);
+                    console.log("Signed in anonymously for public access");
+                } catch (authError) {
+                    console.error("Anonymous sign-in failed:", authError);
+                    // Continue anyway, maybe rules allow unauthenticated read
+                }
+            }
+
             publicUnsubscribers.forEach(unsub => unsub());
             publicUnsubscribers = [];
         
@@ -829,27 +840,30 @@ const useStore = create<AppState & AppActions>((set, get) => ({
             
             // Direct client-side upload
             // 1. Try to get key from environment
-            let envApiKey = import.meta.env.VITE_IMGBB_API_KEY;
+            const envApiKey = import.meta.env.VITE_IMGBB_API_KEY;
             
-            // 2. Define the known working key (Hardcoded fallback)
-            const workingKey = "6d207e02198a847aa98d0a2a901485a5";
-            
-            // 3. Define the known broken key to blacklist it
+            // 2. Define the known broken key to blacklist it
             const brokenKey = "f59b6629158302506353901404390509";
+            
+            // 3. Define the fallback working key
+            const fallbackKey = "6d207e02198a847aa98d0a2a901485a5";
 
-            let apiKey = envApiKey;
+            let apiKey = fallbackKey;
 
-            // 4. Validate and select the correct key
-            if (!apiKey || apiKey === 'undefined' || apiKey === brokenKey || apiKey.length < 10) {
-                 console.warn("VITE_IMGBB_API_KEY is missing, invalid, or blacklisted. Switching to hardcoded working key.");
-                 apiKey = workingKey;
+            // 4. Logic: Use env key if it exists and is NOT the broken key
+            if (envApiKey && envApiKey !== 'undefined' && envApiKey !== brokenKey) {
+                apiKey = envApiKey;
+                console.log("ImgBB Upload: Using environment variable key.");
+            } else {
+                console.warn("ImgBB Upload: Environment key missing or invalid. Using fallback key.");
             }
 
-            // Debug log to confirm which key is being used (safe to log partial key)
-            console.log(`ImgBB Upload: Using key ending in ...${apiKey.slice(-4)}`);
+            // Debug log (masked)
+            console.log(`ImgBB Upload: Key ending in ...${apiKey.slice(-4)}`);
 
             const uploadData = new FormData();
-            uploadData.append('image', file);
+            // Use base64 string instead of File object for better compatibility
+            uploadData.append('image', base64Image);
 
             const response = await fetch(`https://api.imgbb.com/1/upload?key=${apiKey}`, {
                 method: 'POST',
@@ -863,10 +877,12 @@ const useStore = create<AppState & AppActions>((set, get) => ({
                 return data.data.url;
             } else {
                 console.error("ImgBB upload failed:", data);
+                // Throw error so the user knows upload failed
                 throw new Error(data.error?.message || 'ImgBB upload failed');
             }
         } catch (error: any) {
             console.error("Upload error:", error);
+            // Throw error to stop order creation if proof is missing
             throw new Error(error.message || 'Image upload failed');
         }
     },
