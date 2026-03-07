@@ -21,7 +21,7 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar, setViewMode }) => {
             <header className="fixed top-0 left-0 right-0 bg-white dark:bg-gray-800 shadow-md h-20 flex items-center justify-between px-6 z-40" style={{ right: 0 }}>
                 <div className="flex items-center gap-4">
                      <div className="flex items-center gap-3">
-                         <img src="https://i.ibb.co/TDztRHqB/4-1.png" alt="Logo" className="h-10 w-auto" />
+                         <img src="https://i.ibb.co/LDdGwd87/5-1.png" alt="Logo" className="h-10 w-auto" />
                          <h1 className="text-xl font-bold text-gray-800 dark:text-white hidden sm:block">نظام بطاح الأصلي</h1>
                     </div>
                      <button 

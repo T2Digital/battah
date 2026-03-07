@@ -108,7 +108,7 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
             "@context": "https://schema.org",
             "@type": "AutoPartsStore",
             "name": "بطاح الأصلي",
-            "image": "https://battah-system.vercel.app/pwa-512x512.png",
+            "image": "https://i.ibb.co/LDdGwd87/5-1.png",
             "description": "متجر بطاح الأصلي لقطع غيار السيارات وإكسسواراتها الأصلية.",
             "address": {
                 "@type": "PostalAddress",
@@ -214,7 +214,7 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
                 <meta name="keywords" content="قطع غيار, سيارات, بطاح, اكسسوارات, زيوت, فلاتر, فرامل" />
                 <meta property="og:title" content="بطاح الأصلي | قطع غيار سيارات أصلية" />
                 <meta property="og:description" content="تسوق أفضل قطع غيار السيارات الأصلية والإكسسوارات من بطاح الأصلي." />
-                <meta property="og:image" content="https://battah-system.vercel.app/pwa-512x512.png" />
+                <meta property="og:image" content="https://i.ibb.co/LDdGwd87/5-1.png" />
                 <meta property="og:type" content="website" />
                 <meta name="twitter:card" content="summary_large_image" />
                 <script type="application/ld+json">

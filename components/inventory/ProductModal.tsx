@@ -135,15 +135,21 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, ex
             try {
                 const imageUrl = await uploadImage(imageFile, `products/${Date.now()}_${imageFile.name}`);
                 finalData.images = [imageUrl, ...finalData.images.filter(img => img !== imageUrl)];
-            } catch (error) {
+            } catch (error: any) {
                 console.error("Image upload failed", error);
-                alert("فشل رفع الصورة. يرجى المحاولة مرة أخرى.");
+                alert(`فشل رفع الصورة: ${error.message || "يرجى المحاولة مرة أخرى."}`);
                 setIsUploading(false);
                 return;
             }
         }
-        onSave(existingProduct ? { ...finalData, id: existingProduct.id } : finalData);
-        setIsUploading(false);
+        try {
+            await onSave(existingProduct ? { ...finalData, id: existingProduct.id } : finalData);
+        } catch (error) {
+            console.error("Failed to save product:", error);
+            alert("فشل حفظ المنتج.");
+        } finally {
+            setIsUploading(false);
+        }
     };
 
     if (showSecurityCheck) {
@@ -167,7 +173,7 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, ex
     }
 
     return (
-        <Modal isOpen={isOpen} onClose={onClose} title={existingProduct ? 'تعديل بيانات المنتج' : 'إضافة منتج جديد'} onSave={handlePreSubmit}>
+        <Modal isOpen={isOpen} onClose={onClose} title={existingProduct ? 'تعديل بيانات المنتج' : 'إضافة منتج جديد'} onSave={handlePreSubmit} isLoading={isUploading}>
              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {/* Image Section */}
                 <div className="md:col-span-1 space-y-3">

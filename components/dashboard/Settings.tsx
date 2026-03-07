@@ -15,6 +15,8 @@ const Settings: React.FC = () => {
     const [currentIP, setCurrentIP] = useState<string>('');
     const [isLoadingIP, setIsLoadingIP] = useState(false);
 
+    const [isSaving, setIsSaving] = useState(false);
+
     useEffect(() => {
         if (appData?.settings) {
             setLocalSettings(appData.settings);
@@ -37,12 +39,15 @@ const Settings: React.FC = () => {
     };
 
     const handleSave = async () => {
+        setIsSaving(true);
         try {
             await updateSettings(localSettings);
             addToast("تم حفظ الإعدادات بنجاح", "success");
         } catch (error) {
             console.error("Failed to save settings:", error);
             addToast("فشل في حفظ الإعدادات", "error");
+        } finally {
+            setIsSaving(false);
         }
     };
 
@@ -180,10 +185,11 @@ const Settings: React.FC = () => {
                 <div className="flex justify-end pt-4">
                     <button 
                         onClick={handleSave} 
-                        className="px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary-dark transition shadow-md flex items-center gap-2"
+                        disabled={isSaving}
+                        className="px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary-dark transition shadow-md flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                        <i className="fas fa-save"></i>
-                        حفظ الإعدادات
+                        {isSaving ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-save"></i>}
+                        {isSaving ? 'جاري الحفظ...' : 'حفظ الإعدادات'}
                     </button>
                 </div>
 

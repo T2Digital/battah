@@ -68,6 +68,8 @@ const Inventory: React.FC = () => {
     } = useStore(state => ({
         stockTransfers: state.appData?.stockTransfers || [],
         setProducts: state.setProducts,
+        addProduct: state.addProduct,
+        updateProduct: state.updateProduct,
         deleteProduct: state.deleteProduct,
         storefrontSettings: state.appData?.storefrontSettings,
         updateStorefrontSettings: state.updateStorefrontSettings,
@@ -178,17 +180,21 @@ const Inventory: React.FC = () => {
         }
     };
 
-    const handleSaveProduct = (product: Omit<Product, 'id'> & { id?: number }) => {
-        // Optimistic update or reload
-        if (product.id) {
-            setLocalProducts(prev => prev.map(p => (p.id === product.id ? { ...p, ...product } as Product : p)));
-        } else {
-            // For new products, we might want to reload to get the correct ID/order
-            // Or just prepend it
-            const newId = Date.now(); // Temporary ID until refresh
-            setLocalProducts(prev => [{ ...product, id: newId } as Product, ...prev]);
+    const handleSaveProduct = async (product: Omit<Product, 'id'> & { id?: number }) => {
+        try {
+            if (product.id) {
+                await updateProduct(product.id, product);
+                setLocalProducts(prev => prev.map(p => (p.id === product.id ? { ...p, ...product } as Product : p)));
+            } else {
+                const newProduct = await addProduct(product);
+                setLocalProducts(prev => [newProduct, ...prev]);
+            }
+            setProductModalOpen(false);
+        } catch (error) {
+            console.error("Failed to save product:", error);
+            alert("فشل حفظ المنتج.");
+            throw error;
         }
-        setProductModalOpen(false);
     };
     
     // Client-side filtering for the currently loaded batch (mostly for category/stock status)

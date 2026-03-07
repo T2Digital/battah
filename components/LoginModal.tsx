@@ -34,6 +34,7 @@ const LoginModal: React.FC = () => {
         <div className="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-50 backdrop-blur-sm">
             <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-sm p-8 m-4 animate-fade-in-down">
                 <div className="text-center mb-6">
+                    <img src="https://i.ibb.co/LDdGwd87/5-1.png" alt="Logo" className="h-20 w-auto mx-auto mb-4" />
                     <h3 className="text-2xl font-bold text-gray-800 dark:text-white">🔐 تسجيل الدخول للنظام</h3>
                 </div>
                 <form onSubmit={handleSubmit} className="space-y-6">

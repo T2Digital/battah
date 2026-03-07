@@ -15,6 +15,8 @@ const StorefrontSettings: React.FC<StorefrontSettingsProps> = ({ isOpen, onClose
     const [newArrivals, setNewArrivals] = useState<number[]>([]);
     const [adminPassword, setAdminPassword] = useState('');
 
+    const [isSaving, setIsSaving] = useState(false);
+
     useEffect(() => {
         if (settings) {
             setFeatured(settings.featuredProductIds || []);
@@ -28,10 +30,18 @@ const StorefrontSettings: React.FC<StorefrontSettingsProps> = ({ isOpen, onClose
         setter(prev => prev.includes(productId) ? prev.filter(id => id !== productId) : [...prev, productId]);
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        onSave({ featuredProductIds: featured, newArrivalProductIds: newArrivals, adminPassword });
-        onClose();
+        setIsSaving(true);
+        try {
+            await onSave({ featuredProductIds: featured, newArrivalProductIds: newArrivals, adminPassword });
+            onClose();
+        } catch (error) {
+            console.error("Failed to save storefront settings:", error);
+            // Optionally add toast here if available or rely on store error handling
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     const ProductList: React.FC<{ title: string; selectedIds: number[]; onToggle: (id: number) => void }> = ({ title, selectedIds, onToggle }) => (
@@ -55,7 +65,7 @@ const StorefrontSettings: React.FC<StorefrontSettingsProps> = ({ isOpen, onClose
     );
 
     return (
-        <Modal isOpen={isOpen} onClose={onClose} title="إعدادات واجهة المتجر" onSave={handleSubmit}>
+        <Modal isOpen={isOpen} onClose={onClose} title="إعدادات واجهة المتجر" onSave={handleSubmit} isLoading={isSaving}>
             <div className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <ProductList title="المنتجات المميزة (الأكثر مبيعاً)" selectedIds={featured} onToggle={(id) => handleToggle('featured', id)} />

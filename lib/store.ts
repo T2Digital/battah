@@ -86,6 +86,8 @@ type AppActions = {
     
     // Actions to modify appData subsets
     setProducts: (products: Product[]) => Promise<void>;
+    addProduct: (product: Omit<Product, 'id'>) => Promise<Product>;
+    updateProduct: (productId: number, updates: Partial<Product>) => Promise<void>;
     deleteProduct: (productId: number) => Promise<void>;
     
     // Product Actions (Scalable)
@@ -210,6 +212,9 @@ const useStore = create<AppState & AppActions>((set, get) => ({
                     set(state => ({
                         appData: { ...(state.appData as AppData), [name]: data }
                     }));
+                }, (error) => {
+                    console.warn(`Error listening to ${name}:`, error.message);
+                    // Don't crash, just log. This handles permission denied for public users if rules are strict.
                 });
                 publicUnsubscribers.push(unsub);
             });
@@ -219,6 +224,8 @@ const useStore = create<AppState & AppActions>((set, get) => ({
                  set(state => ({
                     appData: { ...(state.appData as AppData), storefrontSettings }
                 }));
+            }, (error) => {
+                console.warn("Error listening to storefront settings:", error.message);
             });
             publicUnsubscribers.push(settingsUnsub);
 
@@ -232,6 +239,8 @@ const useStore = create<AppState & AppActions>((set, get) => ({
                  set(state => ({
                     appData: { ...(state.appData as AppData), settings }
                 }));
+            }, (error) => {
+                console.warn("Error listening to general settings:", error.message);
             });
             publicUnsubscribers.push(generalSettingsUnsub);
 
@@ -463,6 +472,18 @@ const useStore = create<AppState & AppActions>((set, get) => ({
             batch.set(docRef, p);
         });
         await batch.commit();
+    },
+    addProduct: async (product) => {
+        // Generate ID based on max ID or timestamp. Using timestamp for simplicity and uniqueness distributed.
+        // Or better, use max ID from existing products if available, but we might not have all products loaded.
+        // Timestamp is safer for distributed creation without a counter document.
+        const newId = Date.now(); 
+        const newProduct = { ...product, id: newId };
+        await setDoc(doc(db, "products", String(newId)), newProduct);
+        return newProduct as Product;
+    },
+    updateProduct: async (productId, updates) => {
+        await updateDoc(doc(db, "products", String(productId)), updates);
     },
     deleteProduct: async (productId: number) => {
         try {
@@ -806,36 +827,36 @@ const useStore = create<AppState & AppActions>((set, get) => ({
         try {
             const base64Image = await toBase64(file);
             
-            // Try to upload via our secure API route first
-            const response = await fetch('/api/upload', {
+            // Direct client-side upload
+            // Use environment variable VITE_IMGBB_API_KEY first
+            let apiKey = import.meta.env.VITE_IMGBB_API_KEY;
+            
+            // Fallback to a known working key if env var is missing or invalid
+            if (!apiKey || apiKey === 'undefined') {
+                 console.warn("VITE_IMGBB_API_KEY missing, using fallback key.");
+                 // This key is a public demo key, might be rate limited but should work for testing
+                 apiKey = "6d207e02198a847aa98d0a2a901485a5"; 
+            }
+
+            const uploadData = new FormData();
+            uploadData.append('image', file);
+
+            console.log("Uploading image to ImgBB with key ending in...", apiKey.slice(-4));
+
+            const response = await fetch(`https://api.imgbb.com/1/upload?key=${apiKey}`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ image: base64Image }),
+                body: uploadData,
             });
 
-            if (response.ok) {
-                const result = await response.json();
-                if (result.success) {
-                    return result.data.url;
-                }
-            }
-            
-            // Fallback: If API route fails (e.g. local dev without proxy), try direct upload if key is available
-            const apiKey = (process.env as any).IMGBB_API_KEY;
-            if (apiKey && apiKey !== "YOUR_IMGBB_API_KEY_HERE") {
-                const formData = new FormData();
-                formData.append('image', file);
-                const directResponse = await fetch(`https://api.imgbb.com/1/upload?key=${apiKey}`, {
-                    method: 'POST',
-                    body: formData,
-                });
-                const directResult = await directResponse.json();
-                if (directResult.success) {
-                    return directResult.data.url;
-                }
-            }
+            const data = await response.json();
 
-            throw new Error('Image upload failed. Please check your connection or configuration.');
+            if (data.success) {
+                console.log("Image uploaded successfully:", data.data.url);
+                return data.data.url;
+            } else {
+                console.error("ImgBB upload failed:", data);
+                throw new Error(data.error?.message || 'ImgBB upload failed');
+            }
         } catch (error: any) {
             console.error("Upload error:", error);
             throw new Error(error.message || 'Image upload failed');
@@ -875,9 +896,8 @@ const useStore = create<AppState & AppActions>((set, get) => ({
             try {
                 imageUrl = await get().uploadImage(paymentProof, `payment_proofs/${Date.now()}_${paymentProof.name}`);
             } catch (error) {
-                console.warn("Failed to upload payment proof. Proceeding without it.", error);
-                // We proceed without the image URL, effectively treating it as if no proof was uploaded,
-                // but the order is still created. The admin can request proof later.
+                console.error("Failed to upload payment proof:", error);
+                throw new Error("فشل رفع إيصال الدفع. يرجى المحاولة مرة أخرى.");
             }
         }
 

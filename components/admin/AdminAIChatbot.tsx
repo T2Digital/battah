@@ -98,12 +98,12 @@ const AdminAIChatbot: React.FC<AdminAIChatbotProps> = ({ appData }) => {
         <>
             <button
                 onClick={() => setIsOpen(!isOpen)}
-                className="fixed bottom-6 left-6 w-16 h-16 bg-primary-dark text-white rounded-full shadow-lg flex items-center justify-center text-3xl z-40 transform hover:scale-110 transition-transform"
+                className="fixed bottom-6 right-6 w-16 h-16 bg-primary-dark text-white rounded-full shadow-lg flex items-center justify-center text-3xl z-40 transform hover:scale-110 transition-transform"
                 aria-label="Open admin chatbot"
             >
                 <i className="fas fa-brain"></i>
             </button>
-            <div className={`fixed bottom-24 left-6 w-96 h-[500px] bg-white dark:bg-gray-800 rounded-2xl shadow-2xl flex flex-col z-40 transition-all duration-300 ease-in-out ${isOpen ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'}`}>
+            <div className={`fixed bottom-24 right-6 w-96 h-[500px] bg-white dark:bg-gray-800 rounded-2xl shadow-2xl flex flex-col z-40 transition-all duration-300 ease-in-out ${isOpen ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'}`}>
                 <div className="p-4 bg-primary-dark text-white rounded-t-2xl flex justify-between items-center">
                     <h3 className="font-bold text-lg">مساعد المدير الذكي (AdminInsight)</h3>
                     <button onClick={() => setIsOpen(false)} className="text-white text-2xl">&times;</button>

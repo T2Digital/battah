@@ -41,7 +41,7 @@ const InstallPrompt: React.FC = () => {
         <div className="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:w-96 bg-white dark:bg-gray-800 p-4 rounded-xl shadow-2xl z-50 border border-gray-200 dark:border-gray-700 animate-slide-up flex flex-col gap-3">
             <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
-                    <img src="https://i.ibb.co/TDztRHqB/4-1.png" alt="App Icon" className="w-12 h-12 rounded-lg shadow-sm" />
+                    <img src="https://i.ibb.co/LDdGwd87/5-1.png" alt="App Icon" className="w-12 h-12 rounded-lg shadow-sm" />
                     <div>
                         <h3 className="font-bold text-gray-900 dark:text-white">تثبيت التطبيق</h3>
                         <p className="text-sm text-gray-500 dark:text-gray-400">احصل على تجربة أفضل مع تطبيقنا.</p>

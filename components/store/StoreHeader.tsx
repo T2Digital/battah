@@ -13,7 +13,7 @@ const StoreHeader: React.FC<StoreHeaderProps> = ({ onCartClick, cartItemCount, s
         <header className="bg-white bg-opacity-80 dark:bg-gray-800 dark:bg-opacity-80 backdrop-blur-sm shadow-md sticky top-0 z-30">
             <div className="container mx-auto px-4 sm:px-6 py-4 flex justify-between items-center">
                 <div className="flex items-center gap-3">
-                    <img src="https://i.ibb.co/TDztRHqB/4-1.png" alt="Logo" className="h-10 w-auto" />
+                    <img src="https://i.ibb.co/LDdGwd87/5-1.png" alt="Logo" className="h-10 w-auto" />
                     <h1 className="text-xl font-bold text-gray-800 dark:text-white">متجر بطاح الأصلي</h1>
                 </div>
 
