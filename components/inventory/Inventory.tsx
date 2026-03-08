@@ -248,7 +248,7 @@ const Inventory: React.FC = () => {
                         </form>
                         <select value={filters.category} onChange={e => setFilters(f => ({ ...f, category: e.target.value }))} className="p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600">
                             <option value="">كل الفئات</option>
-                            {(['قطع غيار', 'كماليات', 'زيوت وشحومات', 'بطاريات', 'إطارات'] as MainCategory[]).map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                            {(['قطع غيار', 'كماليات و إكسسوارات', 'زيوت وشحومات', 'بطاريات', 'إطارات'] as MainCategory[]).map(cat => <option key={cat} value={cat}>{cat}</option>)}
                         </select>
                         <select value={filters.stockStatus} onChange={e => setFilters(f => ({ ...f, stockStatus: e.target.value }))} className="p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600">
                             <option value="all">كل المخزون</option>

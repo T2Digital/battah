@@ -12,14 +12,42 @@ const OrderDetailsModal: React.FC<{
     onClose: () => void;
 }> = ({ order, isOpen, onClose }) => {
     if (!order) return null;
+    const getWhatsAppLink = (phone: string, order: Order) => {
+        let cleanPhone = phone.replace(/\D/g, '');
+        if (cleanPhone.startsWith('0')) cleanPhone = cleanPhone.substring(1);
+        if (!cleanPhone.startsWith('20')) cleanPhone = '20' + cleanPhone;
+
+        const message = `مرحباً ${order.customerName}،\nتم استلام طلبك رقم #${order.id}.\nالإجمالي: ${formatCurrency(order.totalAmount)}.\nشكراً لتسوقك معنا!`;
+        return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
+    };
+
     return (
         <Modal isOpen={isOpen} onClose={onClose} title={`تفاصيل الطلب رقم #${order.id}`}>
             <div className="space-y-4">
                 <div>
                     <h3 className="font-bold">بيانات العميل</h3>
                     <p>الاسم: {order.customerName}</p>
-                    <p>الهاتف: {order.customerPhone}</p>
+                    <p className="flex items-center gap-2">
+                        الهاتف: {order.customerPhone}
+                        <a 
+                            href={getWhatsAppLink(order.customerPhone, order)} 
+                            target="_blank" 
+                            rel="noopener noreferrer" 
+                            className="text-green-500 hover:text-green-600"
+                            title="إرسال عبر واتساب"
+                        >
+                            <i className="fab fa-whatsapp text-xl"></i>
+                        </a>
+                    </p>
                     <p>العنوان: {order.customerAddress}</p>
+                    {order.locationLink && (
+                        <p>
+                            <a href={order.locationLink} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline flex items-center gap-1">
+                                <i className="fas fa-map-marker-alt"></i>
+                                عرض الموقع على الخريطة
+                            </a>
+                        </p>
+                    )}
                 </div>
                 <div>
                     <h3 className="font-bold">المنتجات</h3>
@@ -64,10 +92,21 @@ const Orders: React.FC = () => {
     const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
     const [orderToDelete, setOrderToDelete] = useState<Order | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
+    
+    // Filtering and Pagination State
+    const [filterStatus, setFilterStatus] = useState<string>('all');
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 10;
 
     const sortedOrders = useMemo(() => {
         if (!orders || !Array.isArray(orders)) return [];
-        return [...orders].sort((a, b) => {
+        let filtered = [...orders];
+        
+        if (filterStatus !== 'all') {
+            filtered = filtered.filter(order => order.status === filterStatus);
+        }
+
+        return filtered.sort((a, b) => {
             const getTime = (dateObj: any, dateStr: string) => {
                 if (!dateObj) return new Date(dateStr).getTime() || 0;
                 // Handle Firestore Timestamp instance
@@ -84,7 +123,14 @@ const Orders: React.FC = () => {
             
             return timeB - timeA;
         });
-    }, [orders]);
+    }, [orders, filterStatus]);
+
+    const paginatedOrders = useMemo(() => {
+        const startIndex = (currentPage - 1) * itemsPerPage;
+        return sortedOrders.slice(startIndex, startIndex + itemsPerPage);
+    }, [sortedOrders, currentPage]);
+
+    const totalPages = Math.ceil(sortedOrders.length / itemsPerPage);
 
     const statusMap: Record<string, { text: string; color: string }> = {
         pending: { text: 'معلق', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300' },
@@ -131,6 +177,27 @@ const Orders: React.FC = () => {
         <div className="animate-fade-in space-y-6">
             <SectionHeader icon="fa-receipt" title="إدارة الطلبات" />
             
+            {/* Filter Controls */}
+            <div className="flex justify-between items-center bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm">
+                <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">تصفية حسب الحالة:</span>
+                    <select
+                        value={filterStatus}
+                        onChange={(e) => { setFilterStatus(e.target.value); setCurrentPage(1); }}
+                        className="p-2 border rounded-lg text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                    >
+                        <option value="all">الكل</option>
+                        <option value="pending">معلق</option>
+                        <option value="confirmed">مؤكد</option>
+                        <option value="shipped">تم الشحن</option>
+                        <option value="cancelled">ملغي</option>
+                    </select>
+                </div>
+                <div className="text-sm text-gray-500">
+                    إجمالي الطلبات: {sortedOrders.length}
+                </div>
+            </div>
+
             <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-x-auto">
                 <table className="w-full text-sm text-right text-gray-500 dark:text-gray-400">
                     <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-300">
@@ -145,7 +212,7 @@ const Orders: React.FC = () => {
                         </tr>
                     </thead>
                     <tbody>
-                        {sortedOrders.map((order, index) => {
+                        {paginatedOrders.map((order, index) => {
                             const isCorrupted = !order.id;
                             return (
                             <tr key={order.id || `corrupted-${index}`} className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
@@ -184,9 +251,39 @@ const Orders: React.FC = () => {
                                 </td>
                             </tr>
                         )})}
+                        {paginatedOrders.length === 0 && (
+                            <tr>
+                                <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
+                                    لا توجد طلبات للعرض
+                                </td>
+                            </tr>
+                        )}
                     </tbody>
                 </table>
             </div>
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+                <div className="flex justify-center items-center gap-2 mt-4">
+                    <button
+                        onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                        disabled={currentPage === 1}
+                        className="px-3 py-1 rounded border bg-white disabled:opacity-50 hover:bg-gray-100 dark:bg-gray-700 dark:border-gray-600"
+                    >
+                        السابق
+                    </button>
+                    <span className="text-sm text-gray-700 dark:text-gray-300">
+                        صفحة {currentPage} من {totalPages}
+                    </span>
+                    <button
+                        onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                        disabled={currentPage === totalPages}
+                        className="px-3 py-1 rounded border bg-white disabled:opacity-50 hover:bg-gray-100 dark:bg-gray-700 dark:border-gray-600"
+                    >
+                        التالي
+                    </button>
+                </div>
+            )}
 
             <OrderDetailsModal
                 isOpen={!!selectedOrder}

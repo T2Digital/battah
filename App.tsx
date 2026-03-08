@@ -11,7 +11,7 @@ import Header from './components/Header';
 import LoginModal from './components/LoginModal';
 import Storefront from './components/store/Storefront';
 import SeedData from './lib/seed';
-import AdminAIChatbot from './components/admin/AdminAIChatbot';
+import AdminChatbot from './components/admin/AdminChatbot';
 import Reports from './components/reports/Reports';
 import InventoryReports from './components/reports/InventoryReports';
 import SalesReportView from './components/reports/SalesReportView';
@@ -74,6 +74,7 @@ const App: React.FC = () => {
       addExpense,
       updateExpense,
       deleteExpense,
+      setDailyReviews,
     } = useStore();
 
     const [viewMode, setViewMode] = useState<ViewMode>('store');
@@ -82,6 +83,49 @@ const App: React.FC = () => {
     const [activeReport, setActiveReport] = useState<string | null>(null);
     const [accessDenied, setAccessDenied] = useState<{ reason: 'time' | 'ip', details?: string } | null>(null);
     
+    // Auto Daily Review Generator
+    useEffect(() => {
+        if (currentUser?.role === Role.Admin && appData) {
+            const today = new Date();
+            const yesterday = new Date(today);
+            yesterday.setDate(yesterday.getDate() - 1);
+            const yesterdayStr = yesterday.toISOString().split('T')[0];
+
+            const existingReview = appData.dailyReview?.find(r => r.date === yesterdayStr);
+            
+            if (!existingReview) {
+                const yesterdaySales = appData.dailySales?.filter(s => s.date === yesterdayStr) || [];
+                const salesCash = yesterdaySales.reduce((sum, s) => sum + s.totalAmount, 0);
+                const salesElectronic = 0;
+                const totalSales = salesCash + salesElectronic;
+                
+                const yesterdayExpenses = appData.expenses?.filter(e => e.date.startsWith(yesterdayStr)).reduce((sum, e) => sum + e.amount, 0) || 0;
+                
+                const yesterdayOrders = appData.orders?.filter(o => o.date.startsWith(yesterdayStr)) || [];
+                const onlineOrdersTotal = yesterdayOrders.reduce((sum, o) => sum + o.totalAmount, 0);
+                const onlineOrdersCount = yesterdayOrders.length;
+
+                const drawerBalance = salesCash - yesterdayExpenses;
+
+                const autoReview = {
+                    date: yesterdayStr,
+                    branch: 'main' as const,
+                    salesCash,
+                    salesElectronic,
+                    totalSales,
+                    drawerBalance,
+                    expensesTotal: yesterdayExpenses,
+                    onlineOrdersTotal,
+                    onlineOrdersCount,
+                    notes: `تم الإغلاق التلقائي لليوم. إجمالي المبيعات: ${totalSales}، المصروفات: ${yesterdayExpenses}، طلبات الأونلاين: ${onlineOrdersCount}`
+                };
+
+                const newId = Math.max(0, ...(appData.dailyReview?.map(r => r.id) || [])) + 1;
+                setDailyReviews([...(appData.dailyReview || []), { ...autoReview, id: newId }]);
+            }
+        }
+    }, [currentUser, appData?.dailyReview, appData?.dailySales, appData?.expenses, appData?.orders, setDailyReviews]);
+
     // This effect runs once to set up public data and auth listening
     useEffect(() => {
         initPublicListeners(); // Load only products and storefront settings for public view.
@@ -294,7 +338,7 @@ const App: React.FC = () => {
                     {renderAdminContent()}
                 </Suspense>
             </main>
-            {currentUser?.role === Role.Admin && <AdminAIChatbot appData={appData} />}
+            {currentUser?.role === Role.Admin && <AdminChatbot />}
         </div>
     );
 };

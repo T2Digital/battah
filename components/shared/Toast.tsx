@@ -31,12 +31,12 @@ const Toast: React.FC<ToastType> = ({ id, message, type }) => {
 
     return (
         <div 
-            className={`flex items-center gap-4 p-4 rounded-lg shadow-lg text-white ${color} transition-all duration-300 ease-in-out ${exiting ? 'opacity-0 translate-x-[-100%]' : 'opacity-100 translate-x-0'}`}
+            className={`flex items-center gap-3 p-4 rounded-lg shadow-lg text-white ${color} transition-all duration-300 ease-in-out transform ${exiting ? 'opacity-0 -translate-y-2 scale-95' : 'opacity-100 translate-y-0 scale-100'} w-full md:w-auto`}
             role="alert"
         >
-            <i className={`fas ${icon} text-xl`}></i>
-            <p className="flex-grow text-sm font-medium">{message}</p>
-            <button onClick={handleClose} className="text-xl font-bold">&times;</button>
+            <i className={`fas ${icon} text-lg flex-shrink-0`}></i>
+            <p className="flex-grow text-sm font-medium break-words">{message}</p>
+            <button onClick={handleClose} className="text-lg font-bold opacity-70 hover:opacity-100 p-1">&times;</button>
         </div>
     );
 };

@@ -12,7 +12,7 @@ interface CheckoutModalProps {
     isOpen: boolean;
     onClose: () => void;
     cartItems: CartItem[];
-    onPlaceOrder: (customerDetails: { name: string; phone: string; address: string }, paymentMethod: Order['paymentMethod'], paymentProof?: File, discountCode?: string) => Promise<string | undefined>;
+    onPlaceOrder: (customerDetails: { name: string; phone: string; address: string }, paymentMethod: Order['paymentMethod'], paymentProof?: File, discountCode?: string, locationLink?: string) => Promise<string | undefined>;
 }
 
 const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, cartItems, onPlaceOrder }) => {
@@ -138,7 +138,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, cartItem
         }
         setIsPlacingOrder(true);
         try {
-            const proofUrl = await onPlaceOrder(customerDetails, paymentMethod, paymentProof || undefined, appliedDiscount?.code);
+            const proofUrl = await onPlaceOrder(customerDetails, paymentMethod, paymentProof || undefined, appliedDiscount?.code, locationUrl);
             
             localStorage.removeItem('checkoutData');
 

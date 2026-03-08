@@ -114,10 +114,11 @@ const DailyReview: React.FC = () => {
                 <table className="w-full text-sm text-right text-gray-500 dark:text-gray-400">
                     <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-300">
                         <tr>
-                            <th className="px-6 py-3">التاريخ</th>
+                             <th className="px-6 py-3">التاريخ</th>
                             <th className="px-6 py-3">الفرع</th>
-                            <th className="px-6 py-3">المبيعات النقدية</th>
-                            <th className="px-6 py-3">المبيعات الإلكترونية</th>
+                            <th className="px-6 py-3">مبيعات المحل</th>
+                            <th className="px-6 py-3">طلبات الأونلاين</th>
+                            <th className="px-6 py-3">المصروفات</th>
                             <th className="px-6 py-3">رصيد الدرج</th>
                             <th className="px-6 py-3">الإجراءات</th>
                         </tr>
@@ -127,9 +128,16 @@ const DailyReview: React.FC = () => {
                             <tr key={r.id} className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
                                 <td className="px-6 py-4">{formatDate(r.date)}</td>
                                 <td className="px-6 py-4 font-medium text-gray-900 dark:text-white">{branchNames[r.branch] || r.branch}</td>
-                                <td className="px-6 py-4">{formatCurrency(r.salesCash)}</td>
-                                <td className="px-6 py-4">{formatCurrency(r.salesElectronic)}</td>
-                                <td className="px-6 py-4 font-bold text-green-600 dark:text-green-400">{formatCurrency(r.drawerBalance)}</td>
+                                <td className="px-6 py-4">
+                                    <div className="font-bold text-green-600 dark:text-green-400">{formatCurrency(r.totalSales)}</div>
+                                    <div className="text-xs text-gray-500">كاش: {formatCurrency(r.salesCash)}</div>
+                                </td>
+                                <td className="px-6 py-4">
+                                    <div className="font-bold text-blue-600 dark:text-blue-400">{formatCurrency(r.onlineOrdersTotal || 0)}</div>
+                                    <div className="text-xs text-gray-500">عدد: {r.onlineOrdersCount || 0} طلب</div>
+                                </td>
+                                <td className="px-6 py-4 font-bold text-red-600 dark:text-red-400">{formatCurrency(r.expensesTotal || 0)}</td>
+                                <td className="px-6 py-4 font-bold text-gray-900 dark:text-white">{formatCurrency(r.drawerBalance)}</td>
                                 <td className="px-6 py-4 flex gap-3">
                                     <button onClick={() => { setReviewToEdit(r); setModalOpen(true); }} className="text-blue-500"><i className="fas fa-edit"></i></button>
                                     <button onClick={() => setReviewToDelete(r)} className="text-red-500"><i className="fas fa-trash"></i></button>

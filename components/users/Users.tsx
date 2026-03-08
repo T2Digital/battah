@@ -34,7 +34,8 @@ const Users: React.FC = () => {
                 name: userData.name,
                 role: userData.role,
                 branch: userData.branch,
-                permissions: userData.permissions
+                permissions: userData.permissions,
+                ...(userData.password ? { password: userData.password } : {})
             });
         } else {
             await createUser(

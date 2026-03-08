@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { GoogleGenAI } from "@google/genai";
-// Fix: Corrected import paths
+import CreatableSelect from 'react-select/creatable';
 import { Product, MainCategory } from '../../types';
 import Modal from '../shared/Modal';
 import useStore from '../../lib/store';
@@ -14,10 +14,15 @@ interface ProductModalProps {
 }
 
 const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, existingProduct }) => {
-    const { uploadImage, storefrontSettings } = useStore(state => ({
+    const { uploadImage, storefrontSettings, products } = useStore(state => ({
         uploadImage: state.uploadImage,
-        storefrontSettings: state.appData?.storefrontSettings
+        storefrontSettings: state.appData?.storefrontSettings,
+        products: state.appData?.products || []
     }));
+    
+    // Extract unique brands from existing products
+    const existingBrands = Array.from(new Set(products.map(p => p.brand))).map(b => ({ value: b, label: b }));
+
     const [formData, setFormData] = useState<Omit<Product, 'id'>>({
         name: '', sku: '', mainCategory: 'قطع غيار', category: '', brand: '', countryOfOrigin: '',
         purchasePrice: 0, sellingPrice: 0, wholesalePrice: 0, retailPrice: 0,
@@ -32,10 +37,19 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, ex
     const [showSecurityCheck, setShowSecurityCheck] = useState(false);
     const [securityError, setSecurityError] = useState('');
 
+    const mainCategories: MainCategory[] = [
+        'قطع غيار',
+        'كماليات و إكسسوارات',
+        'زيوت وشحومات',
+        'بطاريات',
+        'إطارات'
+    ];
+
     useEffect(() => {
         if (existingProduct) {
             setFormData({
                 ...existingProduct,
+                mainCategory: (existingProduct.mainCategory as string) === 'كماليات واكسسوارات' || (existingProduct.mainCategory as string) === 'كماليات' ? 'كماليات و إكسسوارات' : existingProduct.mainCategory, // Migration helper
                 countryOfOrigin: existingProduct.countryOfOrigin || '',
                 wholesalePrice: existingProduct.wholesalePrice || 0,
                 retailPrice: existingProduct.retailPrice || existingProduct.sellingPrice || 0,
@@ -73,6 +87,10 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, ex
         const { name, value } = e.target;
         const isNumericField = ['purchasePrice', 'sellingPrice', 'wholesalePrice', 'retailPrice', 'reorderPoint'].includes(name);
         setFormData(prev => ({ ...prev, [name]: isNumericField ? Number(value) : value }));
+    };
+
+    const handleBrandChange = (newValue: any) => {
+        setFormData(prev => ({ ...prev, brand: newValue ? newValue.value : '' }));
     };
 
     const calculatePrice = (percentage: number, field: 'sellingPrice' | 'wholesalePrice' = 'sellingPrice') => {
@@ -198,8 +216,43 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, ex
                         <input type="text" name="sku" value={formData.sku} onChange={handleChange} required className="mt-1 w-full input-base" />
                     </div>
                     <div>
+                        <label>الفئة الرئيسية *</label>
+                        <select 
+                            name="mainCategory" 
+                            value={formData.mainCategory} 
+                            onChange={handleChange} 
+                            required 
+                            className="mt-1 w-full input-base"
+                        >
+                            {mainCategories.map(cat => (
+                                <option key={cat} value={cat}>{cat}</option>
+                            ))}
+                        </select>
+                    </div>
+                    <div>
+                        <label>الفئة الفرعية</label>
+                        <input type="text" name="category" value={formData.category} onChange={handleChange} className="mt-1 w-full input-base" placeholder="مثال: فلاتر، سيور..." />
+                    </div>
+                    <div>
                         <label>الماركة *</label>
-                        <input type="text" name="brand" value={formData.brand} onChange={handleChange} required className="mt-1 w-full input-base" />
+                        <CreatableSelect
+                            isClearable
+                            onChange={handleBrandChange}
+                            options={existingBrands}
+                            value={formData.brand ? { label: formData.brand, value: formData.brand } : null}
+                            placeholder="اختر أو اكتب ماركة جديدة..."
+                            className="mt-1 text-right"
+                            styles={{
+                                control: (base) => ({
+                                    ...base,
+                                    borderColor: '#e5e7eb',
+                                    borderRadius: '0.5rem',
+                                    padding: '2px',
+                                    ':hover': { borderColor: '#3b82f6' }
+                                }),
+                                menu: (base) => ({ ...base, zIndex: 9999 })
+                            }}
+                        />
                     </div>
                     <div>
                         <label>بلد المنشأ</label>

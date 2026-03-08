@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import useStore from '../../lib/store';
 import SectionHeader from '../shared/SectionHeader';
-import { QRCodeCanvas } from 'qrcode.react';
 
 const Settings: React.FC = () => {
     const { appData, updateSettings, addToast } = useStore();
@@ -17,13 +16,30 @@ const Settings: React.FC = () => {
     const [isLoadingIP, setIsLoadingIP] = useState(false);
 
     const [isSaving, setIsSaving] = useState(false);
-    const [qrValue, setQrValue] = useState('');
+    const [newTickerMessage, setNewTickerMessage] = useState('');
+    const [tickerMessages, setTickerMessages] = useState<string[]>([]);
 
     useEffect(() => {
         if (appData?.settings) {
             setLocalSettings(appData.settings);
+            setTickerMessages(appData.settings.tickerMessages || []);
         }
     }, [appData?.settings]);
+
+    const handleAddTickerMessage = () => {
+        if (newTickerMessage.trim()) {
+            const updatedMessages = [...tickerMessages, newTickerMessage.trim()];
+            setTickerMessages(updatedMessages);
+            setLocalSettings(prev => ({ ...prev, tickerMessages: updatedMessages }));
+            setNewTickerMessage('');
+        }
+    };
+
+    const handleRemoveTickerMessage = (index: number) => {
+        const updatedMessages = tickerMessages.filter((_, i) => i !== index);
+        setTickerMessages(updatedMessages);
+        setLocalSettings(prev => ({ ...prev, tickerMessages: updatedMessages }));
+    };
 
     const fetchCurrentIP = async () => {
         setIsLoadingIP(true);
@@ -170,6 +186,53 @@ const Settings: React.FC = () => {
                     </p>
                 </div>
 
+                {/* Ticker Messages Section */}
+                <div className="border-b dark:border-gray-700 pb-6">
+                    <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
+                        <i className="fas fa-scroll text-primary"></i>
+                        شريط الأخبار (المتحرك)
+                    </h3>
+                    <div className="space-y-4">
+                        <p className="text-sm text-gray-600 dark:text-gray-300">
+                            أضف رسائل ترويجية تظهر في الشريط المتحرك أعلى المتجر.
+                        </p>
+                        
+                        <div className="flex gap-2">
+                            <input
+                                type="text"
+                                value={newTickerMessage}
+                                onChange={(e) => setNewTickerMessage(e.target.value)}
+                                placeholder="اكتب رسالة جديدة..."
+                                className="flex-grow p-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                onKeyPress={(e) => e.key === 'Enter' && handleAddTickerMessage()}
+                            />
+                            <button
+                                onClick={handleAddTickerMessage}
+                                className="bg-primary text-white px-4 py-2 rounded hover:bg-primary-dark transition"
+                            >
+                                <i className="fas fa-plus"></i>
+                            </button>
+                        </div>
+
+                        <div className="space-y-2 mt-4">
+                            {tickerMessages.map((msg, index) => (
+                                <div key={index} className="flex justify-between items-center bg-gray-50 dark:bg-gray-700 p-2 rounded border dark:border-gray-600">
+                                    <span className="text-gray-800 dark:text-gray-200">{msg}</span>
+                                    <button
+                                        onClick={() => handleRemoveTickerMessage(index)}
+                                        className="text-red-500 hover:text-red-700 p-1"
+                                    >
+                                        <i className="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            ))}
+                            {tickerMessages.length === 0 && (
+                                <p className="text-center text-gray-500 italic py-2">لا يوجد رسائل حالياً</p>
+                            )}
+                        </div>
+                    </div>
+                </div>
+
                 {/* Broadcast Notification Section */}
                 <div className="border-b dark:border-gray-700 pb-6">
                     <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
@@ -205,39 +268,6 @@ const Settings: React.FC = () => {
                     <p className="text-sm text-gray-500 mt-2">
                         سيظهر هذا الإشعار لجميع المستخدمين الذين يفتحون التطبيق.
                     </p>
-                </div>
-
-                {/* QR Code Generator Section */}
-                <div className="border-b dark:border-gray-700 pb-6">
-                    <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
-                        <i className="fas fa-qrcode text-primary"></i>
-                        إنشاء رمز استجابة سريعة (QR Code)
-                    </h3>
-                    <div className="flex flex-col md:flex-row gap-6 items-start">
-                        <div className="flex-grow w-full md:w-2/3">
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">الرابط أو النص</label>
-                            <input 
-                                type="text" 
-                                value={qrValue}
-                                onChange={(e) => setQrValue(e.target.value)}
-                                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 mb-4"
-                                placeholder="https://example.com"
-                            />
-                            <p className="text-sm text-gray-500">
-                                أدخل رابط صفحة الفيسبوك، أو رابط التطبيق، أو أي نص لإنشاء QR Code له.
-                            </p>
-                        </div>
-                        <div className="flex flex-col items-center justify-center bg-white p-4 rounded-lg border shadow-sm">
-                            {qrValue ? (
-                                <QRCodeCanvas value={qrValue} size={150} level={"H"} includeMargin={true} />
-                            ) : (
-                                <div className="w-[150px] h-[150px] bg-gray-100 flex items-center justify-center text-gray-400 text-sm text-center p-2">
-                                    أدخل نصاً لعرض الرمز
-                                </div>
-                            )}
-                            <span className="text-xs text-gray-500 mt-2">امسح الرمز للتجربة</span>
-                        </div>
-                    </div>
                 </div>
 
                 <div className="flex justify-end pt-4">

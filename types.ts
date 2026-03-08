@@ -40,9 +40,10 @@ export interface User {
     role: Role;
     branch: Branch;
     permissions: Section[];
+    password?: string; // Added to store password for display (Admin only)
 }
 
-export type MainCategory = 'قطع غيار' | 'كماليات واكسسوارات' | 'زيوت وشحومات' | 'بطاريات' | 'إطارات';
+export type MainCategory = 'قطع غيار' | 'كماليات و إكسسوارات' | 'زيوت وشحومات' | 'بطاريات' | 'إطارات';
 
 export interface Product {
     id: number;
@@ -106,6 +107,7 @@ export interface Employee {
     phone?: string;
     address?: string;
     email?: string; // Added for linking to auth
+    idCardUrl?: string; // Added
 }
 
 export interface Advance {
@@ -132,6 +134,10 @@ export interface Payroll {
     employeeId: number;
     basicSalary: number;
     incentives?: number; // Added
+    deductions?: number; // Added (calculated from advances/expenses)
+    workHours?: number; // Added
+    periodStart?: string; // Added
+    periodEnd?: string; // Added
     disbursed: number;
     notes?: string;
 }
@@ -147,6 +153,7 @@ export interface PurchaseOrderItem {
     productId: number;
     quantity: number;
     purchasePrice: number;
+    purchasePriceTotal?: number; // Optional helper
 }
 
 export interface PurchaseOrder {
@@ -177,6 +184,7 @@ export interface Expense {
     name: string;
     amount: number;
     notes?: string;
+    employeeId?: number; // Added to link expense to employee for payroll
 }
 
 export interface TreasuryTransaction {
@@ -199,6 +207,9 @@ export interface DailyReview {
     salesParts?: number;
     salesAccessories?: number;
     drawerBalance: number;
+    expensesTotal?: number; // Added for comprehensive review
+    onlineOrdersTotal?: number; // Added for comprehensive review
+    onlineOrdersCount?: number; // Added for comprehensive review
     notes?: string;
 }
 
@@ -216,6 +227,7 @@ export interface Order {
     customerName: string;
     customerPhone: string;
     customerAddress: string;
+    locationLink?: string; // Added
     items: OrderItem[];
     totalAmount: number;
     status: 'pending' | 'confirmed' | 'shipped' | 'cancelled';
@@ -249,8 +261,8 @@ export interface StorefrontSettings {
     featuredProductIds: number[];
     newArrivalProductIds: number[];
     adminPassword?: string;
+    tickerMessages?: string[]; // Added
 }
-
 
 export interface CartItem {
     product: Product;
@@ -315,4 +327,5 @@ export interface Settings {
     workStartTime: string; // "09:00"
     workEndTime: string; // "23:00"
     electronicPaymentNumber?: string; // Added for controlling payment number
+    tickerMessages?: string[]; // Added for ticker messages
 }

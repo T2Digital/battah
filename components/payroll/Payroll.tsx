@@ -4,6 +4,7 @@ import SectionHeader from '../shared/SectionHeader';
 import Modal from '../shared/Modal';
 import ConfirmationModal from '../shared/ConfirmationModal';
 import { formatDate, formatCurrency } from '../../lib/utils';
+import useStore from '../../lib/store';
 
 interface PayrollProps {
     payroll: PayrollType[];
@@ -21,25 +22,51 @@ const PayrollModal: React.FC<{
     employees: Employee[];
 }> = ({ isOpen, onClose, onSave, recordToEdit, employees }) => {
     
+    const { attendance, advances, expenses } = useStore(state => ({
+        attendance: state.appData?.attendance || [],
+        advances: state.appData?.advances || [],
+        expenses: state.appData?.expenses || []
+    }));
+
     const [formData, setFormData] = useState({
         date: new Date().toISOString().split('T')[0],
         employeeId: 0,
         basicSalary: 0,
         incentives: 0,
+        deductions: 0,
+        workHours: 0,
+        periodStart: '',
+        periodEnd: '',
         disbursed: 0,
         notes: ''
     });
 
     React.useEffect(() => {
         if (recordToEdit) {
-            setFormData({ ...recordToEdit, incentives: recordToEdit.incentives || 0, notes: recordToEdit.notes || '' });
+            setFormData({ 
+                ...recordToEdit, 
+                incentives: recordToEdit.incentives || 0, 
+                deductions: recordToEdit.deductions || 0,
+                workHours: recordToEdit.workHours || 0,
+                periodStart: recordToEdit.periodStart || '',
+                periodEnd: recordToEdit.periodEnd || '',
+                notes: recordToEdit.notes || '' 
+            });
         } else {
             const firstEmployee = employees[0];
+            const today = new Date();
+            const firstDay = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
+            const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().split('T')[0];
+
             setFormData({
-                date: new Date().toISOString().split('T')[0],
+                date: today.toISOString().split('T')[0],
                 employeeId: firstEmployee?.id || 0,
                 basicSalary: firstEmployee?.basicSalary || 0,
                 incentives: 0,
+                deductions: 0,
+                workHours: 0,
+                periodStart: firstDay,
+                periodEnd: lastDay,
                 disbursed: 0,
                 notes: ''
             });
@@ -58,7 +85,58 @@ const PayrollModal: React.FC<{
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: ['disbursed', 'incentives'].includes(name) ? Number(value) : value }));
+        setFormData(prev => ({ ...prev, [name]: ['disbursed', 'incentives', 'deductions', 'workHours'].includes(name) ? Number(value) : value }));
+    };
+
+    const calculateWorkHoursAndDeductions = () => {
+        if (!formData.employeeId || !formData.periodStart || !formData.periodEnd) {
+            alert("يرجى تحديد الموظف وفترة العمل أولاً.");
+            return;
+        }
+
+        const start = new Date(formData.periodStart);
+        const end = new Date(formData.periodEnd);
+        end.setHours(23, 59, 59, 999); // Include the end date fully
+
+        // Calculate Work Hours
+        const employeeAttendance = attendance.filter(a => {
+            const attDate = new Date(a.date);
+            return a.employeeId === formData.employeeId && attDate >= start && attDate <= end;
+        });
+
+        let totalHours = 0;
+        employeeAttendance.forEach(record => {
+            if (record.checkIn && record.checkOut) {
+                const checkIn = new Date(`1970-01-01T${record.checkIn}`);
+                const checkOut = new Date(`1970-01-01T${record.checkOut}`);
+                const diff = (checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60); // Difference in hours
+                if (diff > 0) totalHours += diff;
+            }
+        });
+
+        // Calculate Deductions (Advances + Expenses linked to employee)
+        const employeeAdvances = advances.filter(a => {
+            const advDate = new Date(a.date);
+            return a.employeeId === formData.employeeId && advDate >= start && advDate <= end;
+        });
+        
+        const employeeExpenses = expenses.filter(e => {
+            const expDate = new Date(e.date);
+            return e.employeeId === formData.employeeId && expDate >= start && expDate <= end;
+        });
+
+        const totalAdvances = employeeAdvances.reduce((sum, a) => sum + (a.amount - a.payment), 0); // Remaining advance amount? Or total taken? Usually payroll deducts what was taken. Let's assume we deduct the 'amount' taken in this period. Or maybe the outstanding balance? 
+        // User said: "write automatically employee expenses throughout the month". 
+        // Let's sum up advances taken in this period.
+        const totalTakenAdvances = employeeAdvances.reduce((sum, a) => sum + a.amount, 0);
+        const totalExpenses = employeeExpenses.reduce((sum, e) => sum + e.amount, 0);
+
+        setFormData(prev => ({
+            ...prev,
+            workHours: parseFloat(totalHours.toFixed(2)),
+            deductions: totalTakenAdvances + totalExpenses,
+            notes: prev.notes + `\nتم حساب ساعات العمل: ${totalHours.toFixed(2)} ساعة.\nالخصومات: سلف (${totalTakenAdvances}) + مصاريف (${totalExpenses})`
+        }));
     };
 
     const handleSubmit = (e: React.FormEvent) => {
@@ -71,29 +149,57 @@ const PayrollModal: React.FC<{
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">الموظف *</label>
-                    <select name="employeeId" value={formData.employeeId} onChange={handleEmployeeChange} required className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700">
+                    <select name="employeeId" value={formData.employeeId} onChange={handleEmployeeChange} required className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700 input-base">
                         {employees.map(emp => <option key={emp.id} value={emp.id}>{emp.name}</option>)}
                     </select>
                 </div>
                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">التاريخ *</label>
-                    <input type="date" name="date" value={formData.date} onChange={handleChange} required className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700" />
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">تاريخ الدفع *</label>
+                    <input type="date" name="date" value={formData.date} onChange={handleChange} required className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700 input-base" />
                 </div>
+                
+                <div className="md:col-span-2 grid grid-cols-2 gap-4 border p-3 rounded-lg bg-gray-50 dark:bg-gray-700/30">
+                    <div className="col-span-2 text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">فترة الحساب</div>
+                    <div>
+                        <label className="block text-xs text-gray-500">من</label>
+                        <input type="date" name="periodStart" value={formData.periodStart} onChange={handleChange} className="mt-1 block w-full input-base text-sm" />
+                    </div>
+                    <div>
+                        <label className="block text-xs text-gray-500">إلى</label>
+                        <input type="date" name="periodEnd" value={formData.periodEnd} onChange={handleChange} className="mt-1 block w-full input-base text-sm" />
+                    </div>
+                    <div className="col-span-2">
+                        <button type="button" onClick={calculateWorkHoursAndDeductions} className="w-full py-2 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 text-sm font-medium transition">
+                            <i className="fas fa-calculator ml-2"></i>
+                            حساب ساعات العمل والخصومات
+                        </button>
+                    </div>
+                </div>
+
                 <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">الراتب الأساسي</label>
-                    <input type="number" name="basicSalary" value={formData.basicSalary} readOnly className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700 bg-gray-100 dark:bg-gray-600" />
+                    <input type="number" name="basicSalary" value={formData.basicSalary} readOnly className="mt-1 block w-full rounded-md border-gray-300 bg-gray-100 dark:bg-gray-600 input-base" />
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">ساعات العمل</label>
+                    <input type="number" name="workHours" value={formData.workHours} onChange={handleChange} className="mt-1 block w-full input-base" />
                 </div>
                 <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">حوافز</label>
-                    <input type="number" name="incentives" value={formData.incentives} onChange={handleChange} min="0" className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700" />
+                    <input type="number" name="incentives" value={formData.incentives} onChange={handleChange} min="0" className="mt-1 block w-full input-base" />
                 </div>
                 <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">خصومات (سلف/مصاريف)</label>
+                    <input type="number" name="deductions" value={formData.deductions} onChange={handleChange} min="0" className="mt-1 block w-full input-base text-red-600" />
+                </div>
+                <div className="md:col-span-2">
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">المبلغ المصروف *</label>
-                    <input type="number" name="disbursed" value={formData.disbursed} onChange={handleChange} required min="0" className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700" />
+                    <input type="number" name="disbursed" value={formData.disbursed} onChange={handleChange} required min="0" className="mt-1 block w-full input-base font-bold text-lg" />
+                    <p className="text-xs text-gray-500 mt-1">صافي الراتب المتوقع: {formatCurrency((formData.basicSalary + (formData.incentives || 0)) - (formData.deductions || 0))}</p>
                 </div>
                 <div className="md:col-span-2">
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">ملاحظات</label>
-                    <textarea name="notes" value={formData.notes} onChange={handleChange} rows={3} className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700"></textarea>
+                    <textarea name="notes" value={formData.notes} onChange={handleChange} rows={3} className="mt-1 block w-full input-base"></textarea>
                 </div>
             </div>
         </Modal>
@@ -145,7 +251,7 @@ const Payroll: React.FC<PayrollProps> = ({ payroll, addPayroll, updatePayroll, d
         return payroll.map(p => ({
             ...p,
             employeeName: getEmployeeName(p.employeeId),
-            remaining: (p.basicSalary + (p.incentives || 0)) - p.disbursed
+            remaining: (p.basicSalary + (p.incentives || 0) - (p.deductions || 0)) - p.disbursed
         })).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     }, [payroll, employees]);
 
@@ -165,6 +271,7 @@ const Payroll: React.FC<PayrollProps> = ({ payroll, addPayroll, updatePayroll, d
                             <th scope="col" className="px-6 py-3">اسم الموظف</th>
                             <th scope="col" className="px-6 py-3">الراتب الأساسي</th>
                             <th scope="col" className="px-6 py-3">حوافز</th>
+                            <th scope="col" className="px-6 py-3">خصومات</th>
                             <th scope="col" className="px-6 py-3">المبلغ المصروف</th>
                             <th scope="col" className="px-6 py-3">المتبقي</th>
                             <th scope="col" className="px-6 py-3">الإجراءات</th>
@@ -177,6 +284,7 @@ const Payroll: React.FC<PayrollProps> = ({ payroll, addPayroll, updatePayroll, d
                                 <td className="px-6 py-4 font-medium text-gray-900 whitespace-nowrap dark:text-white">{p.employeeName}</td>
                                 <td className="px-6 py-4">{formatCurrency(p.basicSalary)}</td>
                                 <td className="px-6 py-4 text-green-600">{formatCurrency(p.incentives || 0)}</td>
+                                <td className="px-6 py-4 text-red-600">{formatCurrency(p.deductions || 0)}</td>
                                 <td className="px-6 py-4">{formatCurrency(p.disbursed)}</td>
                                 <td className={`px-6 py-4 font-bold ${p.remaining > 0 ? 'text-amber-500' : 'text-green-500'}`}>{formatCurrency(p.remaining)}</td>
                                 <td className="px-6 py-4 flex gap-3">

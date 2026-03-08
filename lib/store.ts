@@ -24,7 +24,8 @@ import {
     getDocs,
     orderBy,
     limit,
-    startAfter
+    startAfter,
+    runTransaction
 } from 'firebase/firestore';
 import { auth, db, firebaseConfig } from './firebase';
 import { 
@@ -53,7 +54,8 @@ import {
     Toast,
     Branch,
     Settings,
-    Broadcast
+    Broadcast,
+    Section
 } from '../types';
 import { initialData } from './initialData';
 import { formatCurrency, normalizeSaleItems } from './utils';
@@ -139,7 +141,7 @@ type AppActions = {
 
 
     // Storefront Actions
-    createOrder: (customerDetails: { name: string; phone: string; address: string }, items: OrderItem[], totalAmount: number, paymentMethod: Order['paymentMethod'], paymentProof?: File, discountCode?: string) => Promise<string | undefined>;
+    createOrder: (customerDetails: { name: string; phone: string; address: string }, items: OrderItem[], totalAmount: number, paymentMethod: Order['paymentMethod'], paymentProof?: File, discountCode?: string, locationLink?: string) => Promise<string | undefined>;
     updateOrderStatus: (orderId: number | string, status: Order['status']) => Promise<void>;
     deleteOrder: (orderId: number | string) => Promise<void>;
     updateStorefrontSettings: (settings: StorefrontSettings) => Promise<void>;
@@ -155,6 +157,7 @@ type AppActions = {
     deleteUser: (userId: string) => Promise<void>;
     updateSettings: (settings: Partial<Settings>) => Promise<void>;
     sendBroadcast: (message: string) => Promise<void>;
+    resetTreasury: (initialBalance: number) => Promise<void>;
 };
 
 const useStore = create<AppState & AppActions>((set, get) => ({
@@ -202,11 +205,59 @@ const useStore = create<AppState & AppActions>((set, get) => ({
             // Ensure anonymous authentication for public access
             if (!auth.currentUser) {
                 try {
-                    await signInAnonymously(auth);
+                    const userCredential = await signInAnonymously(auth);
                     console.log("Signed in anonymously for public access");
+                    const user = userCredential.user;
+                    
+                    // Track potential customer
+                    const customerRef = doc(db, "customers", user.uid);
+                    const customerDoc = await getDoc(customerRef);
+                    
+                    if (!customerDoc.exists()) {
+                        await setDoc(customerRef, {
+                            id: user.uid,
+                            createdAt: new Date().toISOString(),
+                            lastActive: new Date().toISOString(),
+                            type: 'visitor',
+                            ordersCount: 0,
+                            totalSpent: 0
+                        });
+                    } else {
+                        await updateDoc(customerRef, {
+                            lastActive: new Date().toISOString()
+                        });
+                    }
                 } catch (authError) {
                     console.error("Anonymous sign-in failed:", authError);
                     // Continue anyway, maybe rules allow unauthenticated read
+                }
+            } else {
+                // User is already signed in (maybe anonymously from previous session)
+                const user = auth.currentUser;
+                try {
+                    const customerRef = doc(db, "customers", user.uid);
+                    // Only update lastActive if it's a customer/visitor doc (not an employee)
+                    // We can check if the doc exists in 'customers' collection
+                    const customerDoc = await getDoc(customerRef);
+                    if (customerDoc.exists()) {
+                         await updateDoc(customerRef, {
+                            lastActive: new Date().toISOString()
+                        });
+                    } else {
+                        // If signed in but no customer doc (and not an employee ideally, but we can just create it if it's anonymous)
+                        if (user.isAnonymous) {
+                             await setDoc(customerRef, {
+                                id: user.uid,
+                                createdAt: new Date().toISOString(),
+                                lastActive: new Date().toISOString(),
+                                type: 'visitor',
+                                ordersCount: 0,
+                                totalSpent: 0
+                            });
+                        }
+                    }
+                } catch (e) {
+                    console.warn("Failed to update customer activity:", e);
                 }
             }
 
@@ -785,7 +836,7 @@ const useStore = create<AppState & AppActions>((set, get) => ({
         }
     },
     updateStorefrontSettings: async (settings) => {
-        await setDoc(doc(db, "settings", "storefront"), settings);
+        await setDoc(doc(db, "settings", "storefront"), settings, { merge: true });
     },
     addTreasuryTransaction: async (transaction) => {
         const maxId = Math.max(0, ...(get().appData?.treasury.map(t => Number(t.id) || 0) || []));
@@ -887,7 +938,7 @@ const useStore = create<AppState & AppActions>((set, get) => ({
             throw new Error(error.message || 'Image upload failed');
         }
     },
-    createOrder: async (customerDetails, items, subtotal, paymentMethod, paymentProof, discountCode) => {
+    createOrder: async (customerDetails, items, subtotal, paymentMethod, paymentProof, discountCode, locationLink) => {
         let imageUrl: string | undefined = undefined;
         let finalTotal = subtotal + 50; // Add delivery fee initially
         let validDiscountInfo: Partial<Pick<Order, 'discountCode' | 'discountAmount'>> = {};
@@ -926,41 +977,82 @@ const useStore = create<AppState & AppActions>((set, get) => ({
             }
         }
 
-        // 3. Create order document with conditional discount fields
-        const newOrderRef = doc(collection(db, "orders"));
-        const newOrderData: Omit<Order, 'id'> = {
-            date: new Date().toISOString().split('T')[0],
-            createdAt: Timestamp.now(),
-            customerName: customerDetails.name, customerPhone: customerDetails.phone, customerAddress: customerDetails.address,
-            items, 
-            totalAmount: finalTotal, 
-            status: 'pending', 
-            paymentMethod, 
-            paymentProofUrl: imageUrl || undefined, // Ensure undefined if null/empty
-            ...validDiscountInfo, // Conditionally adds discountCode and discountAmount
-        };
-        // Remove undefined fields to prevent Firestore errors if strict
-        const cleanOrderData = JSON.parse(JSON.stringify(newOrderData));
-        await setDoc(newOrderRef, { ...cleanOrderData, id: newOrderRef.id }); 
-
-        // Add notification for admin (Try-catch to prevent order failure if notification fails due to permissions)
+        // 3. Create order document with sequential ID using transaction
         try {
-            const notificationRef = doc(collection(db, "notifications"));
-            await setDoc(notificationRef, {
-                id: notificationRef.id,
-                date: newOrderData.date,
-                createdAt: Timestamp.now(),
-                message: `طلب جديد من ${customerDetails.name} بقيمة ${formatCurrency(finalTotal)}`,
-                read: false,
-                orderId: newOrderRef.id,
-                type: 'order',
-                targetGroup: 'admin'
-            });
-        } catch (error) {
-            console.warn("Failed to create admin notification for new order:", error);
-        }
+            await runTransaction(db, async (transaction) => {
+                // READS FIRST
+                const counterRef = doc(db, "settings", "counters");
+                const counterDoc = await transaction.get(counterRef);
+                
+                let customerDoc = null;
+                const customerRef = auth.currentUser ? doc(db, "customers", auth.currentUser.uid) : null;
+                if (customerRef) {
+                    customerDoc = await transaction.get(customerRef);
+                }
+                
+                // LOGIC & WRITES
+                let newCount = 1;
+                if (counterDoc.exists()) {
+                    newCount = (counterDoc.data().orderCount || 0) + 1;
+                }
+                
+                const orderId = String(newCount).padStart(3, '0'); // "001", "002"
+                
+                transaction.set(counterRef, { orderCount: newCount }, { merge: true });
+                
+                const newOrderRef = doc(db, "orders", orderId);
+                const newOrderData: Omit<Order, 'id'> = {
+                    date: new Date().toISOString().split('T')[0],
+                    createdAt: Timestamp.now(),
+                    customerName: customerDetails.name, customerPhone: customerDetails.phone, customerAddress: customerDetails.address,
+                    items, 
+                    totalAmount: finalTotal, 
+                    status: 'pending', 
+                    paymentMethod, 
+                    paymentProofUrl: imageUrl || undefined, // Ensure undefined if null/empty
+                    locationLink: locationLink || undefined,
+                    ...validDiscountInfo, // Conditionally adds discountCode and discountAmount
+                };
+                
+                // Remove undefined fields to prevent Firestore errors if strict
+                const cleanOrderData = JSON.parse(JSON.stringify(newOrderData));
+                transaction.set(newOrderRef, { ...cleanOrderData, id: orderId });
+                
+                // Add notification for admin
+                const notificationRef = doc(collection(db, "notifications"));
+                transaction.set(notificationRef, {
+                    id: notificationRef.id,
+                    date: newOrderData.date,
+                    createdAt: Timestamp.now(),
+                    message: `طلب جديد #${orderId} من ${customerDetails.name} بقيمة ${formatCurrency(finalTotal)}`,
+                    read: false,
+                    orderId: orderId,
+                    type: 'order',
+                    targetGroup: 'admin'
+                });
 
-        return imageUrl;
+                // Update customer data if user is signed in (even anonymously)
+                if (customerRef && auth.currentUser) {
+                    const currentOrdersCount = customerDoc && customerDoc.exists() ? (customerDoc.data().ordersCount || 0) : 0;
+                    const currentTotalSpent = customerDoc && customerDoc.exists() ? (customerDoc.data().totalSpent || 0) : 0;
+
+                    transaction.set(customerRef, {
+                        name: customerDetails.name,
+                        phone: customerDetails.phone,
+                        address: customerDetails.address,
+                        type: 'customer', // Convert visitor to customer
+                        lastActive: new Date().toISOString(),
+                        ordersCount: currentOrdersCount + 1,
+                        totalSpent: currentTotalSpent + finalTotal
+                    }, { merge: true });
+                }
+            });
+            
+            return imageUrl;
+        } catch (error: any) {
+            console.error("Transaction failed: ", error);
+            throw new Error("فشل إنشاء الطلب: " + error.message);
+        }
     },
     
     updateOrderStatus: async (orderId, status) => {
@@ -1190,6 +1282,24 @@ const useStore = create<AppState & AppActions>((set, get) => ({
             type: 'system',
             targetGroup: 'all'
         });
+    },
+    resetTreasury: async (initialBalance) => {
+        const currentBalance = get().appData?.treasury.reduce((acc, t) => acc + t.amountIn - t.amountOut, 0) || 0;
+        const diff = initialBalance - currentBalance;
+        
+        if (diff === 0) return;
+        
+        const transaction: Omit<TreasuryTransaction, 'id'> = {
+            date: new Date().toISOString().split('T')[0],
+            type: diff > 0 ? 'إيراد آخر' : 'مصروف آخر',
+            description: 'تصفية / ضبط رصيد افتتاحي',
+            amountIn: diff > 0 ? diff : 0,
+            amountOut: diff < 0 ? -diff : 0,
+            relatedId: 'ADJUSTMENT-' + Date.now()
+        };
+        
+        await get().addTreasuryTransaction(transaction);
+        get().addToast('تم ضبط رصيد الخزينة بنجاح', 'success');
     },
 }));
 

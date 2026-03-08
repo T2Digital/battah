@@ -92,6 +92,7 @@ const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose, onSave, existing
         [Section.Promotions]: 'العروض',
         [Section.Settings]: 'الإعدادات',
         [Section.Notifications]: 'الإشعارات',
+        [Section.Users]: 'المستخدمين',
     };
 
     if (!isOpen) return null;
@@ -137,27 +138,27 @@ const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose, onSave, existing
                                     className="w-full p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white disabled:opacity-50"
                                 />
                             </div>
-                            {!existingUser && (
+                            <div className="relative">
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    {existingUser ? 'كلمة المرور الجديدة (اتركها فارغة لعدم التغيير)' : 'كلمة المرور'}
+                                </label>
                                 <div className="relative">
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">كلمة المرور</label>
-                                    <div className="relative">
-                                        <input 
-                                            type={showPassword ? "text" : "password"}
-                                            required 
-                                            value={password} 
-                                            onChange={e => setPassword(e.target.value)}
-                                            className="w-full p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                                        />
-                                        <button
-                                            type="button"
-                                            onClick={() => setShowPassword(!showPassword)}
-                                            className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-                                        >
-                                            <i className={`fas ${showPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
-                                        </button>
-                                    </div>
+                                    <input 
+                                        type={showPassword ? "text" : "password"}
+                                        required={!existingUser} 
+                                        value={password} 
+                                        onChange={e => setPassword(e.target.value)}
+                                        className="w-full p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowPassword(!showPassword)}
+                                        className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                                    >
+                                        <i className={`fas ${showPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
+                                    </button>
                                 </div>
-                            )}
+                            </div>
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">الدور</label>
                                 <select 
