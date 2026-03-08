@@ -26,6 +26,11 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
         setProducts: state.setProducts
     }));
     
+    const [filterDate, setFilterDate] = useState(new Date().toISOString().split('T')[0]);
+    const [filterSeller, setFilterSeller] = useState<string>('all');
+    const [filterBranch, setFilterBranch] = useState<string>('all');
+    const [filterSource, setFilterSource] = useState<'all' | 'المحل' | 'أونلاين'>('all');
+    
     const [isModalOpen, setModalOpen] = useState(false);
     const [editingSale, setEditingSale] = useState<DailySale | null>(null);
     const [saleToDelete, setSaleToDelete] = useState<DailySale | null>(null);
@@ -38,13 +43,18 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
     const todaySales = useMemo(() => {
         return dailySales
             .filter(sale => {
+                const dateMatch = sale.date === filterDate;
+                const sellerMatch = filterSeller === 'all' || sale.sellerId === filterSeller;
+                const branchMatch = filterBranch === 'all' || sale.branchSoldFrom === filterBranch;
+                const sourceMatch = filterSource === 'all' || sale.source === filterSource;
+                
                 if (currentUser.role === 'seller') {
-                    return sale.date === todayStr && sale.sellerId === currentUser.id;
+                    return dateMatch && sale.sellerId === currentUser.id && branchMatch && sourceMatch;
                 }
-                return sale.date === todayStr;
+                return dateMatch && sellerMatch && branchMatch && sourceMatch;
             })
             .sort((a,b) => b.id - a.id);
-    }, [dailySales, todayStr, currentUser]);
+    }, [dailySales, filterDate, filterSeller, filterBranch, filterSource, currentUser]);
 
     const { totalSales, transactionsCount } = useMemo(() => {
         const total = todaySales.reduce((sum, sale) => {
@@ -151,6 +161,11 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
         window.open(`https://wa.me/?text=${message}`, '_blank');
     };
 
+    const uniqueSellers = useMemo(() => {
+        const sellers = new Set(dailySales.map(s => s.sellerName));
+        return Array.from(sellers);
+    }, [dailySales]);
+
     return (
         <div className="animate-fade-in space-y-6">
             <SectionHeader icon="fa-hand-holding-usd" title="مبيعات اليوم">
@@ -159,6 +174,63 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
                     فاتورة جديدة
                 </button>
             </SectionHeader>
+
+            {/* Filters */}
+            <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border dark:border-gray-700 flex flex-wrap gap-4 items-end">
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">التاريخ</label>
+                    <input 
+                        type="date" 
+                        value={filterDate} 
+                        onChange={(e) => setFilterDate(e.target.value)} 
+                        className="p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600"
+                    />
+                </div>
+                
+                {currentUser.role !== 'seller' && (
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">البائع</label>
+                        <select 
+                            value={filterSeller} 
+                            onChange={(e) => setFilterSeller(e.target.value)}
+                            className="p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 min-w-[150px]"
+                        >
+                            <option value="all">الكل</option>
+                            {uniqueSellers.map(seller => (
+                                <option key={seller} value={dailySales.find(s => s.sellerName === seller)?.sellerId}>{seller}</option>
+                            ))}
+                        </select>
+                    </div>
+                )}
+
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">الفرع</label>
+                    <select 
+                        value={filterBranch} 
+                        onChange={(e) => setFilterBranch(e.target.value)}
+                        className="p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 min-w-[150px]"
+                    >
+                        <option value="all">الكل</option>
+                        <option value="main">المخزن الرئيسي</option>
+                        <option value="branch1">فرع 1</option>
+                        <option value="branch2">فرع 2</option>
+                        <option value="branch3">فرع 3</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">المصدر</label>
+                    <select 
+                        value={filterSource} 
+                        onChange={(e) => setFilterSource(e.target.value as any)}
+                        className="p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 min-w-[150px]"
+                    >
+                        <option value="all">الكل</option>
+                        <option value="المحل">المحل</option>
+                        <option value="أونلاين">أونلاين</option>
+                    </select>
+                </div>
+            </div>
 
             <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>

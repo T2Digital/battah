@@ -140,14 +140,22 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
     }, [productSearch, products]);
 
     const startVoiceSearch = () => {
-        if (!('webkitSpeechRecognition' in window)) {
+        const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+        if (!SpeechRecognition) {
             alert("المتصفح لا يدعم البحث الصوتي.");
             return;
         }
-        const recognition = new (window as any).webkitSpeechRecognition();
+        const recognition = new SpeechRecognition();
         recognition.lang = 'ar-EG';
+        recognition.interimResults = false;
+        recognition.maxAlternatives = 1;
+
         recognition.onstart = () => setIsListening(true);
         recognition.onend = () => setIsListening(false);
+        recognition.onerror = (event: any) => {
+            console.error("Speech recognition error", event.error);
+            setIsListening(false);
+        };
         recognition.onresult = (event: any) => {
             const transcript = event.results[0][0].transcript;
             setProductSearch(transcript);
@@ -273,19 +281,30 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
         onSave(existingSale ? { ...saleData, id: existingSale.id } : saleData);
     };
 
+    const [showSecurityPassword, setShowSecurityPassword] = useState(false);
+
     if (showSecurityCheck) {
         return (
             <Modal isOpen={isOpen} onClose={() => setShowSecurityCheck(false)} title="تأكيد الأمان" onSave={handleSecuritySubmit} saveLabel="تأكيد">
                 <div className="space-y-4">
                     <p className="text-gray-600 dark:text-gray-300">يرجى إدخال كلمة مرور العمليات الحساسة للمتابعة.</p>
-                    <input
-                        type="password"
-                        value={securityPassword}
-                        onChange={(e) => { setSecurityPassword(e.target.value); setSecurityError(''); }}
-                        className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
-                        placeholder="كلمة المرور"
-                        autoFocus
-                    />
+                    <div className="relative">
+                        <input
+                            type={showSecurityPassword ? "text" : "password"}
+                            value={securityPassword}
+                            onChange={(e) => { setSecurityPassword(e.target.value); setSecurityError(''); }}
+                            className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
+                            placeholder="كلمة المرور"
+                            autoFocus
+                        />
+                        <button
+                            type="button"
+                            onClick={() => setShowSecurityPassword(!showSecurityPassword)}
+                            className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                        >
+                            <i className={`fas ${showSecurityPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
+                        </button>
+                    </div>
                     {securityError && <p className="text-red-500 text-sm">{securityError}</p>}
                     <button type="button" onClick={() => setShowSecurityCheck(false)} className="text-sm text-gray-500 underline">رجوع</button>
                 </div>

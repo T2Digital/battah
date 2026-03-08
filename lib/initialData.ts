@@ -39,6 +39,7 @@ export const initialData: AppData = {
     dailyReview: [],
     orders: [],
     notifications: [],
+    broadcasts: [],
     stockTransfers: [],
     discountCodes: [],
     storefrontSettings: {

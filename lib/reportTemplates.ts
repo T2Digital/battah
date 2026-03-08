@@ -185,7 +185,7 @@ export const generateInvoiceContent = (sale: DailySale, products: Product[]) => 
                     <table>
                         <tr>
                             <td class="title">
-                                <h1 style="margin: 0; color: #2563eb;">بطاح الأصلي</h1>
+                                <h1 style="margin: 0; color: #2563eb; font-size: 24px;">بطاح الأصلي</h1>
                                 <p style="font-size: 14px; margin: 0; color: #555;">لقطع غيار السيارات</p>
                             </td>
                             <td style="text-align: left;">
@@ -208,8 +208,6 @@ export const generateInvoiceContent = (sale: DailySale, products: Product[]) => 
                             </td>
                             <td style="text-align: left;">
                                 <strong>تليفون:</strong> 01000000000<br>
-                                <strong>س.ت:</strong> 123456<br>
-                                <strong>ب.ض:</strong> 123-456-789
                             </td>
                         </tr>
                     </table>
@@ -242,7 +240,16 @@ export const generateInvoiceContent = (sale: DailySale, products: Product[]) => 
         </table>
         <div class="footer" style="margin-top: 40px; text-align: center; border-top: 1px solid #eee; padding-top: 20px;">
             <p style="font-weight: bold; margin-bottom: 5px;">شكراً لتعاملكم معنا!</p>
-            <p style="font-size: 12px; color: #888;">البضاعة المباعة ترد وتستبدل خلال 14 يوم بحالتها الأصلية وبالفاتورة.</p>
+            <div style="font-size: 12px; color: #555; text-align: right; padding: 10px; background: #f9f9f9; border-radius: 5px;">
+                <strong>سياسة الاستبدال والاسترجاع:</strong>
+                <ul style="margin: 5px 20px 0 0; padding: 0;">
+                    <li>متاح خلال 14 يوم من تاريخ الشراء.</li>
+                    <li>الأسبوع الأول: إمكانية استرجاع المبلغ نقداً.</li>
+                    <li>الأسبوع الثاني: استبدال بمنتج آخر فقط.</li>
+                    <li>لا يمكن الاستبدال أو الاسترجاع بدون أصل الفاتورة.</li>
+                    <li>يشترط الحفاظ على حالة المنتج الأصلية (الكرتونة والمحتويات).</li>
+                </ul>
+            </div>
         </div>
     </div>
     `;

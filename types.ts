@@ -30,6 +30,7 @@ export enum Section {
     Promotions = 'promotions',
     Settings = 'settings',
     Notifications = 'notifications',
+    Users = 'users',
 }
 
 export interface User {
@@ -313,4 +314,5 @@ export interface Settings {
     enableTimeRestriction: boolean;
     workStartTime: string; // "09:00"
     workEndTime: string; // "23:00"
+    electronicPaymentNumber?: string; // Added for controlling payment number
 }

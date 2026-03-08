@@ -11,6 +11,8 @@ const LoginModal: React.FC = () => {
     const [isLoading, setIsLoading] = useState(false);
     const login = useStore(state => state.login);
 
+    const [showPassword, setShowPassword] = useState(false);
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
@@ -51,14 +53,23 @@ const LoginModal: React.FC = () => {
                     </div>
                     <div>
                         <label htmlFor="loginPassword"className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">🔑 كلمة المرور</label>
-                        <input
-                            type="password"
-                            id="loginPassword"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-primary focus:border-primary transition"
-                            required
-                        />
+                        <div className="relative">
+                            <input
+                                type={showPassword ? "text" : "password"}
+                                id="loginPassword"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-primary focus:border-primary transition"
+                                required
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setShowPassword(!showPassword)}
+                                className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                            >
+                                <i className={`fas ${showPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
+                            </button>
+                        </div>
                     </div>
                     {error && <p className="text-red-500 text-sm text-center">{error}</p>}
                     <div>

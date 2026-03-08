@@ -59,6 +59,8 @@ const Inventory: React.FC = () => {
     const { 
         stockTransfers,
         setProducts, 
+        addProduct,
+        updateProduct,
         deleteProduct,
         storefrontSettings,
         updateStorefrontSettings,

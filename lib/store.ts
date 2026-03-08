@@ -1,3 +1,4 @@
+/// <reference types="vite/client" />
 import { create } from 'zustand';
 import { initializeApp } from 'firebase/app';
 import {
@@ -51,7 +52,8 @@ import {
     DiscountCode,
     Toast,
     Branch,
-    Settings
+    Settings,
+    Broadcast
 } from '../types';
 import { initialData } from './initialData';
 import { formatCurrency, normalizeSaleItems } from './utils';
@@ -148,7 +150,9 @@ type AppActions = {
     deleteDiscountCode: (codeId: string) => Promise<void>;
     addAttendanceRecord: (record: Attendance) => Promise<void>;
     updateAttendanceRecord: (id: number, updates: Partial<Attendance>) => Promise<void>;
-    createUser: (email: string, pass: string, role: Role, branch: Branch, name: string) => Promise<void>;
+    createUser: (email: string, pass: string, role: Role, branch: Branch, name: string, permissions?: Section[]) => Promise<void>;
+    updateUser: (userId: string, updates: Partial<User>) => Promise<void>;
+    deleteUser: (userId: string) => Promise<void>;
     updateSettings: (settings: Partial<Settings>) => Promise<void>;
     sendBroadcast: (message: string) => Promise<void>;
 };
@@ -838,48 +842,45 @@ const useStore = create<AppState & AppActions>((set, get) => ({
         try {
             const base64Image = await toBase64(file);
             
-            // Direct client-side upload
-            // 1. Try to get key from environment
-            const envApiKey = import.meta.env.VITE_IMGBB_API_KEY;
-            
-            // 2. Define the known broken key to blacklist it
-            const brokenKey = "f59b6629158302506353901404390509";
-            
-            // 3. Define the fallback working key
-            const fallbackKey = "6d207e02198a847aa98d0a2a901485a5";
+            // List of API keys to try in order
+            const apiKeys = [
+                import.meta.env.VITE_IMGBB_API_KEY, // Primary env key
+                "6d207e02198a847aa98d0a2a901485a5", // Fallback 1
+                "c87eb4683dc6553a29d54d9304027959", // Fallback 2
+                "f59b6629158302506353901404390509", // Old key (might work?)
+            ].filter(key => key && key !== 'undefined');
 
-            let apiKey = fallbackKey;
+            let lastError;
 
-            // 4. Logic: Use env key if it exists and is NOT the broken key
-            if (envApiKey && envApiKey !== 'undefined' && envApiKey !== brokenKey) {
-                apiKey = envApiKey;
-                console.log("ImgBB Upload: Using environment variable key.");
-            } else {
-                console.warn("ImgBB Upload: Environment key missing or invalid. Using fallback key.");
+            for (const apiKey of apiKeys) {
+                try {
+                    console.log(`ImgBB Upload: Trying key ending in ...${apiKey?.slice(-4)}`);
+                    const uploadData = new FormData();
+                    uploadData.append('image', base64Image);
+
+                    const response = await fetch(`https://api.imgbb.com/1/upload?key=${apiKey}`, {
+                        method: 'POST',
+                        body: uploadData,
+                    });
+
+                    const data = await response.json();
+
+                    if (data.success) {
+                        console.log("Image uploaded successfully:", data.data.url);
+                        return data.data.url;
+                    } else {
+                        console.warn(`ImgBB upload failed with key ...${apiKey?.slice(-4)}:`, data);
+                        lastError = new Error(data.error?.message || 'ImgBB upload failed');
+                    }
+                } catch (err) {
+                    console.warn(`Network error with key ...${apiKey?.slice(-4)}:`, err);
+                    lastError = err;
+                }
             }
+            
+            // If we get here, all keys failed
+            throw lastError || new Error("All upload attempts failed");
 
-            // Debug log (masked)
-            console.log(`ImgBB Upload: Key ending in ...${apiKey.slice(-4)}`);
-
-            const uploadData = new FormData();
-            // Use base64 string instead of File object for better compatibility
-            uploadData.append('image', base64Image);
-
-            const response = await fetch(`https://api.imgbb.com/1/upload?key=${apiKey}`, {
-                method: 'POST',
-                body: uploadData,
-            });
-
-            const data = await response.json();
-
-            if (data.success) {
-                console.log("Image uploaded successfully:", data.data.url);
-                return data.data.url;
-            } else {
-                console.error("ImgBB upload failed:", data);
-                // Throw error so the user knows upload failed
-                throw new Error(data.error?.message || 'ImgBB upload failed');
-            }
         } catch (error: any) {
             console.error("Upload error:", error);
             // Throw error to stop order creation if proof is missing
@@ -1119,7 +1120,7 @@ const useStore = create<AppState & AppActions>((set, get) => ({
     updateAttendanceRecord: async (id, updates) => {
         await updateDoc(doc(db, "attendance", String(id)), updates);
     },
-    createUser: async (email, pass, role, branch, name) => {
+    createUser: async (email, pass, role, branch, name, permissions = []) => {
         // Use a secondary app to create user without logging out the current admin
         const secondaryApp = initializeApp(firebaseConfig, "Secondary");
         const secondaryAuth = getAuth(secondaryApp);
@@ -1135,7 +1136,7 @@ const useStore = create<AppState & AppActions>((set, get) => ({
                 username: email,
                 role: role,
                 branch: branch,
-                permissions: [] // Default permissions can be set here
+                permissions: permissions
             };
             
             await setDoc(doc(db, "users", user.uid), newUser);
@@ -1147,6 +1148,24 @@ const useStore = create<AppState & AppActions>((set, get) => ({
         } finally {
             // Clean up secondary app if possible, though initializeApp caches it.
             // In a real app, we might want to reuse it or delete it.
+        }
+    },
+    updateUser: async (userId, updates) => {
+        try {
+            await updateDoc(doc(db, "users", userId), updates);
+            get().addToast("تم تحديث بيانات المستخدم بنجاح", "success");
+        } catch (error: any) {
+            console.error("Error updating user:", error);
+            throw new Error(error.message || "Failed to update user");
+        }
+    },
+    deleteUser: async (userId) => {
+        try {
+            await deleteDoc(doc(db, "users", userId));
+            get().addToast("تم حذف المستخدم بنجاح", "success");
+        } catch (error: any) {
+            console.error("Error deleting user:", error);
+            throw new Error(error.message || "Failed to delete user");
         }
     },
     updateSettings: async (settings) => {

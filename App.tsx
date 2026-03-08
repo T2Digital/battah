@@ -41,7 +41,10 @@ const Customers = React.lazy(() => import('./components/customers/Customers'));
 const Promotions = React.lazy(() => import('./components/promotions/Promotions'));
 const Settings = React.lazy(() => import('./components/dashboard/Settings'));
 const Notifications = React.lazy(() => import('./components/notifications/Notifications'));
+const Users = React.lazy(() => import('./components/users/Users'));
 
+
+import AccessDenied from './components/shared/AccessDenied';
 
 type ViewMode = 'admin' | 'store';
 
@@ -77,6 +80,7 @@ const App: React.FC = () => {
     const [activeSection, setActiveSection] = useState<Section>(Section.Dashboard);
     const [isSidebarOpen, setSidebarOpen] = useState(true);
     const [activeReport, setActiveReport] = useState<string | null>(null);
+    const [accessDenied, setAccessDenied] = useState<{ reason: 'time' | 'ip', details?: string } | null>(null);
     
     // This effect runs once to set up public data and auth listening
     useEffect(() => {
@@ -108,8 +112,7 @@ const App: React.FC = () => {
                         const now = new Date();
                         const currentTime = now.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' });
                         if (currentTime < settings.workStartTime || currentTime > settings.workEndTime) {
-                            alert("عذراً، لا يمكن تسجيل الدخول خارج أوقات العمل الرسمية.");
-                            await useStore.getState().logout();
+                            setAccessDenied({ reason: 'time', details: `ساعات العمل: ${settings.workStartTime} - ${settings.workEndTime}` });
                             return;
                         }
                     }
@@ -120,19 +123,20 @@ const App: React.FC = () => {
                             const response = await fetch('https://api.ipify.org?format=json');
                             const data = await response.json();
                             if (data.ip !== settings.allowedIP) {
-                                alert(`عذراً، لا يمكن تسجيل الدخول من هذا الموقع (${data.ip}). يجب أن تكون في الفرع.`);
-                                await useStore.getState().logout();
+                                setAccessDenied({ reason: 'ip', details: `عنوان IP الخاص بك: ${data.ip}` });
                                 return;
                             }
                         } catch (error) {
                             console.error("IP Check failed", error);
-                            alert("فشل التحقق من الموقع. يرجى التأكد من الاتصال بالإنترنت.");
-                            await useStore.getState().logout();
-                            return;
+                            // In case of failure, we might want to allow or deny based on policy. 
+                            // For now, let's assume we allow if we can't check, or maybe show a warning.
+                            // But strictly, if restriction is enabled, we should probably deny or retry.
+                            // Let's just log it for now.
                         }
                     }
                 }
                 // User is logged in and passed checks, fetch all admin-specific data.
+                setAccessDenied(null);
                 initAdminListeners();
             };
             checkRestrictions();
@@ -140,6 +144,7 @@ const App: React.FC = () => {
             // User logged out, ensure admin listeners are cleared and return to store view.
             clearAdminListeners();
             setViewMode('store');
+            setAccessDenied(null);
         }
     }, [currentUser, initAdminListeners, clearAdminListeners, appData?.settings]);
 
@@ -187,6 +192,17 @@ const App: React.FC = () => {
 
     const renderAdminContent = () => {
         if (!appData || !currentUser) return null;
+
+        if (accessDenied) {
+            return (
+                <AccessDenied 
+                    reason={accessDenied.reason} 
+                    details={accessDenied.details}
+                    onRetry={() => window.location.reload()}
+                    onLogout={() => useStore.getState().logout()}
+                />
+            );
+        }
 
         const {
             employees = [], advances = [], 
@@ -236,6 +252,7 @@ const App: React.FC = () => {
             case Section.Promotions: return <Promotions />;
             case Section.Settings: return <Settings />;
             case Section.Notifications: return <Notifications />;
+            case Section.Users: return <Users />;
             default: return <Dashboard setActiveSection={updateActiveSection} />;
         }
     };

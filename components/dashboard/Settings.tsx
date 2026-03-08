@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import useStore from '../../lib/store';
 import SectionHeader from '../shared/SectionHeader';
+import { QRCodeCanvas } from 'qrcode.react';
 
 const Settings: React.FC = () => {
     const { appData, updateSettings, addToast } = useStore();
@@ -16,6 +17,7 @@ const Settings: React.FC = () => {
     const [isLoadingIP, setIsLoadingIP] = useState(false);
 
     const [isSaving, setIsSaving] = useState(false);
+    const [qrValue, setQrValue] = useState('');
 
     useEffect(() => {
         if (appData?.settings) {
@@ -145,6 +147,29 @@ const Settings: React.FC = () => {
                     </p>
                 </div>
 
+                {/* Electronic Payment Number Section */}
+                <div className="border-b dark:border-gray-700 pb-6">
+                    <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
+                        <i className="fas fa-wallet text-primary"></i>
+                        رقم استقبال الدفع الإلكتروني
+                    </h3>
+                    <div className="flex flex-col sm:flex-row gap-4 items-end">
+                        <div className="flex-grow">
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">رقم المحفظة (فودافون كاش، انستاباي، إلخ)</label>
+                            <input 
+                                type="text" 
+                                value={localSettings.electronicPaymentNumber || ''}
+                                onChange={(e) => setLocalSettings({...localSettings, electronicPaymentNumber: e.target.value})}
+                                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700"
+                                placeholder="مثال: 01012345678"
+                            />
+                        </div>
+                    </div>
+                    <p className="text-sm text-gray-500 mt-2">
+                        سيتم استخدام هذا الرقم في صفحة إتمام الطلب للعملاء.
+                    </p>
+                </div>
+
                 {/* Broadcast Notification Section */}
                 <div className="border-b dark:border-gray-700 pb-6">
                     <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
@@ -180,6 +205,39 @@ const Settings: React.FC = () => {
                     <p className="text-sm text-gray-500 mt-2">
                         سيظهر هذا الإشعار لجميع المستخدمين الذين يفتحون التطبيق.
                     </p>
+                </div>
+
+                {/* QR Code Generator Section */}
+                <div className="border-b dark:border-gray-700 pb-6">
+                    <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
+                        <i className="fas fa-qrcode text-primary"></i>
+                        إنشاء رمز استجابة سريعة (QR Code)
+                    </h3>
+                    <div className="flex flex-col md:flex-row gap-6 items-start">
+                        <div className="flex-grow w-full md:w-2/3">
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">الرابط أو النص</label>
+                            <input 
+                                type="text" 
+                                value={qrValue}
+                                onChange={(e) => setQrValue(e.target.value)}
+                                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 mb-4"
+                                placeholder="https://example.com"
+                            />
+                            <p className="text-sm text-gray-500">
+                                أدخل رابط صفحة الفيسبوك، أو رابط التطبيق، أو أي نص لإنشاء QR Code له.
+                            </p>
+                        </div>
+                        <div className="flex flex-col items-center justify-center bg-white p-4 rounded-lg border shadow-sm">
+                            {qrValue ? (
+                                <QRCodeCanvas value={qrValue} size={150} level={"H"} includeMargin={true} />
+                            ) : (
+                                <div className="w-[150px] h-[150px] bg-gray-100 flex items-center justify-center text-gray-400 text-sm text-center p-2">
+                                    أدخل نصاً لعرض الرمز
+                                </div>
+                            )}
+                            <span className="text-xs text-gray-500 mt-2">امسح الرمز للتجربة</span>
+                        </div>
+                    </div>
                 </div>
 
                 <div className="flex justify-end pt-4">

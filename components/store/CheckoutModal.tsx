@@ -6,6 +6,7 @@ import { db } from '../../lib/firebase';
 import { CartItem, Order, DiscountCode } from '../../types';
 import Modal from '../shared/Modal';
 import { formatCurrency } from '../../lib/utils';
+import useStore from '../../lib/store';
 
 interface CheckoutModalProps {
     isOpen: boolean;
@@ -25,6 +26,16 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, cartItem
     const [discountInput, setDiscountInput] = useState('');
     const [appliedDiscount, setAppliedDiscount] = useState<DiscountCode | null>(null);
     const [discountMessage, setDiscountMessage] = useState({ text: '', type: 'info' });
+
+    const { appData } = useStore();
+    const electronicPaymentNumber = appData?.settings?.electronicPaymentNumber || '01012345678';
+    const paymentSectionRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (paymentMethod === 'electronic' && paymentSectionRef.current) {
+            paymentSectionRef.current.scrollIntoView({ behavior: 'smooth' });
+        }
+    }, [paymentMethod]);
 
     // Persist form data to localStorage
     useEffect(() => {
@@ -250,7 +261,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, cartItem
                 </div>
 
                 {paymentMethod === 'electronic' && (
-                     <div>
+                     <div ref={paymentSectionRef}>
                         <h3 className="font-bold text-lg mb-2">اختر وسيلة الدفع الإلكتروني</h3>
                         <p className="text-sm text-gray-500 mb-4 dark:text-gray-400">
                             اضغط على الوسيلة المناسبة لإظهار تفاصيل التحويل أو الرابط.
@@ -263,25 +274,25 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, cartItem
                                 <span className="text-xs mt-1">تطبيق انستاباي</span>
                             </button>
                             
-                            <button type="button" onClick={() => window.location.href = `tel:*9*7*01012345678*${totalAmount}#`} className="flex flex-col items-center justify-center p-3 border rounded-lg hover:bg-red-50 border-red-200 text-red-700 transition">
+                            <button type="button" onClick={() => window.location.href = `tel:*9*7*${electronicPaymentNumber}*${totalAmount}#`} className="flex flex-col items-center justify-center p-3 border rounded-lg hover:bg-red-50 border-red-200 text-red-700 transition">
                                 <i className="fas fa-wallet text-2xl mb-1"></i>
                                 <span className="font-bold">Vodafone Cash</span>
                                 <span className="text-xs mt-1 ltr" dir="ltr">*9*7*...#{totalAmount}</span>
                             </button>
 
-                            <button type="button" onClick={() => window.location.href = `tel:*115*01012345678*${totalAmount}#`} className="flex flex-col items-center justify-center p-3 border rounded-lg hover:bg-orange-50 border-orange-200 text-orange-700 transition">
+                            <button type="button" onClick={() => window.location.href = `tel:*115*${electronicPaymentNumber}*${totalAmount}#`} className="flex flex-col items-center justify-center p-3 border rounded-lg hover:bg-orange-50 border-orange-200 text-orange-700 transition">
                                 <i className="fas fa-wallet text-2xl mb-1"></i>
                                 <span className="font-bold">Orange Cash</span>
                                 <span className="text-xs mt-1 ltr" dir="ltr">*115*...#{totalAmount}</span>
                             </button>
 
-                            <button type="button" onClick={() => window.location.href = `tel:*777*01012345678*${totalAmount}#`} className="flex flex-col items-center justify-center p-3 border rounded-lg hover:bg-green-50 border-green-200 text-green-700 transition">
+                            <button type="button" onClick={() => window.location.href = `tel:*777*${electronicPaymentNumber}*${totalAmount}#`} className="flex flex-col items-center justify-center p-3 border rounded-lg hover:bg-green-50 border-green-200 text-green-700 transition">
                                 <i className="fas fa-wallet text-2xl mb-1"></i>
                                 <span className="font-bold">Etisalat Cash</span>
                                 <span className="text-xs mt-1 ltr" dir="ltr">*777*...#{totalAmount}</span>
                             </button>
 
-                            <button type="button" onClick={() => window.location.href = `tel:*322*01012345678*${totalAmount}#`} className="flex flex-col items-center justify-center p-3 border rounded-lg hover:bg-indigo-50 border-indigo-200 text-indigo-700 transition col-span-2 sm:col-span-1">
+                            <button type="button" onClick={() => window.location.href = `tel:*322*${electronicPaymentNumber}*${totalAmount}#`} className="flex flex-col items-center justify-center p-3 border rounded-lg hover:bg-indigo-50 border-indigo-200 text-indigo-700 transition col-span-2 sm:col-span-1">
                                 <i className="fas fa-wallet text-2xl mb-1"></i>
                                 <span className="font-bold">WE Pay</span>
                                 <span className="text-xs mt-1 ltr" dir="ltr">*322*...#{totalAmount}</span>
@@ -292,7 +303,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, cartItem
                             <p className="text-sm text-blue-800 dark:text-blue-300 font-semibold mb-1">تعليمات هامة:</p>
                             <ul className="text-xs text-blue-700 dark:text-blue-400 list-disc list-inside space-y-1">
                                 <li>قم بتحويل المبلغ الإجمالي: <strong>{formatCurrency(totalAmount)}</strong></li>
-                                <li>رقم المحفظة للتحويل: <strong>01012345678</strong></li>
+                                <li>رقم المحفظة للتحويل: <strong>{electronicPaymentNumber}</strong></li>
                                 <li>بعد التحويل، يرجى التقاط صورة للإيصال ورفعها بالأسفل.</li>
                             </ul>
                         </div>

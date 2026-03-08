@@ -34,11 +34,12 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, activeSection, setActiveSecti
         { id: Section.DailyReview, icon: 'fa-chart-line', label: 'مراجعة اليوميات', permission: Section.DailyReview },
         { id: Section.Reports, icon: 'fa-file-alt', label: 'التقارير', permission: Section.Reports },
         { id: Section.Notifications, icon: 'fa-bell', label: 'الإشعارات', permission: Section.Notifications, badge: unreadNotificationsCount },
+        { id: Section.Users, icon: 'fa-user-shield', label: 'المستخدمين', permission: Section.Users },
         { id: Section.Settings, icon: 'fa-cogs', label: 'الإعدادات', permission: Section.Settings },
     ];
 
     const NavLink: React.FC<{ item: typeof navItems[0] }> = ({ item }) => {
-        if (!hasPermission(item.permission) && item.permission !== Section.Promotions) return null; // Temp allow promotions for all
+        if (!hasPermission(item.permission)) return null;
 
         const isActive = activeSection === item.id;
         return (
