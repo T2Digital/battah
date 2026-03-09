@@ -7,7 +7,7 @@ interface CategoryHighlightsProps {
 const categories = [
     { name: 'قطع غيار', icon: 'fa-cogs', filterValue: 'قطع غيار' },
     { name: 'ميكانيكا', icon: 'fa-wrench', filterValue: 'قطع غيار' },
-    { name: 'كماليات', icon: 'fa-star', filterValue: 'كماليات' },
+    { name: 'كماليات وإكسسوارات', icon: 'fa-star', filterValue: 'كماليات و إكسسوارات' },
 ];
 
 const CategoryHighlights: React.FC<CategoryHighlightsProps> = ({ setFilters }) => {

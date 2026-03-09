@@ -58,9 +58,9 @@ const MyOrdersModal: React.FC<MyOrdersModalProps> = ({ isOpen, onClose }) => {
             });
 
             setOrders(foundOrders);
-        } catch (error) {
+        } catch (error: any) {
             console.error("Error searching for orders:", error);
-            alert("حدث خطأ أثناء البحث عن طلباتك.");
+            alert(`حدث خطأ أثناء البحث عن طلباتك: ${error.message || 'تأكد من تفعيل الدخول المجهول (Anonymous Auth) في Firebase أو تحقق من صلاحيات Firestore.'}`);
         } finally {
             setIsLoading(false);
         }

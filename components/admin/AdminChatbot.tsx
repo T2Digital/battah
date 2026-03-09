@@ -9,13 +9,16 @@ const AdminChatbot: React.FC = () => {
     
     const chatBodyRef = useRef<HTMLDivElement>(null);
 
-    const { products, orders, dailySales, treasury, employees, expenses } = useStore(state => ({
+    const { products, orders, dailySales, treasury, employees, expenses, suppliers, advances, payroll } = useStore(state => ({
         products: state.appData?.products || [],
         orders: state.appData?.orders || [],
         dailySales: state.appData?.dailySales || [],
         treasury: state.appData?.treasury || [],
         employees: state.appData?.employees || [],
         expenses: state.appData?.expenses || [],
+        suppliers: state.appData?.suppliers || [],
+        advances: state.appData?.advances || [],
+        payroll: state.appData?.payroll || [],
     }));
 
     useEffect(() => {
@@ -35,7 +38,7 @@ const AdminChatbot: React.FC = () => {
             const balance = treasury.reduce((sum, t) => t.type === 'in' ? sum + t.amount : sum - t.amount, 0);
             const pendingOrders = orders.filter(o => o.status === 'pending').length;
             const confirmedOrders = orders.filter(o => o.status === 'confirmed').length;
-            const lowStockCount = products.filter(p => p.stock <= 3).length;
+            const lowStockCount = products.filter(p => p.stock.main + p.stock.branch1 + p.stock.branch2 + p.stock.branch3 <= (p.reorderPoint || 3)).length;
 
             return `تحت أمرك يا فندم، ده ملخص شامل لحركة اليوم (${today}):\n\n` +
                    `💰 **المبيعات:** ${todaySales.toLocaleString()} جنيه.\n` +
@@ -66,35 +69,81 @@ const AdminChatbot: React.FC = () => {
             return `بالنسبة لطلبات الأونلاين: عندنا ${pending} طلب معلق محتاجين يتراجعوا، و ${confirmed} طلب مؤكد وجاهزين على الشحن.`;
         }
 
-        // 4. Inventory / Low Stock
+        // 4. Inventory Value & Capital
+        if (/(قيمة البضاعة|راس المال|رأس المال|إجمالي المخزون|بضاعتنا بكام)/.test(lowerText)) {
+            const totalValue = products.reduce((sum, p) => {
+                const totalStock = p.stock.main + p.stock.branch1 + p.stock.branch2 + p.stock.branch3;
+                return sum + (totalStock * p.purchasePrice);
+            }, 0);
+            return `إجمالي قيمة البضاعة الموجودة في كل الفروع (بسعر الشراء) هي: ${totalValue.toLocaleString()} جنيه يا فندم.`;
+        }
+
+        // 5. Inventory / Low Stock
         if (/(نواقص|ناقص|خلصان|مخزون|بضاعة|جرد)/.test(lowerText)) {
-            const lowStock = products.filter(p => p.stock <= 3);
+            const lowStock = products.filter(p => (p.stock.main + p.stock.branch1 + p.stock.branch2 + p.stock.branch3) <= (p.reorderPoint || 3));
             if (lowStock.length === 0) {
                 return "المخزون كله تمام يا فندم، مفيش أي نواقص حالياً والحمد لله.";
             }
-            const items = lowStock.map(p => `🔸 ${p.name} (باقي ${p.stock})`).join('\n');
-            return `خلي بالك يا هندسة، عندنا ${lowStock.length} أصناف رصيدهم قل جداً ومحتاجين نطلبهم:\n${items}`;
+            const items = lowStock.slice(0, 5).map(p => `🔸 ${p.name} (باقي ${p.stock.main + p.stock.branch1 + p.stock.branch2 + p.stock.branch3})`).join('\n');
+            return `خلي بالك يا هندسة، عندنا ${lowStock.length} أصناف رصيدهم قل جداً ومحتاجين نطلبهم. دي أهم 5 أصناف:\n${items}\nتقدر تراجع قسم التقارير عشان تشوف القائمة كاملة.`;
         }
 
-        // 5. Expenses
+        // 6. Specific Product Search
+        if (/(سعر|عندنا كام|رصيد|منتج|قطعة) (.*)/.test(lowerText)) {
+            const match = lowerText.match(/(سعر|عندنا كام|رصيد|منتج|قطعة) (.*)/);
+            if (match && match[2]) {
+                const searchTerm = match[2].trim();
+                const foundProducts = products.filter(p => p.name.toLowerCase().includes(searchTerm) || p.sku.toLowerCase().includes(searchTerm));
+                
+                if (foundProducts.length === 0) return `للأسف يا فندم، مفيش منتج بالاسم ده "${searchTerm}" في المخزن.`;
+                
+                if (foundProducts.length === 1) {
+                    const p = foundProducts[0];
+                    const totalStock = p.stock.main + p.stock.branch1 + p.stock.branch2 + p.stock.branch3;
+                    return `المنتج: ${p.name}\nالكود: ${p.sku}\nسعر البيع: ${p.sellingPrice} جنيه\nالرصيد الكلي: ${totalStock} قطعة.`;
+                }
+                
+                const items = foundProducts.slice(0, 3).map(p => `- ${p.name} (${p.sellingPrice} ج) - رصيد: ${p.stock.main + p.stock.branch1 + p.stock.branch2 + p.stock.branch3}`).join('\n');
+                return `لقيت أكتر من منتج بالاسم ده، دي أقرب نتايج:\n${items}`;
+            }
+        }
+
+        // 7. Suppliers Debts
+        if (/(موردين|ديون|علينا كام|حساب الموردين)/.test(lowerText)) {
+            const totalDebts = suppliers.reduce((sum, s) => sum + s.balance, 0);
+            if (totalDebts === 0) return "الحمد لله يا فندم، معليناش أي فلوس للموردين.";
+            return `إجمالي المديونيات اللي علينا للموردين: ${totalDebts.toLocaleString()} جنيه.`;
+        }
+
+        // 8. Expenses
         if (/(مصاريف|مصروفات|صرفنا)/.test(lowerText)) {
             const todayExpenses = expenses.filter(e => e.date.startsWith(today)).reduce((sum, e) => sum + e.amount, 0);
             if (todayExpenses === 0) return "مفيش أي مصروفات طلعت النهاردة يا فندم.";
             return `إجمالي المصروفات اللي طلعت النهاردة: ${todayExpenses.toLocaleString()} جنيه.`;
         }
 
-        // 6. Employees
+        // 9. Employees & Advances
         if (/(موظفين|عمال|رجالة|مين شغال)/.test(lowerText)) {
             return `الرجالة اللي مسجلين على السيستم عددهم ${employees.length} موظفين.`;
         }
+        if (/(سلف|سلفة) (.*)/.test(lowerText)) {
+            const match = lowerText.match(/(سلف|سلفة) (.*)/);
+            if (match && match[2]) {
+                const empName = match[2].trim();
+                const emp = employees.find(e => e.name.toLowerCase().includes(empName));
+                if (!emp) return `مش لاقي موظف بالاسم ده يا فندم.`;
+                const empAdvances = advances.filter(a => a.employeeId === emp.id).reduce((sum, a) => sum + a.amount, 0);
+                return `إجمالي سلف الموظف ${emp.name} هو: ${empAdvances.toLocaleString()} جنيه.`;
+            }
+        }
 
-        // 7. Greeting
+        // 10. Greeting
         if (/(اهلا|سلام|صباح|مسا|يا مدير|يا ريس|ازيك|عامل ايه)/.test(lowerText)) {
-            return "أهلاً بيك يا فندم! منور السيستم. أنا المساعد الإداري بتاعك، جاهز أطلعلك أي تقرير تحتاجه (مبيعات، خزنة، نواقص، طلبات، أو حتى تقرير شامل عن اليوم كله). أؤمرني؟";
+            return "أهلاً بيك يا فندم! منور السيستم. أنا المساعد الإداري بتاعك، جاهز أطلعلك أي تقرير تحتاجه (مبيعات، خزنة، نواقص، طلبات، قيمة البضاعة، الموردين، أو حتى تقرير شامل عن اليوم كله). أؤمرني؟";
         }
 
         // Fallback (Conversational)
-        return "عفواً يا فندم، أنا لسه بتعلم ومفهمتش قصدك بالظبط. بس أقدر أجمعلك (تقرير شامل) عن حركة اليوم، أو أقولك رصيد (الخزنة) و(المبيعات) و(النواقص). تحب أجهزلك التقرير الشامل؟";
+        return "عفواً يا فندم، أنا لسه بتعلم ومفهمتش قصدك بالظبط. بس أقدر أجمعلك (تقرير شامل) عن حركة اليوم، أو أقولك رصيد (الخزنة)، (المبيعات)، (قيمة البضاعة)، و(ديون الموردين). تحب أجهزلك التقرير الشامل؟";
     };
 
     const handleSend = async (e: FormEvent) => {

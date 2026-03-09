@@ -9,9 +9,17 @@ interface StoreSidebarProps {
 
 const StoreSidebar: React.FC<StoreSidebarProps> = ({ products, filters, setFilters }) => {
     const { categories, partBrands, carBrands } = useMemo(() => {
-        const catSet = new Set<string>();
+        const catSet = new Set<string>(['قطع غيار', 'كماليات و إكسسوارات', 'زيوت وشحومات', 'بطاريات', 'إطارات']);
         const partBrandSet = new Set<string>();
-        const carBrandSet = new Set<string>();
+        
+        // Comprehensive list of popular car brands in Egypt
+        const defaultCarBrands = [
+            "Toyota", "Hyundai", "Kia", "Chevrolet", "Nissan", "Renault", "Peugeot", 
+            "Fiat", "Suzuki", "Mitsubishi", "Honda", "Skoda", "Volkswagen", "Opel", 
+            "BMW", "Mercedes-Benz", "Chery", "MG", "Lada", "BYD", "Jeep", "Ford", 
+            "Mazda", "Seat", "Geely", "Daewoo", "Speranza", "Audi", "Subaru", "Volvo"
+        ];
+        const carBrandSet = new Set<string>(defaultCarBrands);
         
         products.forEach(p => {
             catSet.add(p.mainCategory);
@@ -19,7 +27,7 @@ const StoreSidebar: React.FC<StoreSidebarProps> = ({ products, filters, setFilte
             if (p.compatibility) {
                 p.compatibility.forEach(comp => {
                     const brand = comp.split(' ')[0]; // Extract first word (e.g., "Toyota" from "Toyota Corolla 2020")
-                    carBrandSet.add(brand);
+                    if (brand) carBrandSet.add(brand);
                 });
             }
         });
