@@ -38,17 +38,17 @@ const DailyReviewModal: React.FC<{
                 <div>
                     <label>الفرع *</label>
                     <select name="branch" value={formData.branch} onChange={handleChange} required className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700">
-                        <option value="main">المخزن الرئيسي</option>
-                        <option value="branch1">فرع 1</option>
-                        <option value="branch2">فرع 2</option>
-                        <option value="branch3">فرع 3</option>
+                        <option value="main">المخزن</option>
+                        <option value="branch1">الرئيسي</option>
+                        <option value="branch2">فرع 1</option>
+                        <option value="branch3">فرع 2</option>
                     </select>
                 </div>
-                <div><label>المبيعات النقدية *</label><input type="number" name="salesCash" value={formData.salesCash} onChange={handleChange} required className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700" /></div>
-                <div><label>المبيعات الإلكترونية *</label><input type="number" name="salesElectronic" value={formData.salesElectronic} onChange={handleChange} required className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700" /></div>
-                <div><label>مبيعات قطع غيار</label><input type="number" name="salesParts" value={formData.salesParts} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700" /></div>
-                <div><label>مبيعات كماليات وإكسسوارات</label><input type="number" name="salesAccessories" value={formData.salesAccessories} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700" /></div>
-                <div className="md:col-span-2"><label>رصيد الدرج *</label><input type="number" name="drawerBalance" value={formData.drawerBalance} onChange={handleChange} required className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700" /></div>
+                <div><label>المبيعات النقدية *</label><input type="number" name="salesCash" value={formData.salesCash === 0 ? '' : formData.salesCash} onChange={handleChange} required className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700" /></div>
+                <div><label>المبيعات الإلكترونية *</label><input type="number" name="salesElectronic" value={formData.salesElectronic === 0 ? '' : formData.salesElectronic} onChange={handleChange} required className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700" /></div>
+                <div><label>مبيعات قطع غيار</label><input type="number" name="salesParts" value={formData.salesParts === 0 ? '' : formData.salesParts} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700" /></div>
+                <div><label>مبيعات كماليات وإكسسوارات</label><input type="number" name="salesAccessories" value={formData.salesAccessories === 0 ? '' : formData.salesAccessories} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700" /></div>
+                <div className="md:col-span-2"><label>رصيد الدرج *</label><input type="number" name="drawerBalance" value={formData.drawerBalance === 0 ? '' : formData.drawerBalance} onChange={handleChange} required className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700" /></div>
                 <div className="md:col-span-2"><label>ملاحظات</label><textarea name="notes" value={formData.notes} onChange={handleChange} rows={2} className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700"></textarea></div>
             </div>
         </Modal>
@@ -96,10 +96,10 @@ const DailyReview: React.FC = () => {
     }, [dailyReviews]);
 
     const branchNames = {
-        main: 'المخزن الرئيسي',
-        branch1: 'فرع 1',
-        branch2: 'فرع 2',
-        branch3: 'فرع 3',
+        main: 'المخزن',
+        branch1: 'الرئيسي',
+        branch2: 'فرع 1',
+        branch3: 'فرع 2',
     };
 
     return (
@@ -131,6 +131,7 @@ const DailyReview: React.FC = () => {
                                 <td className="px-6 py-4">
                                     <div className="font-bold text-green-600 dark:text-green-400">{formatCurrency(r.totalSales)}</div>
                                     <div className="text-xs text-gray-500">كاش: {formatCurrency(r.salesCash)}</div>
+                                    <div className="text-xs text-gray-500">إلكترونى: {formatCurrency(r.salesElectronic)}</div>
                                 </td>
                                 <td className="px-6 py-4">
                                     <div className="font-bold text-blue-600 dark:text-blue-400">{formatCurrency(r.onlineOrdersTotal || 0)}</div>

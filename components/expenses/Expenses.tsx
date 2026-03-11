@@ -95,7 +95,7 @@ const ExpenseModal: React.FC<{
                     </select>
                 </div>
                 <div className="md:col-span-2"><label>اسم المصروف *</label><input type="text" name="name" value={formData.name} onChange={handleChange} required className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700" /></div>
-                <div className="md:col-span-2"><label>المبلغ (ج.م) *</label><input type="number" name="amount" value={formData.amount} onChange={handleChange} required min="0" className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700" /></div>
+                <div className="md:col-span-2"><label>المبلغ (ج.م) *</label><input type="number" name="amount" value={formData.amount === 0 ? '' : formData.amount} onChange={handleChange} required min="0" className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700" /></div>
                 <div className="md:col-span-2"><label>ملاحظات</label><textarea name="notes" value={formData.notes} onChange={handleChange} rows={3} className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700"></textarea></div>
             </div>
         </Modal>

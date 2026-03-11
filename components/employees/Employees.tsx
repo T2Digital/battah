@@ -23,16 +23,18 @@ const EmployeeModal: React.FC<{
         email: ''
     });
 
-    const { storefrontSettings } = useStore(state => ({
-        storefrontSettings: state.appData?.storefrontSettings
+    const { storefrontSettings, uploadImage } = useStore(state => ({
+        storefrontSettings: state.appData?.storefrontSettings,
+        uploadImage: state.uploadImage
     }));
     const [securityPassword, setSecurityPassword] = useState('');
     const [showSecurityCheck, setShowSecurityCheck] = useState(false);
     const [securityError, setSecurityError] = useState('');
+    const [isUploading, setIsUploading] = useState(false);
 
     React.useEffect(() => {
         if (employeeToEdit) {
-            setFormData({ ...employeeToEdit, email: employeeToEdit.email || '' });
+            setFormData({ ...employeeToEdit, email: employeeToEdit.email || '', idCardUrl: employeeToEdit.idCardUrl || '' });
         } else {
             setFormData({
                 name: '',
@@ -41,7 +43,8 @@ const EmployeeModal: React.FC<{
                 hireDate: new Date().toISOString().split('T')[0],
                 phone: '',
                 address: '',
-                email: ''
+                email: '',
+                idCardUrl: ''
             });
         }
         setShowSecurityCheck(false);
@@ -52,6 +55,21 @@ const EmployeeModal: React.FC<{
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: name === 'basicSalary' ? parseFloat(value) : value }));
+    };
+
+    const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            setIsUploading(true);
+            try {
+                const url = await uploadImage(e.target.files[0], `employees/id_cards/${Date.now()}_${e.target.files[0].name}`);
+                setFormData(prev => ({ ...prev, idCardUrl: url }));
+            } catch (error) {
+                console.error("Failed to upload image", error);
+                alert("فشل رفع الصورة");
+            } finally {
+                setIsUploading(false);
+            }
+        }
     };
 
     const handlePreSubmit = (e: React.FormEvent) => {
@@ -125,7 +143,7 @@ const EmployeeModal: React.FC<{
                 </div>
                 <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">الراتب الأساسي *</label>
-                    <input type="number" name="basicSalary" value={formData.basicSalary} onChange={handleChange} required min="0" className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700" />
+                    <input type="number" name="basicSalary" value={formData.basicSalary === 0 ? '' : formData.basicSalary} onChange={handleChange} required min="0" className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700" />
                 </div>
                 <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">البريد الإلكتروني</label>
@@ -142,6 +160,18 @@ const EmployeeModal: React.FC<{
                 <div className="md:col-span-2">
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">العنوان</label>
                     <textarea name="address" value={formData.address} onChange={handleChange} rows={3} className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700"></textarea>
+                </div>
+                <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">صورة البطاقة</label>
+                    <div className="mt-1 flex items-center gap-4">
+                        <input type="file" accept="image/*" onChange={handleImageUpload} disabled={isUploading} className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-white hover:file:bg-primary-dark" />
+                        {isUploading && <span className="text-sm text-gray-500">جاري الرفع...</span>}
+                    </div>
+                    {formData.idCardUrl && (
+                        <div className="mt-2">
+                            <img src={formData.idCardUrl} alt="صورة البطاقة" className="h-32 object-contain rounded-md border dark:border-gray-600" />
+                        </div>
+                    )}
                 </div>
             </div>
         </Modal>
@@ -168,6 +198,7 @@ const CreateUserModal: React.FC<{
             if (employee.position.includes('مدير عام')) setRole(Role.Admin);
             else if (employee.position.includes('مدير فرع')) setRole(Role.BranchManager);
             else if (employee.position.includes('محاسب')) setRole(Role.Accountant);
+            else if (employee.position.includes('كاشير')) setRole(Role.Cashier);
             else setRole(Role.Seller);
         }
     }, [employee]);
@@ -204,15 +235,16 @@ const CreateUserModal: React.FC<{
                         <option value={Role.BranchManager}>مدير فرع</option>
                         <option value={Role.Accountant}>محاسب</option>
                         <option value={Role.Seller}>بائع</option>
+                        <option value={Role.Cashier}>كاشير</option>
                     </select>
                 </div>
                 <div>
                     <label>الفرع *</label>
                     <select value={branch} onChange={e => setBranch(e.target.value as Branch)} className="w-full mt-1 p-2 border rounded dark:bg-gray-700">
-                        <option value="main">المخزن الرئيسي</option>
-                        <option value="branch1">فرع 1</option>
-                        <option value="branch2">فرع 2</option>
-                        <option value="branch3">فرع 3</option>
+                        <option value="main">المخزن</option>
+                        <option value="branch1">الرئيسي</option>
+                        <option value="branch2">فرع 1</option>
+                        <option value="branch3">فرع 2</option>
                     </select>
                 </div>
                 {loading && <p className="text-blue-500">جاري إنشاء الحساب...</p>}
@@ -232,6 +264,7 @@ const Employees: React.FC<{ employees: Employee[] }> = ({ employees }) => {
     const [isDeleting, setIsDeleting] = useState(false);
     const [userModalOpen, setUserModalOpen] = useState(false);
     const [employeeForUser, setEmployeeForUser] = useState<Employee | null>(null);
+    const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
     const handleAdd = () => {
         setEmployeeToEdit(null);
@@ -317,6 +350,7 @@ const Employees: React.FC<{ employees: Employee[] }> = ({ employees }) => {
                     <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-300">
                         <tr>
                             <th scope="col" className="px-6 py-3">الاسم</th>
+                            <th scope="col" className="px-6 py-3">صورة البطاقة</th>
                             <th scope="col" className="px-6 py-3">المنصب</th>
                             <th scope="col" className="px-6 py-3">الراتب الأساسي</th>
                             <th scope="col" className="px-6 py-3">تاريخ التوظيف</th>
@@ -327,6 +361,15 @@ const Employees: React.FC<{ employees: Employee[] }> = ({ employees }) => {
                         {filteredEmployees.length > 0 ? filteredEmployees.map(emp => (
                             <tr key={emp.id} className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 even:bg-gray-50 dark:even:bg-gray-800 dark:even:bg-opacity-50 hover:bg-gray-100 dark:hover:bg-gray-700">
                                 <td className="px-6 py-4 font-medium text-gray-900 whitespace-nowrap dark:text-white">{emp.name}</td>
+                                <td className="px-6 py-4">
+                                    {emp.idCardUrl ? (
+                                        <div onClick={() => setSelectedImage(emp.idCardUrl!)} className="cursor-pointer">
+                                            <img src={emp.idCardUrl} alt="بطاقة" className="w-12 h-8 object-cover rounded border dark:border-gray-600 hover:scale-110 transition-transform" />
+                                        </div>
+                                    ) : (
+                                        <span className="text-gray-400 text-xs">لا يوجد</span>
+                                    )}
+                                </td>
                                 <td className="px-6 py-4">{emp.position}</td>
                                 <td className="px-6 py-4 font-semibold">{formatCurrency(emp.basicSalary)}</td>
                                 <td className="px-6 py-4">{formatDate(emp.hireDate)}</td>
@@ -360,6 +403,17 @@ const Employees: React.FC<{ employees: Employee[] }> = ({ employees }) => {
                     isLoading={isDeleting}
                     requireSecurityCheck={true}
                 />
+            )}
+
+            {selectedImage && (
+                <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-[100] p-4 animate-fade-in" onClick={() => setSelectedImage(null)}>
+                    <div className="relative max-w-4xl w-full max-h-[90vh] flex justify-center">
+                        <button onClick={() => setSelectedImage(null)} className="absolute -top-10 right-0 text-white hover:text-gray-300 text-3xl">
+                            <i className="fas fa-times"></i>
+                        </button>
+                        <img src={selectedImage} alt="صورة البطاقة" className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl" onClick={e => e.stopPropagation()} />
+                    </div>
+                </div>
             )}
         </div>
     );

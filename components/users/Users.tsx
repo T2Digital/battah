@@ -67,13 +67,14 @@ const Users: React.FC = () => {
         [Role.BranchManager]: 'مدير فرع',
         [Role.Accountant]: 'محاسب',
         [Role.Seller]: 'بائع',
+        [Role.Cashier]: 'كاشير',
     };
 
     const branchLabels: Record<Branch, string> = {
-        'main': 'الرئيسي',
-        'branch1': 'فرع 1',
-        'branch2': 'فرع 2',
-        'branch3': 'فرع 3',
+        'main': 'المخزن',
+        'branch1': 'الرئيسي',
+        'branch2': 'فرع 1',
+        'branch3': 'فرع 2',
     };
 
     return (
@@ -118,6 +119,7 @@ const Users: React.FC = () => {
                                             ${user.role === Role.Admin ? 'bg-purple-100 text-purple-800' : 
                                               user.role === Role.BranchManager ? 'bg-blue-100 text-blue-800' :
                                               user.role === Role.Accountant ? 'bg-green-100 text-green-800' :
+                                              user.role === Role.Cashier ? 'bg-teal-100 text-teal-800' :
                                               'bg-gray-100 text-gray-800'}`}>
                                             {roleLabels[user.role]}
                                         </span>

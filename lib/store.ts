@@ -55,7 +55,8 @@ import {
     Branch,
     Settings,
     Broadcast,
-    Section
+    Section,
+    MainCategory
 } from '../types';
 import { initialData } from './initialData';
 import { formatCurrency, normalizeSaleItems } from './utils';
@@ -93,6 +94,7 @@ type AppActions = {
     addProduct: (product: Omit<Product, 'id'>) => Promise<Product>;
     updateProduct: (productId: number, updates: Partial<Product>) => Promise<void>;
     deleteProduct: (productId: number) => Promise<void>;
+    increasePrices: (percentage: number, category?: MainCategory) => Promise<void>;
     
     // Product Actions (Scalable)
     fetchProducts: (lastDoc?: any, limitCount?: number, filter?: { category?: string }) => Promise<{ products: Product[], lastDoc: any }>;
@@ -124,7 +126,7 @@ type AppActions = {
     addPayment: (payment: Omit<Payment, 'id'>) => Promise<void>;
     updatePayment: (paymentId: number, updates: Partial<Payment>) => Promise<void>;
     deletePayment: (paymentId: number) => Promise<void>;
-    addExpense: (expense: Omit<Expense, 'id'>) => Promise<void>;
+    addExpense: (expense: Omit<Expense, 'id'>, skipTreasury?: boolean) => Promise<void>;
     updateExpense: (expenseId: number, updates: Partial<Expense>) => Promise<void>;
     deleteExpense: (expenseId: number) => Promise<void>;
     setDailyReviews: (reviews: DailyReview[]) => Promise<void>;
@@ -478,6 +480,7 @@ const useStore = create<AppState & AppActions>((set, get) => ({
             }
         }
         await signOut(auth);
+        window.location.hash = '';
     },
     setCurrentUser: (user) => set({ currentUser: user }),
     setCurrentUserByEmail: async (email) => {
@@ -546,16 +549,48 @@ const useStore = create<AppState & AppActions>((set, get) => ({
         const newId = Date.now(); 
         const newProduct = { ...product, id: newId };
         await setDoc(doc(db, "products", String(newId)), newProduct);
+        get().addToast('تم إضافة المنتج بنجاح', 'success');
         return newProduct as Product;
     },
     updateProduct: async (productId, updates) => {
         await updateDoc(doc(db, "products", String(productId)), updates);
+        get().addToast('تم تحديث المنتج بنجاح', 'success');
     },
     deleteProduct: async (productId: number) => {
         try {
             await deleteDoc(doc(db, "products", String(productId)));
+            get().addToast('تم حذف المنتج بنجاح', 'success');
         } catch (error) {
             console.error("Error deleting product:", error);
+            throw error;
+        }
+    },
+    
+    increasePrices: async (percentage: number, category?: MainCategory) => {
+        try {
+            const productsRef = collection(db, "products");
+            let q = query(productsRef);
+            if (category && category !== 'all' as any) {
+                q = query(productsRef, where("mainCategory", "==", category));
+            }
+            const snapshot = await getDocs(q);
+            
+            const chunks = [];
+            for (let i = 0; i < snapshot.docs.length; i += 500) {
+                chunks.push(snapshot.docs.slice(i, i + 500));
+            }
+
+            for (const chunk of chunks) {
+                const batch = writeBatch(db);
+                chunk.forEach(docSnap => {
+                    const data = docSnap.data() as Product;
+                    const newPrice = Math.round(data.sellingPrice * (1 + percentage / 100));
+                    batch.update(docSnap.ref, { sellingPrice: newPrice });
+                });
+                await batch.commit();
+            }
+        } catch (error) {
+            console.error("Error adjusting prices:", error);
             throw error;
         }
     },
@@ -564,10 +599,12 @@ const useStore = create<AppState & AppActions>((set, get) => ({
         const maxId = Math.max(0, ...(get().appData?.dailySales.map(s => Number(s.id) || 0) || []));
         const newSale = { ...sale, id: maxId + 1 };
         await setDoc(doc(db, "dailySales", String(newSale.id)), newSale);
+        get().addToast('تم حفظ الفاتورة بنجاح', 'success');
         return newSale as DailySale;
     },
     updateDailySale: async (saleId, updates) => {
         await updateDoc(doc(db, "dailySales", String(saleId)), updates);
+        get().addToast('تم تحديث الفاتورة بنجاح', 'success');
     },
     deleteDailySale: async (saleId: number | string) => {
         try {
@@ -703,6 +740,7 @@ const useStore = create<AppState & AppActions>((set, get) => ({
     },
     updateAdvance: async (advanceId, updates) => {
         await updateDoc(doc(db, "advances", String(advanceId)), updates);
+        get().addToast('تم تحديث السلفة بنجاح', 'success');
     },
     deleteAdvance: async (advanceId) => {
         try {
@@ -728,9 +766,11 @@ const useStore = create<AppState & AppActions>((set, get) => ({
                 amountIn: 0, amountOut: newPayroll.disbursed, relatedId: newPayroll.id
             });
         }
+        get().addToast('تم إضافة الراتب بنجاح', 'success');
     },
     updatePayroll: async (payrollId, updates) => {
         await updateDoc(doc(db, "payroll", String(payrollId)), updates);
+        get().addToast('تم تحديث الراتب بنجاح', 'success');
     },
     deletePayroll: async (payrollId) => {
         try {
@@ -745,9 +785,11 @@ const useStore = create<AppState & AppActions>((set, get) => ({
         const maxId = Math.max(0, ...(get().appData?.suppliers.map(s => Number(s.id) || 0) || []));
         const newSupplier = { ...supplier, id: maxId + 1 };
         await setDoc(doc(db, "suppliers", String(newSupplier.id)), newSupplier);
+        get().addToast('تم إضافة المورد بنجاح', 'success');
     },
     updateSupplier: async (supplierId, updates) => {
         await updateDoc(doc(db, "suppliers", String(supplierId)), updates);
+        get().addToast('تم تحديث المورد بنجاح', 'success');
     },
     deleteSupplier: async (supplierId) => {
         try {
@@ -765,9 +807,11 @@ const useStore = create<AppState & AppActions>((set, get) => ({
         const maxId = Math.max(0, ...(get().appData?.purchaseOrders.map(o => Number(o.id) || 0) || []));
         const newOrder = { ...order, id: maxId + 1 };
         await setDoc(doc(db, "purchaseOrders", String(newOrder.id)), newOrder);
+        get().addToast('تم إضافة طلب الشراء بنجاح', 'success');
     },
     updatePurchaseOrder: async (orderId, updates) => {
         await updateDoc(doc(db, "purchaseOrders", String(orderId)), updates);
+        get().addToast('تم تحديث طلب الشراء بنجاح', 'success');
     },
     deletePurchaseOrder: async (orderId) => {
         try {
@@ -788,9 +832,11 @@ const useStore = create<AppState & AppActions>((set, get) => ({
                 amountIn: 0, amountOut: newPayment.payment, relatedId: newPayment.id
             });
         }
+        get().addToast('تم إضافة الدفعة بنجاح', 'success');
     },
     updatePayment: async (paymentId, updates) => {
         await updateDoc(doc(db, "payments", String(paymentId)), updates);
+        get().addToast('تم تحديث الدفعة بنجاح', 'success');
     },
     deletePayment: async (paymentId) => {
         try {
@@ -800,19 +846,21 @@ const useStore = create<AppState & AppActions>((set, get) => ({
             throw error;
         }
     },
-    addExpense: async (expense) => {
+    addExpense: async (expense, skipTreasury = false) => {
         const maxId = Math.max(0, ...(get().appData?.expenses.map(e => Number(e.id) || 0) || []));
         const newExpense = { ...expense, id: maxId + 1 };
         await setDoc(doc(db, "expenses", String(newExpense.id)), newExpense);
-        if (newExpense.amount > 0) {
+        if (newExpense.amount > 0 && !skipTreasury) {
             await get().addTreasuryTransaction({
                 date: newExpense.date, type: 'مصروف', description: newExpense.name,
                 amountIn: 0, amountOut: newExpense.amount, relatedId: newExpense.id
             });
         }
+        get().addToast('تم إضافة المصروف بنجاح', 'success');
     },
     updateExpense: async (expenseId, updates) => {
         await updateDoc(doc(db, "expenses", String(expenseId)), updates);
+        get().addToast('تم تحديث المصروف بنجاح', 'success');
     },
     deleteExpense: async (expenseId) => {
         try {

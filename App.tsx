@@ -25,6 +25,7 @@ const Dashboard = React.lazy(() => import('./components/dashboard/Dashboard'));
 const SellerDashboard = React.lazy(() => import('./components/dashboard/SellerDashboard'));
 const BranchManagerDashboard = React.lazy(() => import('./components/dashboard/BranchManagerDashboard'));
 const AccountantDashboard = React.lazy(() => import('./components/dashboard/AccountantDashboard'));
+const CashierDashboard = React.lazy(() => import('./components/dashboard/CashierDashboard'));
 const Treasury = React.lazy(() => import('./components/treasury/Treasury'));
 const DailySales = React.lazy(() => import('./components/sales/DailySales'));
 const Inventory = React.lazy(() => import('./components/inventory/Inventory'));
@@ -145,6 +146,12 @@ const App: React.FC = () => {
         return () => unsubscribe();
     }, [initPublicListeners, setCurrentUserByEmail, clearCurrentUser, clearAdminListeners]);
 
+    // Reset activeSection when user changes to avoid showing previous user's last screen
+    useEffect(() => {
+        setActiveSection(Section.Dashboard);
+        setActiveReport(null);
+    }, [currentUser?.id]);
+
     // This effect syncs the admin data based on the currentUser state.
     useEffect(() => {
         if (currentUser) {
@@ -258,12 +265,21 @@ const App: React.FC = () => {
         
         // Handle Interactive Reports routing
         if (activeSection === Section.Reports) {
+            if (!hasPermission(Section.Reports)) {
+                updateActiveSection(Section.Dashboard);
+                return null;
+            }
             if (activeReport === 'inventory') return <InventoryReports setActiveReport={setActiveReport} />;
             if (activeReport === 'sales') return <SalesReportView setActiveReport={setActiveReport} />;
             if (activeReport === 'employees') return <EmployeesReportView setActiveReport={setActiveReport} />;
             if (activeReport === 'financials') return <FinancialReportView setActiveReport={setActiveReport} />;
             if (activeReport === 'suppliers') return <SuppliersReportView setActiveReport={setActiveReport} />;
             return <Reports setActiveReport={setActiveReport} />;
+        }
+
+        if (activeSection !== Section.Dashboard && !hasPermission(activeSection)) {
+            updateActiveSection(Section.Dashboard);
+            return null;
         }
 
         switch (activeSection) {
@@ -277,6 +293,8 @@ const App: React.FC = () => {
                         return <BranchManagerDashboard currentUser={currentUser} appData={appData} />;
                     case Role.Accountant:
                         return <AccountantDashboard appData={appData} />;
+                    case Role.Cashier:
+                        return <CashierDashboard currentUser={currentUser} setActiveSection={updateActiveSection} />;
                     default:
                         return <Dashboard setActiveSection={updateActiveSection} />;
                 }

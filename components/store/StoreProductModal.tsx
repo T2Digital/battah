@@ -21,7 +21,7 @@ const StoreProductModal: React.FC<StoreProductModalProps> = ({ isOpen, onClose, 
     if (!isOpen) return null;
 
     const totalStock = product.stock.main + product.stock.branch1 + product.stock.branch2 + product.stock.branch3;
-    const stockBreakdown = `الرئيسي: ${product.stock.main}, ف1: ${product.stock.branch1}, ف2: ${product.stock.branch2}, ف3: ${product.stock.branch3}`;
+    const stockBreakdown = `المخزن: ${product.stock.main}, الرئيسي: ${product.stock.branch1}, ف1: ${product.stock.branch2}, ف2: ${product.stock.branch3}`;
 
     const DetailItem: React.FC<{ label: string; value: string | undefined }> = ({ label, value }) => (
         value ? <div className="text-sm"><span className="font-semibold text-gray-600 dark:text-gray-400">{label}:</span> {value}</div> : null

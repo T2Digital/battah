@@ -35,7 +35,7 @@ const AdminChatbot: React.FC = () => {
         if (/(تقرير|شامل|ملخص|يومية|النهاردة عملنا ايه|حركة اليوم|قفل اليوم|الخلاصة)/.test(lowerText)) {
             const todaySales = dailySales.filter(s => s.date === today).reduce((sum, s) => sum + s.totalAmount, 0);
             const todayExpenses = expenses.filter(e => e.date.startsWith(today)).reduce((sum, e) => sum + e.amount, 0);
-            const balance = treasury.reduce((sum, t) => t.type === 'in' ? sum + t.amount : sum - t.amount, 0);
+            const balance = treasury.reduce((sum, t) => t.type === 'in' ? sum + t.amountIn : sum - t.amountOut, 0);
             const pendingOrders = orders.filter(o => o.status === 'pending').length;
             const confirmedOrders = orders.filter(o => o.status === 'confirmed').length;
             const lowStockCount = products.filter(p => p.stock.main + p.stock.branch1 + p.stock.branch2 + p.stock.branch3 <= (p.reorderPoint || 3)).length;
@@ -51,7 +51,7 @@ const AdminChatbot: React.FC = () => {
 
         // 1. Treasury / Cash
         if (/(خزنة|درج|فلوس|نقدية|رصيد|الكاش|معانا كام)/.test(lowerText)) {
-            const balance = treasury.reduce((sum, t) => t.type === 'in' ? sum + t.amount : sum - t.amount, 0);
+            const balance = treasury.reduce((sum, t) => t.type === 'in' ? sum + t.amountIn : sum - t.amountOut, 0);
             return `رصيد الخزنة الحالي يا فندم هو: ${balance.toLocaleString()} جنيه. تحب أراجعلك حركات الخزنة الأخيرة؟`;
         }
         
@@ -110,8 +110,12 @@ const AdminChatbot: React.FC = () => {
 
         // 7. Suppliers Debts
         if (/(موردين|ديون|علينا كام|حساب الموردين)/.test(lowerText)) {
-            const totalDebts = suppliers.reduce((sum, s) => sum + s.balance, 0);
-            if (totalDebts === 0) return "الحمد لله يا فندم، معليناش أي فلوس للموردين.";
+            // Calculate total debts based on purchase orders and payments
+            const totalPurchases = useStore.getState().appData?.purchaseOrders?.reduce((sum, po) => sum + po.totalAmount, 0) || 0;
+            const totalPayments = useStore.getState().appData?.payments?.reduce((sum, p) => sum + p.payment, 0) || 0;
+            const totalDebts = totalPurchases - totalPayments;
+            
+            if (totalDebts <= 0) return "الحمد لله يا فندم، معليناش أي فلوس للموردين.";
             return `إجمالي المديونيات اللي علينا للموردين: ${totalDebts.toLocaleString()} جنيه.`;
         }
 

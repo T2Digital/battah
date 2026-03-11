@@ -148,7 +148,7 @@ const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, onClose
                                 <span className="col-span-5 truncate">{getProductName(item.productId)}</span>
                                 <input 
                                     type="number" 
-                                    value={item.quantity} 
+                                    value={item.quantity === 0 ? '' : item.quantity} 
                                     onChange={e => handleItemChange(index, 'quantity', e.target.value)} 
                                     placeholder="الكمية" 
                                     className="col-span-3 p-1 border rounded dark:bg-gray-600" 
@@ -156,7 +156,7 @@ const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, onClose
                                 />
                                 <input 
                                     type="number" 
-                                    value={item.purchasePrice} 
+                                    value={item.purchasePrice === 0 ? '' : item.purchasePrice} 
                                     onChange={e => handleItemChange(index, 'purchasePrice', e.target.value)} 
                                     placeholder="السعر" 
                                     className="col-span-3 p-1 border rounded dark:bg-gray-600" 

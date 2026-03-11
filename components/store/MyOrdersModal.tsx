@@ -52,9 +52,15 @@ const MyOrdersModal: React.FC<MyOrdersModalProps> = ({ isOpen, onClose }) => {
             
             // Sort client-side by creation date
             foundOrders.sort((a, b) => {
-                const dateA = a.createdAt ? a.createdAt.toMillis() : 0;
-                const dateB = b.createdAt ? b.createdAt.toMillis() : 0;
-                return dateB - dateA;
+                const getTime = (dateVal: any) => {
+                    if (!dateVal) return 0;
+                    if (typeof dateVal.toMillis === 'function') return dateVal.toMillis();
+                    if (typeof dateVal === 'string' || typeof dateVal === 'number') return new Date(dateVal).getTime();
+                    if (dateVal instanceof Date) return dateVal.getTime();
+                    if (dateVal.seconds) return dateVal.seconds * 1000;
+                    return 0;
+                };
+                return getTime(b.createdAt) - getTime(a.createdAt);
             });
 
             setOrders(foundOrders);

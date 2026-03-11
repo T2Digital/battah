@@ -135,17 +135,29 @@ const generateReportHTML = (title: string, themeColor: string, content: string, 
     ${getReportStyles(themeColor)}
     ${isInvoice ? `
     <style>
-        .invoice-box { max-width: 800px; margin: auto; padding: 30px; border: 1px solid #eee; box-shadow: 0 0 10px rgba(0, 0, 0, .15); font-size: 16px; line-height: 24px; font-family: 'Cairo', sans-serif; color: #555; }
-        .invoice-box table { width: 100%; line-height: inherit; text-align: right; }
-        .invoice-box table td { padding: 5px; vertical-align: top; }
-        .invoice-box table tr.top table td { padding-bottom: 20px; }
-        .invoice-box table tr.top table td.title { font-size: 45px; line-height: 45px; color: #333; }
-        .invoice-box table tr.information table td { padding-bottom: 40px; }
-        .invoice-box table tr.heading td { background: #eee; border-bottom: 1px solid #ddd; font-weight: bold; }
-        .invoice-box table tr.details td { padding-bottom: 20px; }
-        .invoice-box table tr.item td{ border-bottom: 1px solid #eee; }
-        .invoice-box table tr.item.last td { border-bottom: none; }
-        .invoice-box table tr.total td:nth-child(2) { border-top: 2px solid #eee; font-weight: bold; }
+        @page { margin: 0; size: 80mm auto; }
+        body { margin: 0; padding: 0; background: #fff; width: 80mm; font-family: 'Cairo', sans-serif; font-size: 12px; color: #000; }
+        .invoice-box { width: 100%; max-width: 80mm; margin: 0 auto; padding: 5mm; box-sizing: border-box; }
+        .invoice-box table { width: 100%; line-height: 1.2; text-align: right; border-collapse: collapse; }
+        .invoice-box table td { padding: 2px 0; vertical-align: top; font-size: 12px; }
+        .invoice-box table tr.top table td { padding-bottom: 5px; text-align: center; }
+        .invoice-box table tr.top table td.title { font-size: 20px; line-height: 24px; color: #000; font-weight: bold; }
+        .invoice-box table tr.information table td { padding-bottom: 10px; text-align: center; border-bottom: 1px dashed #000; }
+        .invoice-box table tr.heading td { background: transparent; border-bottom: 1px dashed #000; font-weight: bold; padding: 5px 0; }
+        .invoice-box table tr.details td { padding-bottom: 5px; }
+        .invoice-box table tr.item td { border-bottom: 1px dotted #ccc; padding: 4px 0; }
+        .invoice-box table tr.item.last td { border-bottom: 1px dashed #000; }
+        .invoice-box table tr.total td { font-weight: bold; padding-top: 5px; font-size: 14px; }
+        .invoice-box .text-center { text-align: center; }
+        .invoice-box .text-left { text-align: left; }
+        .invoice-box .mb-2 { margin-bottom: 5px; }
+        .invoice-box .mt-4 { margin-top: 10px; }
+        .invoice-box hr { border: none; border-top: 1px dashed #000; margin: 10px 0; }
+        @media print {
+            body { width: 80mm; }
+            .invoice-box { padding: 0; }
+            .no-print { display: none; }
+        }
     </style>
     ` : ''}
 </head>
@@ -179,70 +191,79 @@ export const generateInvoiceContent = (sale: DailySale, products: Product[]) => 
 
     const content = `
     <div class="invoice-box">
+        <div class="text-center mb-2">
+            <h1 style="margin: 0; font-size: 20px; font-weight: bold;">بطاح الأصلي</h1>
+            <p style="margin: 0; font-size: 12px;">لقطع غيار السيارات</p>
+            <p style="margin: 0; font-size: 10px;">79 شارع رمسيس ناصية التوفيقية</p>
+            <p style="margin: 0; font-size: 10px;">تليفون: 01000000000</p>
+        </div>
+        <hr>
+        <div style="font-size: 12px; margin-bottom: 5px;">
+            <div><strong>رقم الفاتورة:</strong> ${sale.invoiceNumber}</div>
+            <div><strong>التاريخ:</strong> ${formatDate(sale.date)}</div>
+            <div><strong>البائع:</strong> ${sale.sellerName}</div>
+            ${sale.customerName ? `<div><strong>العميل:</strong> ${sale.customerName}</div>` : ''}
+            ${sale.customerPhone ? `<div><strong>تليفون العميل:</strong> ${sale.customerPhone}</div>` : ''}
+        </div>
+        <hr>
         <table cellpadding="0" cellspacing="0">
-            <tr class="top">
-                <td colspan="4">
-                    <table>
-                        <tr>
-                            <td class="title">
-                                <h1 style="margin: 0; color: #2563eb; font-size: 24px;">بطاح الأصلي</h1>
-                                <p style="font-size: 14px; margin: 0; color: #555;">لقطع غيار السيارات</p>
-                            </td>
-                            <td style="text-align: left;">
-                                <strong>فاتورة رقم:</strong> ${sale.invoiceNumber}<br>
-                                <strong>تاريخ:</strong> ${formatDate(sale.date)}<br>
-                                <strong>البائع:</strong> ${sale.sellerName}
-                            </td>
-                        </tr>
-                    </table>
-                </td>
-            </tr>
-            <tr class="information">
-                <td colspan="4">
-                    <table style="border-bottom: 2px solid #eee; padding-bottom: 10px; margin-bottom: 10px;">
-                        <tr>
-                            <td>
-                                <strong>العنوان:</strong><br>
-                                79 شارع رمسيس ناصية التوفيقية<br>
-                                امام سنترال رمسيس، القاهرة
-                            </td>
-                            <td style="text-align: left;">
-                                <strong>تليفون:</strong> 01000000000<br>
-                            </td>
-                        </tr>
-                    </table>
-                </td>
-            </tr>
             <tr class="heading">
-                <td>الصنف</td>
-                <td style="text-align:center;">الكمية</td>
-                <td style="text-align:center;">سعر الوحدة</td>
-                <td style="text-align:left;">الإجمالي</td>
+                <td style="width: 40%;">الصنف</td>
+                <td style="text-align:center; width: 15%;">الكمية</td>
+                <td style="text-align:center; width: 20%;">السعر</td>
+                <td style="text-align:left; width: 25%;">الإجمالي</td>
             </tr>
             ${itemsRows}
+        </table>
+        <hr>
+        <table cellpadding="0" cellspacing="0">
             <tr class="total">
-                <td colspan="3" style="text-align:left; font-weight:bold; padding-top: 10px;">الإجمالي</td>
-                <td style="text-align:left; font-weight:bold; padding-top: 10px;">${formatCurrency(sale.totalAmount)}</td>
+                <td colspan="3" style="text-align:right;">الإجمالي:</td>
+                <td style="text-align:left;">${formatCurrency(sale.totalAmount)}</td>
             </tr>
             ${sale.discount ? `
             <tr>
-                <td colspan="3" style="text-align:left; color: red;">خصم (${sale.discount}%)</td>
-                <td style="text-align:left; color: red;">-${formatCurrency((sale.totalAmount / (1 - (sale.discount/100))) * (sale.discount/100))}</td>
+                <td colspan="3" style="text-align:right; font-size: 10px;">خصم (${sale.discount}%):</td>
+                <td style="text-align:left; font-size: 10px;">-${formatCurrency((sale.totalAmount / (1 - (sale.discount/100))) * (sale.discount/100))}</td>
             </tr>
             ` : ''}
-             ${sale.notes ? `
+            ${sale.paymentMethod ? `
             <tr>
-                <td colspan="4" style="padding-top: 20px; font-size: 12px; color: #666;">
-                    <strong>ملاحظات:</strong> ${sale.notes}
-                </td>
+                <td colspan="3" style="text-align:right; font-size: 10px;">طريقة الدفع:</td>
+                <td style="text-align:left; font-size: 10px;">${sale.paymentMethod}</td>
+            </tr>
+            ` : ''}
+            ${sale.cashAmount ? `
+            <tr>
+                <td colspan="3" style="text-align:right; font-size: 10px;">المدفوع نقداً:</td>
+                <td style="text-align:left; font-size: 10px;">${formatCurrency(sale.cashAmount)}</td>
+            </tr>
+            ` : ''}
+            ${sale.electronicAmount ? `
+            <tr>
+                <td colspan="3" style="text-align:right; font-size: 10px;">المدفوع إلكترونياً:</td>
+                <td style="text-align:left; font-size: 10px;">${formatCurrency(sale.electronicAmount)}</td>
+            </tr>
+            ` : ''}
+            ${sale.remainingDebt ? `
+            <tr>
+                <td colspan="3" style="text-align:right; font-size: 10px; font-weight: bold;">المتبقي (آجل):</td>
+                <td style="text-align:left; font-size: 10px; font-weight: bold;">${formatCurrency(sale.remainingDebt)}</td>
             </tr>
             ` : ''}
         </table>
-        <div class="footer" style="margin-top: 40px; text-align: center; border-top: 1px solid #eee; padding-top: 20px;">
-            <p style="font-weight: bold; margin-bottom: 5px;">شكراً لتعاملكم معنا!</p>
-            <div style="font-size: 12px; color: #555; text-align: right; padding: 10px; background: #f9f9f9; border-radius: 5px;">
+        ${sale.notes ? `
+        <hr>
+        <div style="font-size: 10px; text-align: center;">
+            <strong>ملاحظات:</strong> ${sale.notes}
+        </div>
+        ` : ''}
+        <hr>
+        <div class="text-center mt-4" style="font-size: 10px;">
+            <p style="margin: 0; font-weight: bold;">شكراً لتعاملكم معنا!</p>
+            <div style="text-align: right; margin-top: 5px;">
                 <strong>سياسة الاستبدال والاسترجاع:</strong>
-                <ul style="margin: 5px 20px 0 0; padding: 0;">
+                <ul style="margin: 2px 15px 0 0; padding: 0;">
                     <li>متاح خلال 14 يوم من تاريخ الشراء.</li>
                     <li>الأسبوع الأول: إمكانية استرجاع المبلغ نقداً.</li>
                     <li>الأسبوع الثاني: استبدال بمنتج آخر فقط.</li>

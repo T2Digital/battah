@@ -9,7 +9,7 @@ interface FinancialReportViewProps {
     setActiveReport: (report: string | null) => void;
 }
 
-type ActiveTab = 'expenses' | 'advances' | 'payroll';
+type ActiveTab = 'expenses' | 'advances' | 'payroll' | 'debts';
 
 const FinancialReportView: React.FC<FinancialReportViewProps> = ({ setActiveReport }) => {
     const appData = useStore(state => state.appData);
@@ -17,6 +17,7 @@ const FinancialReportView: React.FC<FinancialReportViewProps> = ({ setActiveRepo
     const advances = appData?.advances || [];
     const payroll = appData?.payroll || [];
     const employees = appData?.employees || [];
+    const dailySales = appData?.dailySales || [];
     const [activeTab, setActiveTab] = useState<ActiveTab>('expenses');
 
     const getEmployeeName = (id: number) => employees.find(e => e.id === id)?.name || 'غير معروف';
@@ -24,6 +25,24 @@ const FinancialReportView: React.FC<FinancialReportViewProps> = ({ setActiveRepo
     const totalExpenses = useMemo(() => expenses.reduce((sum, e) => sum + e.amount, 0), [expenses]);
     const totalAdvances = useMemo(() => advances.reduce((sum, a) => sum + a.amount, 0), [advances]);
     const totalPayroll = useMemo(() => payroll.reduce((sum, p) => sum + p.disbursed, 0), [payroll]);
+    
+    const customerDebts = useMemo(() => {
+        const debts = new Map<string, { name: string, phone: string, totalDebt: number, invoices: string[] }>();
+        dailySales.forEach(sale => {
+            if (sale.remainingDebt && sale.remainingDebt > 0 && sale.customerName) {
+                const key = sale.customerPhone || sale.customerName;
+                if (!debts.has(key)) {
+                    debts.set(key, { name: sale.customerName, phone: sale.customerPhone || '', totalDebt: 0, invoices: [] });
+                }
+                const debt = debts.get(key)!;
+                debt.totalDebt += sale.remainingDebt;
+                debt.invoices.push(sale.invoiceNumber);
+            }
+        });
+        return Array.from(debts.values());
+    }, [dailySales]);
+    
+    const totalDebts = useMemo(() => customerDebts.reduce((sum, d) => sum + d.totalDebt, 0), [customerDebts]);
 
     return (
         <div className="animate-fade-in space-y-6">
@@ -38,6 +57,7 @@ const FinancialReportView: React.FC<FinancialReportViewProps> = ({ setActiveRepo
                 <button onClick={() => setActiveTab('expenses')} className={`px-6 py-3 font-semibold ${activeTab === 'expenses' ? 'border-b-2 border-primary text-primary' : 'text-gray-500'}`}>المصاريف</button>
                 <button onClick={() => setActiveTab('advances')} className={`px-6 py-3 font-semibold ${activeTab === 'advances' ? 'border-b-2 border-primary text-primary' : 'text-gray-500'}`}>السلف</button>
                 <button onClick={() => setActiveTab('payroll')} className={`px-6 py-3 font-semibold ${activeTab === 'payroll' ? 'border-b-2 border-primary text-primary' : 'text-gray-500'}`}>المرتبات</button>
+                <button onClick={() => setActiveTab('debts')} className={`px-6 py-3 font-semibold ${activeTab === 'debts' ? 'border-b-2 border-primary text-primary' : 'text-gray-500'}`}>مديونيات العملاء</button>
             </div>
 
             <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-x-auto">
@@ -66,6 +86,15 @@ const FinancialReportView: React.FC<FinancialReportViewProps> = ({ setActiveRepo
                         </thead>
                         <tbody>{payroll.map(p => <tr key={p.id} className="border-b dark:border-gray-700"><td>{formatDate(p.date)}</td><td>{getEmployeeName(p.employeeId)}</td><td>{formatCurrency(p.basicSalary)}</td><td>{formatCurrency(p.disbursed)}</td></tr>).map(el => React.cloneElement(el, { className: `${el.props.className} hover:bg-gray-50 dark:hover:bg-gray-600`, children: el.props.children.map((c:any) => React.cloneElement(c, {className: 'px-6 py-4'}))}))}</tbody>
                         <tfoot><tr className="font-bold bg-gray-100 dark:bg-gray-700"><td colSpan={3} className="px-6 py-3">الإجمالي</td><td className="px-6 py-3">{formatCurrency(totalPayroll)}</td></tr></tfoot>
+                    </table>
+                )}
+                {activeTab === 'debts' && (
+                    <table className="w-full text-sm text-right">
+                        <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-300">
+                            <tr><th className="px-6 py-3">اسم العميل</th><th className="px-6 py-3">رقم الهاتف</th><th className="px-6 py-3">الفواتير</th><th className="px-6 py-3">إجمالي المديونية</th></tr>
+                        </thead>
+                        <tbody>{customerDebts.map((d, i) => <tr key={i} className="border-b dark:border-gray-700"><td>{d.name}</td><td>{d.phone}</td><td>{d.invoices.join(', ')}</td><td className="font-bold text-red-600">{formatCurrency(d.totalDebt)}</td></tr>).map(el => React.cloneElement(el, { className: `${el.props.className} hover:bg-gray-50 dark:hover:bg-gray-600`, children: el.props.children.map((c:any) => React.cloneElement(c, {className: 'px-6 py-4'}))}))}</tbody>
+                        <tfoot><tr className="font-bold bg-gray-100 dark:bg-gray-700"><td colSpan={3} className="px-6 py-3">الإجمالي</td><td className="px-6 py-3 text-red-600">{formatCurrency(totalDebts)}</td></tr></tfoot>
                     </table>
                 )}
             </div>

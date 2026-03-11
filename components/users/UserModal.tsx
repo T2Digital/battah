@@ -87,7 +87,7 @@ const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose, onSave, existing
         [Section.Expenses]: 'المصروفات',
         [Section.DailyReview]: 'التقفيل اليومي',
         [Section.Reports]: 'التقارير',
-        [Section.Orders]: 'الطلبات',
+        [Section.Orders]: 'طلبات اونلاين',
         [Section.Customers]: 'العملاء',
         [Section.Promotions]: 'العروض',
         [Section.Settings]: 'الإعدادات',
@@ -170,6 +170,7 @@ const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose, onSave, existing
                                     <option value={Role.BranchManager}>مدير فرع</option>
                                     <option value={Role.Accountant}>محاسب</option>
                                     <option value={Role.Seller}>بائع</option>
+                                    <option value={Role.Cashier}>كاشير</option>
                                 </select>
                             </div>
                             <div>
@@ -179,10 +180,10 @@ const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose, onSave, existing
                                     onChange={e => setBranch(e.target.value as Branch)}
                                     className="w-full p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                                 >
-                                    <option value="main">الرئيسي</option>
-                                    <option value="branch1">فرع 1</option>
-                                    <option value="branch2">فرع 2</option>
-                                    <option value="branch3">فرع 3</option>
+                                    <option value="main">المخزن</option>
+                                    <option value="branch1">الرئيسي</option>
+                                    <option value="branch2">فرع 1</option>
+                                    <option value="branch3">فرع 2</option>
                                 </select>
                             </div>
                         </div>

@@ -29,6 +29,14 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
     
     const [invoiceType, setInvoiceType] = useState<'wholesale' | 'retail'>('retail');
     const [discount, setDiscount] = useState<number>(0);
+    const [cashierLocation, setCashierLocation] = useState<'فوق' | 'تحت'>('تحت');
+    const [warrantyPeriod, setWarrantyPeriod] = useState<string>('');
+    const [paymentMethod, setPaymentMethod] = useState<'نقدى' | 'إلكترونى' | 'مختلط' | 'آجل'>('نقدى');
+    const [cashAmount, setCashAmount] = useState<number>(0);
+    const [electronicAmount, setElectronicAmount] = useState<number>(0);
+    const [customerName, setCustomerName] = useState('');
+    const [customerPhone, setCustomerPhone] = useState('');
+    
     const [isListening, setIsListening] = useState(false);
     
     const [productSearch, setProductSearch] = useState('');
@@ -40,14 +48,14 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
     const [securityError, setSecurityError] = useState('');
 
     const branchNames: Record<Branch, string> = {
-        main: 'المخزن الرئيسي',
-        branch1: 'فرع 1',
-        branch2: 'فرع 2',
-        branch3: 'فرع 3',
+        main: 'المخزن',
+        branch1: 'الرئيسي',
+        branch2: 'فرع 1',
+        branch3: 'فرع 2',
     };
 
     const getStockBreakdown = (product: Product): string => {
-        return `رصيد: الرئيسي(${product.stock.main}), ف1(${product.stock.branch1}), ف2(${product.stock.branch2}), ف3(${product.stock.branch3})`;
+        return `رصيد: المخزن(${product.stock.main}), الرئيسي(${product.stock.branch1}), ف1(${product.stock.branch2}), ف2(${product.stock.branch3})`;
     };
 
     useEffect(() => {
@@ -66,6 +74,13 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
             setNotes(existingSale.notes || '');
             setInvoiceType(existingSale.invoiceType || 'retail');
             setDiscount(existingSale.discount || 0);
+            setCashierLocation(existingSale.cashierLocation || 'تحت');
+            setWarrantyPeriod(existingSale.notes?.match(/ضمان: (.*)/)?.[1] || '');
+            setPaymentMethod(existingSale.paymentMethod || 'نقدى');
+            setCashAmount(existingSale.cashAmount || 0);
+            setElectronicAmount(existingSale.electronicAmount || 0);
+            setCustomerName(existingSale.customerName || '');
+            setCustomerPhone(existingSale.customerPhone || '');
             
             const itemsToEdit = normalizeSaleItems(existingSale);
             const editableItems = itemsToEdit.map(item => {
@@ -88,6 +103,13 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
             setItems([]);
             setInvoiceType('retail');
             setDiscount(0);
+            setCashierLocation('تحت');
+            setWarrantyPeriod('');
+            setPaymentMethod('نقدى');
+            setCashAmount(0);
+            setElectronicAmount(0);
+            setCustomerName('');
+            setCustomerPhone('');
         }
         setShowSecurityCheck(false);
         setSecurityPassword('');
@@ -259,18 +281,27 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
              }
         }
 
+        const finalNotes = direction === 'ضمان' && warrantyPeriod ? `${notes}\nضمان: ${warrantyPeriod}`.trim() : notes;
+
         const saleData = {
             date, 
             invoiceNumber, 
             direction, 
             branchSoldFrom, 
-            notes: notes || '', // Ensure notes is not undefined
+            notes: finalNotes || '', // Ensure notes is not undefined
             totalAmount,
             sellerId: currentUser.id,
             sellerName: currentUser.name,
             source: 'المحل' as const,
             invoiceType,
             discount: discount || 0, // Ensure discount is not undefined
+            cashierLocation,
+            paymentMethod,
+            cashAmount: paymentMethod === 'نقدى' ? cashAmount : (paymentMethod === 'إلكترونى' || paymentMethod === 'آجل' ? 0 : cashAmount),
+            electronicAmount: paymentMethod === 'إلكترونى' ? electronicAmount : (paymentMethod === 'نقدى' || paymentMethod === 'آجل' ? 0 : electronicAmount),
+            customerName,
+            customerPhone,
+            remainingDebt: paymentMethod === 'آجل' ? totalAmount : (paymentMethod === 'نقدى' ? totalAmount - cashAmount : (paymentMethod === 'إلكترونى' ? totalAmount - electronicAmount : totalAmount - (cashAmount + electronicAmount))),
             items: items.map(({ productName, stock, ...rest }) => ({
                 ...rest,
                 hasSerialNumber: rest.hasSerialNumber || false, // Ensure boolean
@@ -318,7 +349,7 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div><label>التاريخ</label><input type="date" value={date} readOnly className="w-full mt-1 p-2 border rounded dark:bg-gray-700 dark:border-gray-600 bg-gray-100" /></div>
                     <div><label>رقم الفاتورة</label><input type="text" value={invoiceNumber} readOnly className="w-full mt-1 p-2 border rounded dark:bg-gray-700 dark:border-gray-600 bg-gray-100" /></div>
-                    <div><label>الاتجاه</label><select value={direction} onChange={e => setDirection(e.target.value as DailySale['direction'])} className="w-full mt-1 p-2 border rounded dark:bg-gray-700 dark:border-gray-600"><option>بيع</option><option>مرتجع</option><option>تبديل</option><option>ضمان</option></select></div>
+                    <div><label>التوجيه</label><select value={direction} onChange={e => setDirection(e.target.value as DailySale['direction'])} className="w-full mt-1 p-2 border rounded dark:bg-gray-700 dark:border-gray-600"><option>بيع</option><option>مرتجع</option><option>تبديل</option><option>ضمان</option><option>هدية</option></select></div>
                     <div>
                         <label>نوع الفاتورة</label>
                         <select value={invoiceType} onChange={e => setInvoiceType(e.target.value as 'wholesale' | 'retail')} className="w-full mt-1 p-2 border rounded dark:bg-gray-700 dark:border-gray-600">
@@ -328,6 +359,77 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
                     </div>
                 </div>
                 
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label>طريقة الدفع</label>
+                            <select 
+                                value={paymentMethod} 
+                                onChange={e => setPaymentMethod(e.target.value as 'نقدى' | 'إلكترونى' | 'مختلط' | 'آجل')} 
+                                className="w-full mt-1 p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
+                            >
+                                <option value="نقدى">نقدى</option>
+                                <option value="إلكترونى">إلكترونى</option>
+                                <option value="مختلط">مختلط</option>
+                                <option value="آجل">آجل</option>
+                            </select>
+                        </div>
+                        {paymentMethod === 'مختلط' && (
+                            <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label>المبلغ النقدى</label>
+                                    <input type="number" value={cashAmount === 0 ? '' : cashAmount} onChange={e => setCashAmount(Number(e.target.value))} className="w-full mt-1 p-2 border rounded dark:bg-gray-700 dark:border-gray-600" />
+                                </div>
+                                <div>
+                                    <label>المبلغ الإلكترونى</label>
+                                    <input type="number" value={electronicAmount === 0 ? '' : electronicAmount} onChange={e => setElectronicAmount(Number(e.target.value))} className="w-full mt-1 p-2 border rounded dark:bg-gray-700 dark:border-gray-600" />
+                                </div>
+                            </div>
+                        )}
+                        {(paymentMethod === 'نقدى' || paymentMethod === 'إلكترونى') && (
+                            <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label className="flex justify-between items-center">
+                                        <span>المدفوع ({paymentMethod})</span>
+                                        <button 
+                                            type="button" 
+                                            onClick={() => paymentMethod === 'نقدى' ? setCashAmount(totalAmount) : setElectronicAmount(totalAmount)}
+                                            className="text-xs text-primary hover:underline"
+                                        >
+                                            مدفوع بالكامل
+                                        </button>
+                                    </label>
+                                    <input 
+                                        type="number" 
+                                        value={paymentMethod === 'نقدى' ? (cashAmount === 0 ? '' : cashAmount) : (electronicAmount === 0 ? '' : electronicAmount)} 
+                                        onChange={e => paymentMethod === 'نقدى' ? setCashAmount(Number(e.target.value)) : setElectronicAmount(Number(e.target.value))} 
+                                        className="w-full mt-1 p-2 border rounded dark:bg-gray-700 dark:border-gray-600" 
+                                    />
+                                </div>
+                                <div>
+                                    <label>المتبقي (آجل)</label>
+                                    <input 
+                                        type="number" 
+                                        value={Math.max(0, totalAmount - (paymentMethod === 'نقدى' ? cashAmount : electronicAmount))} 
+                                        readOnly 
+                                        className="w-full mt-1 p-2 border rounded bg-gray-100 dark:bg-gray-600 dark:border-gray-500 text-red-500 font-bold" 
+                                    />
+                                </div>
+                            </div>
+                        )}
+                        {(paymentMethod === 'آجل' || paymentMethod === 'مختلط' || (paymentMethod === 'نقدى' && totalAmount - cashAmount > 0) || (paymentMethod === 'إلكترونى' && totalAmount - electronicAmount > 0)) && (
+                            <>
+                                <div>
+                                    <label>اسم العميل</label>
+                                    <input type="text" value={customerName} onChange={e => setCustomerName(e.target.value)} className="w-full mt-1 p-2 border rounded dark:bg-gray-700 dark:border-gray-600" placeholder="اسم العميل (مطلوب للآجل)" required />
+                                </div>
+                                <div>
+                                    <label>رقم هاتف العميل</label>
+                                    <input type="tel" value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} className="w-full mt-1 p-2 border rounded dark:bg-gray-700 dark:border-gray-600" placeholder="رقم الهاتف" />
+                                </div>
+                            </>
+                        )}
+                    </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label>البيع من فرع</label>
@@ -342,6 +444,34 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
                             ))}
                         </select>
                     </div>
+                    <div>
+                        <label>الكاشير</label>
+                        <select 
+                            value={cashierLocation} 
+                            onChange={e => setCashierLocation(e.target.value as 'فوق' | 'تحت')} 
+                            className="w-full mt-1 p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
+                        >
+                            <option value="تحت">كاشير تحت</option>
+                            <option value="فوق">كاشير فوق</option>
+                        </select>
+                    </div>
+                    {direction === 'ضمان' && (
+                        <div>
+                            <label>فترة الضمان</label>
+                            <select 
+                                value={warrantyPeriod} 
+                                onChange={e => setWarrantyPeriod(e.target.value)} 
+                                className="w-full mt-1 p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
+                            >
+                                <option value="">اختر فترة الضمان</option>
+                                <option value="٣ شهور">٣ شهور</option>
+                                <option value="٦ شهور">٦ شهور</option>
+                                <option value="سنة">سنة</option>
+                                <option value="سنتين">سنتين</option>
+                                <option value="٣ سنين">٣ سنين</option>
+                            </select>
+                        </div>
+                    )}
                 </div>
                 
                 <div className="border-t pt-4 mt-4">
@@ -387,9 +517,17 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
                                             {product && <small className="text-xs text-gray-500 dark:text-gray-400 block">{getStockBreakdown(product)}</small>}
                                             {item.hasSerialNumber && <span className="text-xs text-blue-600 dark:text-blue-400 font-bold">يتطلب سيريال</span>}
                                         </div>
-                                        <input type="number" value={item.quantity} onChange={e => handleItemChange(index, 'quantity', Number(e.target.value))} placeholder="الكمية" className="col-span-3 p-1 border rounded dark:bg-gray-600" ref={index === items.length - 1 ? lastAddedItemRef : null} min="1" />
-                                        <input type="number" value={item.unitPrice} onChange={e => handleItemChange(index, 'unitPrice', Number(e.target.value))} placeholder="السعر" className="col-span-3 p-1 border rounded dark:bg-gray-600" step="0.01" />
-                                        <button type="button" onClick={() => handleRemoveItem(index)} className="col-span-1 text-red-500 hover:text-red-700"><i className="fas fa-trash"></i></button>
+                                        <div className="col-span-3">
+                                            <label className="block text-xs text-gray-500 mb-1">عدد</label>
+                                            <input type="number" value={item.quantity === 0 ? '' : item.quantity} onChange={e => handleItemChange(index, 'quantity', Number(e.target.value))} placeholder="الكمية" className="w-full p-1 border rounded dark:bg-gray-600" ref={index === items.length - 1 ? lastAddedItemRef : null} min="1" />
+                                        </div>
+                                        <div className="col-span-3">
+                                            <label className="block text-xs text-gray-500 mb-1">السعر</label>
+                                            <input type="number" value={item.unitPrice === 0 ? '' : item.unitPrice} onChange={e => handleItemChange(index, 'unitPrice', Number(e.target.value))} placeholder="السعر" className="w-full p-1 border rounded dark:bg-gray-600" step="0.01" />
+                                        </div>
+                                        <div className="col-span-1 flex items-end pb-1">
+                                            <button type="button" onClick={() => handleRemoveItem(index)} className="text-red-500 hover:text-red-700 w-full text-center"><i className="fas fa-trash"></i></button>
+                                        </div>
                                     </div>
                                     
                                     {/* Serial Number Inputs */}

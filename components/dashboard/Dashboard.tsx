@@ -5,6 +5,9 @@ import { GoogleGenAI } from "@google/genai";
 import StatCard from './StatCard';
 import SalesChart from './SalesChart';
 import ExpensesChart from './ExpensesChart';
+import BestSellingChart from './BestSellingChart';
+import BranchSalesChart from './BranchSalesChart';
+import MonthlyProfitsChart from './MonthlyProfitsChart';
 import RecentActivities from './RecentActivities';
 import ActionableAlerts from './ActionableAlerts';
 import { AppData, User, DailySale, Product, Role, Section } from '../../types';
@@ -253,6 +256,27 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveSection }) => {
                      <h3 className="text-xl font-bold mb-4 text-gray-800 dark:text-white">توزيع المصاريف حسب النوع</h3>
                     <div className="h-80">
                        <ExpensesChart expenses={expenses || []} />
+                    </div>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg">
+                    <h3 className="text-xl font-bold mb-4 text-gray-800 dark:text-white">أكثر المنتجات مبيعاً</h3>
+                    <div className="h-80">
+                        <BestSellingChart dailySales={dailySales || []} products={products || []} />
+                    </div>
+                </div>
+                <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg">
+                    <h3 className="text-xl font-bold mb-4 text-gray-800 dark:text-white">مقارنة مبيعات الفروع</h3>
+                    <div className="h-80">
+                        <BranchSalesChart dailySales={dailySales || []} />
+                    </div>
+                </div>
+                <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg">
+                    <h3 className="text-xl font-bold mb-4 text-gray-800 dark:text-white">أرباح الأشهر الماضية</h3>
+                    <div className="h-80">
+                        <MonthlyProfitsChart dailyReview={dailyReview || []} />
                     </div>
                 </div>
             </div>

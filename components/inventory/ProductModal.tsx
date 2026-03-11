@@ -260,12 +260,12 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, ex
                     </div>
                     <div>
                         <label>سعر الشراء *</label>
-                        <input type="number" name="purchasePrice" value={formData.purchasePrice} onChange={handleChange} required min="0" step="0.01" className="mt-1 w-full input-base" />
+                        <input type="number" name="purchasePrice" value={formData.purchasePrice === 0 ? '' : formData.purchasePrice} onChange={handleChange} required min="0" step="0.01" className="mt-1 w-full input-base" />
                     </div>
                     <div className="sm:col-span-2">
                         <label className="block mb-1">سعر البيع (قطاعي) *</label>
                         <div className="flex gap-2 items-center">
-                            <input type="number" name="sellingPrice" value={formData.sellingPrice} onChange={handleChange} required min="0" step="0.01" className="flex-grow input-base" />
+                            <input type="number" name="sellingPrice" value={formData.sellingPrice === 0 ? '' : formData.sellingPrice} onChange={handleChange} required min="0" step="0.01" className="flex-grow input-base" />
                             <div className="flex gap-1">
                                 <button type="button" onClick={() => calculatePrice(25)} className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200">25%</button>
                                 <button type="button" onClick={() => calculatePrice(30)} className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200">30%</button>
@@ -276,7 +276,7 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, ex
                     <div>
                         <label>سعر البيع (جملة)</label>
                         <div className="flex gap-2 items-center">
-                            <input type="number" name="wholesalePrice" value={formData.wholesalePrice} onChange={handleChange} min="0" step="0.01" className="flex-grow input-base" />
+                            <input type="number" name="wholesalePrice" value={formData.wholesalePrice === 0 ? '' : formData.wholesalePrice} onChange={handleChange} min="0" step="0.01" className="flex-grow input-base" />
                             <div className="flex gap-1">
                                 <button type="button" onClick={() => calculatePrice(10, 'wholesalePrice')} className="px-2 py-1 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200">10%</button>
                                 <button type="button" onClick={() => calculatePrice(15, 'wholesalePrice')} className="px-2 py-1 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200">15%</button>
@@ -286,7 +286,7 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, ex
                     </div>
                     <div>
                         <label>حد الطلب</label>
-                        <input type="number" name="reorderPoint" value={formData.reorderPoint} onChange={handleChange} required min="0" className="mt-1 w-full input-base" />
+                        <input type="number" name="reorderPoint" value={formData.reorderPoint === 0 ? '' : formData.reorderPoint} onChange={handleChange} required min="0" className="mt-1 w-full input-base" />
                     </div>
                     <div className="sm:col-span-2 flex items-center mt-4">
                         <input
@@ -307,10 +307,10 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, ex
             <div className="mt-4">
                 <h4 className="font-medium mb-2 text-gray-700 dark:text-gray-300">الكميات بالمخازن</h4>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 p-3 bg-gray-50 dark:bg-gray-900 rounded-lg">
-                    <div><label>الرئيسي</label><input type="number" name="main" value={formData.stock.main} onChange={handleStockChange} min="0" className="mt-1 w-full input-base"/></div>
-                    <div><label>فرع 1</label><input type="number" name="branch1" value={formData.stock.branch1} onChange={handleStockChange} min="0" className="mt-1 w-full input-base"/></div>
-                    <div><label>فرع 2</label><input type="number" name="branch2" value={formData.stock.branch2} onChange={handleStockChange} min="0" className="mt-1 w-full input-base"/></div>
-                    <div><label>فرع 3</label><input type="number" name="branch3" value={formData.stock.branch3} onChange={handleStockChange} min="0" className="mt-1 w-full input-base"/></div>
+                    <div><label>المخزن</label><input type="number" name="main" value={formData.stock.main === 0 ? '' : formData.stock.main} onChange={handleStockChange} min="0" className="mt-1 w-full input-base"/></div>
+                    <div><label>الرئيسي</label><input type="number" name="branch1" value={formData.stock.branch1 === 0 ? '' : formData.stock.branch1} onChange={handleStockChange} min="0" className="mt-1 w-full input-base"/></div>
+                    <div><label>فرع 1</label><input type="number" name="branch2" value={formData.stock.branch2 === 0 ? '' : formData.stock.branch2} onChange={handleStockChange} min="0" className="mt-1 w-full input-base"/></div>
+                    <div><label>فرع 2</label><input type="number" name="branch3" value={formData.stock.branch3 === 0 ? '' : formData.stock.branch3} onChange={handleStockChange} min="0" className="mt-1 w-full input-base"/></div>
                 </div>
             </div>
 

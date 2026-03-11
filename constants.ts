@@ -10,3 +10,10 @@ export const SUB_CATEGORIES: { [key: string]: string[] } = {
 };
 
 export const BRANDS = ['Bosch', 'Mann-Filter', 'NGK', 'Brembo', 'Sachs', 'Lemförder', 'Total', 'Mobil', 'Varta', 'Hankook'];
+
+export const BRANCH_NAMES: Record<string, string> = {
+    'main': 'المخزن',
+    'branch1': 'الرئيسي',
+    'branch2': 'فرع 1',
+    'branch3': 'فرع 2'
+};

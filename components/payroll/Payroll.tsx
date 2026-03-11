@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Payroll as PayrollType, Employee } from '../../types';
 import SectionHeader from '../shared/SectionHeader';
 import Modal from '../shared/Modal';
@@ -88,20 +88,17 @@ const PayrollModal: React.FC<{
         setFormData(prev => ({ ...prev, [name]: ['disbursed', 'incentives', 'deductions', 'workHours'].includes(name) ? Number(value) : value }));
     };
 
-    const calculateWorkHoursAndDeductions = () => {
-        if (!formData.employeeId || !formData.periodStart || !formData.periodEnd) {
-            alert("يرجى تحديد الموظف وفترة العمل أولاً.");
-            return;
-        }
+    const calculateWorkHoursAndDeductions = (empId: number, pStart: string, pEnd: string) => {
+        if (!empId || !pStart || !pEnd) return;
 
-        const start = new Date(formData.periodStart);
-        const end = new Date(formData.periodEnd);
+        const start = new Date(pStart);
+        const end = new Date(pEnd);
         end.setHours(23, 59, 59, 999); // Include the end date fully
 
         // Calculate Work Hours
         const employeeAttendance = attendance.filter(a => {
             const attDate = new Date(a.date);
-            return a.employeeId === formData.employeeId && attDate >= start && attDate <= end;
+            return a.employeeId === empId && attDate >= start && attDate <= end;
         });
 
         let totalHours = 0;
@@ -117,17 +114,14 @@ const PayrollModal: React.FC<{
         // Calculate Deductions (Advances + Expenses linked to employee)
         const employeeAdvances = advances.filter(a => {
             const advDate = new Date(a.date);
-            return a.employeeId === formData.employeeId && advDate >= start && advDate <= end;
+            return a.employeeId === empId && advDate >= start && advDate <= end;
         });
         
         const employeeExpenses = expenses.filter(e => {
             const expDate = new Date(e.date);
-            return e.employeeId === formData.employeeId && expDate >= start && expDate <= end;
+            return e.employeeId === empId && expDate >= start && expDate <= end;
         });
 
-        const totalAdvances = employeeAdvances.reduce((sum, a) => sum + (a.amount - a.payment), 0); // Remaining advance amount? Or total taken? Usually payroll deducts what was taken. Let's assume we deduct the 'amount' taken in this period. Or maybe the outstanding balance? 
-        // User said: "write automatically employee expenses throughout the month". 
-        // Let's sum up advances taken in this period.
         const totalTakenAdvances = employeeAdvances.reduce((sum, a) => sum + a.amount, 0);
         const totalExpenses = employeeExpenses.reduce((sum, e) => sum + e.amount, 0);
 
@@ -135,9 +129,15 @@ const PayrollModal: React.FC<{
             ...prev,
             workHours: parseFloat(totalHours.toFixed(2)),
             deductions: totalTakenAdvances + totalExpenses,
-            notes: prev.notes + `\nتم حساب ساعات العمل: ${totalHours.toFixed(2)} ساعة.\nالخصومات: سلف (${totalTakenAdvances}) + مصاريف (${totalExpenses})`
+            notes: `تم حساب ساعات العمل: ${totalHours.toFixed(2)} ساعة.\nالخصومات: سلف (${totalTakenAdvances}) + مصاريف (${totalExpenses})`
         }));
     };
+
+    useEffect(() => {
+        if (!recordToEdit && formData.employeeId && formData.periodStart && formData.periodEnd) {
+            calculateWorkHoursAndDeductions(formData.employeeId, formData.periodStart, formData.periodEnd);
+        }
+    }, [formData.employeeId, formData.periodStart, formData.periodEnd]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -168,33 +168,27 @@ const PayrollModal: React.FC<{
                         <label className="block text-xs text-gray-500">إلى</label>
                         <input type="date" name="periodEnd" value={formData.periodEnd} onChange={handleChange} className="mt-1 block w-full input-base text-sm" />
                     </div>
-                    <div className="col-span-2">
-                        <button type="button" onClick={calculateWorkHoursAndDeductions} className="w-full py-2 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 text-sm font-medium transition">
-                            <i className="fas fa-calculator ml-2"></i>
-                            حساب ساعات العمل والخصومات
-                        </button>
-                    </div>
                 </div>
 
                 <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">الراتب الأساسي</label>
-                    <input type="number" name="basicSalary" value={formData.basicSalary} readOnly className="mt-1 block w-full rounded-md border-gray-300 bg-gray-100 dark:bg-gray-600 input-base" />
+                    <input type="number" name="basicSalary" value={formData.basicSalary === 0 ? '' : formData.basicSalary} readOnly className="mt-1 block w-full rounded-md border-gray-300 bg-gray-100 dark:bg-gray-600 input-base" />
                 </div>
                 <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">ساعات العمل</label>
-                    <input type="number" name="workHours" value={formData.workHours} onChange={handleChange} className="mt-1 block w-full input-base" />
+                    <input type="number" name="workHours" value={formData.workHours === 0 ? '' : formData.workHours} onChange={handleChange} className="mt-1 block w-full input-base" />
                 </div>
                 <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">حوافز</label>
-                    <input type="number" name="incentives" value={formData.incentives} onChange={handleChange} min="0" className="mt-1 block w-full input-base" />
+                    <input type="number" name="incentives" value={formData.incentives === 0 ? '' : formData.incentives} onChange={handleChange} min="0" className="mt-1 block w-full input-base" />
                 </div>
                 <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">خصومات (سلف/مصاريف)</label>
-                    <input type="number" name="deductions" value={formData.deductions} onChange={handleChange} min="0" className="mt-1 block w-full input-base text-red-600" />
+                    <input type="number" name="deductions" value={formData.deductions === 0 ? '' : formData.deductions} onChange={handleChange} min="0" className="mt-1 block w-full input-base text-red-600" />
                 </div>
                 <div className="md:col-span-2">
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">المبلغ المصروف *</label>
-                    <input type="number" name="disbursed" value={formData.disbursed} onChange={handleChange} required min="0" className="mt-1 block w-full input-base font-bold text-lg" />
+                    <input type="number" name="disbursed" value={formData.disbursed === 0 ? '' : formData.disbursed} onChange={handleChange} required min="0" className="mt-1 block w-full input-base font-bold text-lg" />
                     <p className="text-xs text-gray-500 mt-1">صافي الراتب المتوقع: {formatCurrency((formData.basicSalary + (formData.incentives || 0)) - (formData.deductions || 0))}</p>
                 </div>
                 <div className="md:col-span-2">

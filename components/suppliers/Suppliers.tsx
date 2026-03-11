@@ -200,8 +200,8 @@ const PaymentModal: React.FC<{
                     </select>
                 </div>
                 <div><label>التاريخ *</label><input type="date" name="date" value={formData.date} onChange={handleChange} required className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700" /></div>
-                <div><label>مبلغ الدفعة *</label><input type="number" name="payment" value={formData.payment} onChange={handleChange} required className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700" /></div>
-                <div><label>إجمالي الفاتورة *</label><input type="number" name="invoiceTotal" value={formData.invoiceTotal} onChange={handleChange} required className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700" /></div>
+                <div><label>مبلغ الدفعة *</label><input type="number" name="payment" value={formData.payment === 0 ? '' : formData.payment} onChange={handleChange} required className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700" /></div>
+                <div><label>إجمالي الفاتورة *</label><input type="number" name="invoiceTotal" value={formData.invoiceTotal === 0 ? '' : formData.invoiceTotal} onChange={handleChange} required className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700" /></div>
                 
                 <div>
                     <label>ربط بأمر شراء (اختياري)</label>

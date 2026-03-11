@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { DailySale, User } from '../../types';
 import SectionHeader from '../shared/SectionHeader';
 import DailySaleModal from './DailySaleModal';
@@ -15,7 +15,8 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
         updateDailySale, 
         deleteDailySale,
         addTreasuryTransaction, 
-        setProducts 
+        setProducts,
+        addExpense
     } = useStore(state => ({
         dailySales: state.appData?.dailySales || [],
         products: state.appData?.products || [],
@@ -23,7 +24,8 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
         updateDailySale: state.updateDailySale,
         deleteDailySale: state.deleteDailySale,
         addTreasuryTransaction: state.addTreasuryTransaction,
-        setProducts: state.setProducts
+        setProducts: state.setProducts,
+        addExpense: state.addExpense
     }));
     
     const [filterDate, setFilterDate] = useState(new Date().toISOString().split('T')[0]);
@@ -35,6 +37,20 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
     const [editingSale, setEditingSale] = useState<DailySale | null>(null);
     const [saleToDelete, setSaleToDelete] = useState<DailySale | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
+    const [isOnline, setIsOnline] = useState(navigator.onLine);
+
+    useEffect(() => {
+        const handleOnline = () => setIsOnline(true);
+        const handleOffline = () => setIsOnline(false);
+
+        window.addEventListener('online', handleOnline);
+        window.addEventListener('offline', handleOffline);
+
+        return () => {
+            window.removeEventListener('online', handleOnline);
+            window.removeEventListener('offline', handleOffline);
+        };
+    }, []);
 
     const today = new Date();
     const todayStr = today.toISOString().split('T')[0];
@@ -123,12 +139,24 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
             await updateDailySale(saleData.id, saleData);
         } else {
             const newSale = await addDailySale(finalSaleData);
-            const transactionType = newSale.direction === 'بيع' ? 'إيراد مبيعات' : 'مرتجع مبيعات';
-            await addTreasuryTransaction({
-                date: newSale.date, type: transactionType, description: `${newSale.direction} فاتورة #${newSale.invoiceNumber}`,
-                amountIn: newSale.direction === 'بيع' ? newSale.totalAmount : 0,
-                amountOut: newSale.direction !== 'بيع' ? newSale.totalAmount : 0, relatedId: newSale.id
-            });
+            
+            if (newSale.direction === 'هدية') {
+                // Add to expenses without deducting from treasury
+                await addExpense({
+                    date: newSale.date,
+                    name: 'هدية',
+                    amount: newSale.totalAmount, // Or calculate cost price if needed
+                    notes: `هدية من فاتورة #${newSale.invoiceNumber}`,
+                    type: 'عامة'
+                }, true); // true to skip treasury
+            } else {
+                const transactionType = newSale.direction === 'بيع' ? 'إيراد مبيعات' : 'مرتجع مبيعات';
+                await addTreasuryTransaction({
+                    date: newSale.date, type: transactionType, description: `${newSale.direction} فاتورة #${newSale.invoiceNumber}`,
+                    amountIn: newSale.direction === 'بيع' ? newSale.totalAmount : 0,
+                    amountOut: newSale.direction !== 'بيع' ? newSale.totalAmount : 0, relatedId: newSale.id
+                });
+            }
         }
         
         setModalOpen(false);
@@ -169,10 +197,18 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
     return (
         <div className="animate-fade-in space-y-6">
             <SectionHeader icon="fa-hand-holding-usd" title="مبيعات اليوم">
-                <button onClick={handleAddSale} className="px-4 py-2 bg-primary text-white rounded-lg flex items-center gap-2 hover:bg-primary-dark transition shadow-md">
-                    <i className="fas fa-plus"></i>
-                    فاتورة جديدة
-                </button>
+                <div className="flex items-center gap-4">
+                    {!isOnline && (
+                        <div className="bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-sm font-bold flex items-center gap-2 animate-pulse">
+                            <i className="fas fa-wifi-slash"></i>
+                            وضع عدم الاتصال (سيتم المزامنة لاحقاً)
+                        </div>
+                    )}
+                    <button onClick={handleAddSale} className="px-4 py-2 bg-primary text-white rounded-lg flex items-center gap-2 hover:bg-primary-dark transition shadow-md">
+                        <i className="fas fa-plus"></i>
+                        فاتورة جديدة
+                    </button>
+                </div>
             </SectionHeader>
 
             {/* Filters */}
@@ -211,10 +247,10 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
                         className="p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 min-w-[150px]"
                     >
                         <option value="all">الكل</option>
-                        <option value="main">المخزن الرئيسي</option>
-                        <option value="branch1">فرع 1</option>
-                        <option value="branch2">فرع 2</option>
-                        <option value="branch3">فرع 3</option>
+                        <option value="main">المخزن</option>
+                        <option value="branch1">الرئيسي</option>
+                        <option value="branch2">فرع 1</option>
+                        <option value="branch3">فرع 2</option>
                     </select>
                 </div>
 
@@ -258,7 +294,7 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
                             <th scope="col" className="px-6 py-3">رقم الفاتورة</th>
                             <th scope="col" className="px-6 py-3">عدد الأصناف</th>
                             <th scope="col" className="px-6 py-3">الإجمالي</th>
-                            <th scope="col" className="px-6 py-3">الاتجاه</th>
+                            <th scope="col" className="px-6 py-3">التوجيه</th>
                             <th scope="col" className="px-6 py-3">البائع</th>
                             <th scope="col" className="px-6 py-3">الإجراءات</th>
                         </tr>

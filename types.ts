@@ -9,6 +9,7 @@ export enum Role {
     BranchManager = 'manager',
     Seller = 'seller',
     Accountant = 'accountant',
+    Cashier = 'cashier',
 }
 
 export enum Section {
@@ -81,11 +82,19 @@ export interface DailySale {
     sellerName: string;
     source: 'المحل' | 'أونلاين';
     branchSoldFrom: Branch;
-    direction: 'بيع' | 'مرتجع' | 'تبديل' | 'ضمان';
+    direction: 'بيع' | 'مرتجع' | 'تبديل' | 'ضمان' | 'هدية';
     invoiceType?: 'wholesale' | 'retail'; // Added
     discount?: number; // Added (percentage)
     totalAmount: number;
     notes?: string;
+    cashierLocation?: 'فوق' | 'تحت'; // Added
+    warrantyPeriod?: string; // Added
+    paymentMethod?: 'نقدى' | 'إلكترونى' | 'مختلط' | 'آجل';
+    cashAmount?: number;
+    electronicAmount?: number;
+    customerName?: string;
+    customerPhone?: string;
+    remainingDebt?: number;
 
     // New multi-item structure (optional for backward compatibility)
     items?: SaleItem[];

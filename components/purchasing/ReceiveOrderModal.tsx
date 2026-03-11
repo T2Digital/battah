@@ -35,10 +35,10 @@ const ReceiveOrderModal: React.FC<ReceiveOrderModalProps> = ({ isOpen, onClose, 
                 <div>
                     <label>استلام في مخزن *</label>
                     <select value={receivedInto} onChange={e => setReceivedInto(e.target.value as any)} required className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700">
-                        <option value="main">المخزن الرئيسي</option>
-                        <option value="branch1">فرع 1</option>
-                        <option value="branch2">فرع 2</option>
-                        <option value="branch3">فرع 3</option>
+                        <option value="main">المخزن</option>
+                        <option value="branch1">الرئيسي</option>
+                        <option value="branch2">فرع 1</option>
+                        <option value="branch3">فرع 2</option>
                     </select>
                 </div>
 
@@ -52,7 +52,7 @@ const ReceiveOrderModal: React.FC<ReceiveOrderModalProps> = ({ isOpen, onClose, 
                                     <label>الكمية:</label>
                                     <input
                                         type="number"
-                                        value={item.quantity}
+                                        value={item.quantity === 0 ? '' : item.quantity}
                                         onChange={e => handleQuantityChange(index, Number(e.target.value))}
                                         className="w-20 p-1 border rounded dark:bg-gray-600"
                                     />
