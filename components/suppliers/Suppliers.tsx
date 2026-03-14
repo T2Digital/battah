@@ -3,6 +3,7 @@ import { Supplier, Payment, PurchaseOrder } from '../../types';
 import SectionHeader from '../shared/SectionHeader';
 import Modal from '../shared/Modal';
 import ConfirmationModal from '../shared/ConfirmationModal';
+import PurchaseOrderModal from '../purchasing/PurchaseOrderModal';
 import { formatDate, formatCurrency } from '../../lib/utils';
 import useStore from '../../lib/store';
 
@@ -220,7 +221,15 @@ const PaymentModal: React.FC<{
 
 
 const Suppliers: React.FC<SuppliersProps> = ({ suppliers, payments, addPayment, updatePayment, deletePayment, purchaseOrders }) => {
-    const { addSupplier, updateSupplier, deleteSupplier } = useStore();
+    const { addSupplier, updateSupplier, deleteSupplier, products, addProduct, addPurchaseOrder, updateProduct } = useStore(state => ({
+        addSupplier: state.addSupplier,
+        updateSupplier: state.updateSupplier,
+        deleteSupplier: state.deleteSupplier,
+        products: state.appData?.products || [],
+        addProduct: state.addProduct,
+        addPurchaseOrder: state.addPurchaseOrder,
+        updateProduct: state.updateProduct
+    }));
     const [activeTab, setActiveTab] = useState<'suppliers' | 'payments'>('suppliers');
     
     const [isSupplierModalOpen, setSupplierModalOpen] = useState(false);
@@ -231,6 +240,8 @@ const Suppliers: React.FC<SuppliersProps> = ({ suppliers, payments, addPayment, 
     const [paymentToEdit, setPaymentToEdit] = useState<Payment | null>(null);
     const [paymentToDelete, setPaymentToDelete] = useState<Payment | null>(null);
     
+    const [isDirectStatementModalOpen, setDirectStatementModalOpen] = useState(false);
+
     const [isDeleting, setIsDeleting] = useState(false);
 
     const handleSaveSupplier = (supplier: Omit<Supplier, 'id'> & { id?: number }) => {
@@ -279,6 +290,28 @@ const Suppliers: React.FC<SuppliersProps> = ({ suppliers, payments, addPayment, 
         }
     };
     
+    const handleSaveDirectStatement = async (order: Omit<PurchaseOrder, 'id'> & { id?: number }, branch: 'main' | 'branch1' | 'branch2' | 'branch3') => {
+        try {
+            // 1. Add the purchase order (it will be marked as 'مكتمل' by the modal)
+            await addPurchaseOrder(order);
+            
+            // 2. Update the stock for each item
+            for (const item of order.items) {
+                const product = products.find(p => p.id === item.productId);
+                if (product) {
+                    const newStock = { ...product.stock };
+                    newStock[branch] += item.quantity;
+                    await updateProduct(product.id, { stock: newStock });
+                }
+            }
+            setDirectStatementModalOpen(false);
+            alert('تم إضافة بيان البضاعة وتحديث المخزون بنجاح.');
+        } catch (error) {
+            console.error("Failed to save direct statement:", error);
+            alert('حدث خطأ أثناء حفظ بيان البضاعة.');
+        }
+    };
+
     const paymentsWithDetails = useMemo(() => {
         return payments
             .map(p => ({...p, supplierName: suppliers.find(s => s.id === p.supplierId)?.name || 'غير معروف'}))
@@ -293,6 +326,9 @@ const Suppliers: React.FC<SuppliersProps> = ({ suppliers, payments, addPayment, 
                 </button>
                 <button onClick={() => { setPaymentToEdit(null); setPaymentModalOpen(true); }} className="px-4 py-2 bg-secondary text-white rounded-lg flex items-center gap-2 hover:bg-secondary-dark transition shadow-md">
                     <i className="fas fa-money-bill"></i> إضافة دفعة
+                </button>
+                <button onClick={() => setDirectStatementModalOpen(true)} className="px-4 py-2 bg-green-600 text-white rounded-lg flex items-center gap-2 hover:bg-green-700 transition shadow-md">
+                    <i className="fas fa-file-invoice"></i> بيان بضاعة مباشر
                 </button>
             </SectionHeader>
             
@@ -365,6 +401,20 @@ const Suppliers: React.FC<SuppliersProps> = ({ suppliers, payments, addPayment, 
             
             <SupplierModal isOpen={isSupplierModalOpen} onClose={() => setSupplierModalOpen(false)} onSave={handleSaveSupplier} supplierToEdit={supplierToEdit} />
             <PaymentModal isOpen={isPaymentModalOpen} onClose={() => setPaymentModalOpen(false)} onSave={handleSavePayment} paymentToEdit={paymentToEdit} suppliers={suppliers} purchaseOrders={purchaseOrders}/>
+
+            {isDirectStatementModalOpen && (
+                <PurchaseOrderModal
+                    isOpen={isDirectStatementModalOpen}
+                    onClose={() => setDirectStatementModalOpen(false)}
+                    onSave={() => {}} // Not used for direct statement
+                    orderToEdit={null}
+                    suppliers={suppliers}
+                    products={products}
+                    addProduct={addProduct}
+                    isDirectStatement={true}
+                    onSaveDirect={handleSaveDirectStatement}
+                />
+            )}
 
             {supplierToDelete && (
                 <ConfirmationModal

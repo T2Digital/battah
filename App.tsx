@@ -96,8 +96,14 @@ const App: React.FC = () => {
             
             if (!existingReview) {
                 const yesterdaySales = appData.dailySales?.filter(s => s.date === yesterdayStr) || [];
-                const salesCash = yesterdaySales.reduce((sum, s) => sum + s.totalAmount, 0);
-                const salesElectronic = 0;
+                const salesCash = yesterdaySales.reduce((sum, s) => {
+                    if (s.direction === 'مرتجع') return sum - (s.cashAmount || (s.paymentMethod === 'نقدى' ? s.totalAmount : 0));
+                    return sum + (s.cashAmount || (s.paymentMethod === 'نقدى' ? s.totalAmount : 0));
+                }, 0);
+                const salesElectronic = yesterdaySales.reduce((sum, s) => {
+                    if (s.direction === 'مرتجع') return sum - (s.electronicAmount || (s.paymentMethod === 'إلكترونى' ? s.totalAmount : 0));
+                    return sum + (s.electronicAmount || (s.paymentMethod === 'إلكترونى' ? s.totalAmount : 0));
+                }, 0);
                 const totalSales = salesCash + salesElectronic;
                 
                 const yesterdayExpenses = appData.expenses?.filter(e => e.date.startsWith(yesterdayStr)).reduce((sum, e) => sum + e.amount, 0) || 0;
@@ -329,7 +335,7 @@ const App: React.FC = () => {
 
     // --- Admin View Logic ---
     if (!currentUser) {
-        return <LoginModal />;
+        return <LoginModal setViewMode={setViewMode} />;
     }
 
     if (isLoading || !isInitialized || !appData) {

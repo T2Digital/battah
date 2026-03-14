@@ -1,15 +1,17 @@
 
 import React, { useState } from 'react';
-// Fix: Corrected import paths
 import { Product } from '../../types';
 import SectionHeader from '../shared/SectionHeader';
 import ProductSelectorModal from './ProductSelectorModal';
+import Modal from '../shared/Modal';
 import useStore from '../../lib/store';
 import { 
     generateProductCardexReportContent,
     generateReorderPointReportContent,
-    generateSalesAnalysisReportContent
+    generateSalesAnalysisReportContent,
+    generateInventoryReportContent
 } from '../../lib/reportTemplates';
+import InventoryCheckView from './InventoryCheckView';
 
 interface InventoryReportsProps {
     setActiveReport: (report: string | null) => void;
@@ -18,8 +20,13 @@ interface InventoryReportsProps {
 const InventoryReports: React.FC<InventoryReportsProps> = ({ setActiveReport }) => {
     const appData = useStore(state => state.appData);
     const [isProductSelectorOpen, setProductSelectorOpen] = useState(false);
+    const [isJardViewOpen, setIsJardViewOpen] = useState(false);
 
     if (!appData) return <div>Loading report data...</div>;
+
+    if (isJardViewOpen) {
+        return <InventoryCheckView onBack={() => setIsJardViewOpen(false)} />;
+    }
 
     const openReportWindow = (title: string, content: string) => {
         const reportWindow = window.open('', '_blank');
@@ -61,6 +68,7 @@ const InventoryReports: React.FC<InventoryReportsProps> = ({ setActiveReport }) 
                 <ReportCard icon="fa-exchange-alt" title="تقرير حركة صنف" description="تتبع كل الحركات على صنف معين (كارت الصنف)" onClick={() => setProductSelectorOpen(true)} />
                 <ReportCard icon="fa-exclamation-triangle" title="تقرير حد الطلب" description="عرض الأصناف التي وصلت لكمية إعادة الطلب" onClick={() => openReportWindow('تقرير حد الطلب', generateReorderPointReportContent(appData))} />
                 <ReportCard icon="fa-chart-bar" title="تحليل المبيعات" description="عرض الأصناف الأكثر والأقل مبيعاً" onClick={() => openReportWindow('تحليل المبيعات', generateSalesAnalysisReportContent(appData))} />
+                <ReportCard icon="fa-clipboard-check" title="جرد المخزون الفعلي" description="إدخال الجرد الفعلي ومطابقته مع الدفتري" onClick={() => setIsJardViewOpen(true)} />
             </div>
 
             {isProductSelectorOpen && (

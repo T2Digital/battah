@@ -28,7 +28,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, cartItem
     const [discountMessage, setDiscountMessage] = useState({ text: '', type: 'info' });
 
     const { appData } = useStore();
-    const electronicPaymentNumber = appData?.settings?.electronicPaymentNumber || '01012345678';
+    const electronicPaymentNumber = appData?.settings?.electronicPaymentNumber || '01080444447';
     const paymentSectionRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -142,7 +142,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, cartItem
             
             localStorage.removeItem('checkoutData');
 
-            const businessPhoneNumber = '201068466666'; 
+            const businessPhoneNumber = '201080444447'; 
             let message = `*طلب جديد من متجر بطاح الأصلي*\n\n`;
             message += `*الاسم:* ${customerDetails.name}\n`;
             message += `*الهاتف:* ${customerDetails.phone}\n`;

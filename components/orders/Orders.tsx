@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Order, Role } from '../../types';
 import SectionHeader from '../shared/SectionHeader';
-import { formatDate, formatCurrency } from '../../lib/utils';
+import { formatDate, formatCurrency, formatDateTime } from '../../lib/utils';
 import useStore from '../../lib/store';
 import Modal from '../shared/Modal';
 import ConfirmationModal from '../shared/ConfirmationModal';
@@ -17,7 +17,8 @@ const OrderDetailsModal: React.FC<{
         if (cleanPhone.startsWith('0')) cleanPhone = cleanPhone.substring(1);
         if (!cleanPhone.startsWith('20')) cleanPhone = '20' + cleanPhone;
 
-        const message = `مرحباً ${order.customerName}،\nتم استلام طلبك رقم #${order.id}.\nالإجمالي: ${formatCurrency(order.totalAmount)}.\nشكراً لتسوقك معنا!`;
+        const locationText = order.locationLink ? `\nرابط الموقع: ${order.locationLink}` : '';
+        const message = `مرحباً ${order.customerName}،\nتم استلام طلبك رقم #${order.id}.\nالإجمالي: ${formatCurrency(order.totalAmount)}.${locationText}\nشكراً لتسوقك معنا!`;
         return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
     };
 
@@ -203,7 +204,7 @@ const Orders: React.FC = () => {
                     <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-300">
                         <tr>
                             <th className="px-6 py-3">رقم الطلب</th>
-                            <th className="px-6 py-3">التاريخ</th>
+                            <th className="px-6 py-3">التاريخ والوقت</th>
                             <th className="px-6 py-3">العميل</th>
                             <th className="px-6 py-3">الإجمالي</th>
                             <th className="px-6 py-3">الدفع</th>
@@ -217,8 +218,20 @@ const Orders: React.FC = () => {
                             return (
                             <tr key={order.id || `corrupted-${index}`} className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
                                 <td className={`px-6 py-4 font-bold ${isCorrupted ? 'text-red-500' : ''}`}>#{order.id || 'N/A'}</td>
-                                <td className="px-6 py-4">{formatDate(order.date)}</td>
-                                <td className="px-6 py-4 font-medium text-gray-900 dark:text-white">{order.customerName}</td>
+                                <td className="px-6 py-4 whitespace-nowrap" dir="ltr">{formatDateTime(order.date, order.timestamp)}</td>
+                                <td className="px-6 py-4 font-medium text-gray-900 dark:text-white">
+                                    <div>{order.customerName}</div>
+                                    <div className="text-xs text-gray-500 mt-1 flex items-center gap-2">
+                                        <a href={`tel:${order.customerPhone}`} className="hover:text-blue-500" title="اتصال">
+                                            <i className="fas fa-phone"></i> {order.customerPhone}
+                                        </a>
+                                        {order.locationLink && (
+                                            <a href={order.locationLink} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:text-blue-700" title="الموقع">
+                                                <i className="fas fa-map-marker-alt"></i>
+                                            </a>
+                                        )}
+                                    </div>
+                                </td>
                                 <td className="px-6 py-4">{formatCurrency(order.totalAmount)}</td>
                                 <td className="px-6 py-4">{order.paymentMethod === 'cod' ? 'عند الاستلام' : 'إلكتروني'}</td>
                                 <td className="px-6 py-4">

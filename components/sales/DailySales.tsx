@@ -3,7 +3,7 @@ import { DailySale, User } from '../../types';
 import SectionHeader from '../shared/SectionHeader';
 import DailySaleModal from './DailySaleModal';
 import ConfirmationModal from '../shared/ConfirmationModal';
-import { formatCurrency, normalizeSaleItems } from '../../lib/utils';
+import { formatCurrency, normalizeSaleItems, formatDateTime } from '../../lib/utils';
 import { generateInvoiceContent } from '../../lib/reportTemplates';
 import useStore from '../../lib/store';
 
@@ -16,6 +16,7 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
         deleteDailySale,
         addTreasuryTransaction, 
         setProducts,
+        updateProduct,
         addExpense
     } = useStore(state => ({
         dailySales: state.appData?.dailySales || [],
@@ -25,12 +26,14 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
         deleteDailySale: state.deleteDailySale,
         addTreasuryTransaction: state.addTreasuryTransaction,
         setProducts: state.setProducts,
+        updateProduct: state.updateProduct,
         addExpense: state.addExpense
     }));
     
     const [filterDate, setFilterDate] = useState(new Date().toISOString().split('T')[0]);
+    const [filterPeriod, setFilterPeriod] = useState<'daily' | 'weekly' | 'monthly' | 'yearly'>('daily');
     const [filterSeller, setFilterSeller] = useState<string>('all');
-    const [filterBranch, setFilterBranch] = useState<string>('all');
+    const [filterBranch, setFilterBranch] = useState<string>(currentUser?.role === 'admin' ? 'all' : (currentUser?.branch || 'all'));
     const [filterSource, setFilterSource] = useState<'all' | 'المحل' | 'أونلاين'>('all');
     
     const [isModalOpen, setModalOpen] = useState(false);
@@ -59,7 +62,24 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
     const todaySales = useMemo(() => {
         return dailySales
             .filter(sale => {
-                const dateMatch = sale.date === filterDate;
+                let dateMatch = false;
+                const saleDate = new Date(sale.date);
+                const filterD = new Date(filterDate);
+                
+                if (filterPeriod === 'daily') {
+                    dateMatch = sale.date === filterDate;
+                } else if (filterPeriod === 'weekly') {
+                    const startOfWeek = new Date(filterD);
+                    startOfWeek.setDate(filterD.getDate() - filterD.getDay());
+                    const endOfWeek = new Date(startOfWeek);
+                    endOfWeek.setDate(startOfWeek.getDate() + 6);
+                    dateMatch = saleDate >= startOfWeek && saleDate <= endOfWeek;
+                } else if (filterPeriod === 'monthly') {
+                    dateMatch = saleDate.getMonth() === filterD.getMonth() && saleDate.getFullYear() === filterD.getFullYear();
+                } else if (filterPeriod === 'yearly') {
+                    dateMatch = saleDate.getFullYear() === filterD.getFullYear();
+                }
+
                 const sellerMatch = filterSeller === 'all' || sale.sellerId === filterSeller;
                 const branchMatch = filterBranch === 'all' || sale.branchSoldFrom === filterBranch;
                 const sourceMatch = filterSource === 'all' || sale.source === filterSource;
@@ -70,7 +90,7 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
                 return dateMatch && sellerMatch && branchMatch && sourceMatch;
             })
             .sort((a,b) => b.id - a.id);
-    }, [dailySales, filterDate, filterSeller, filterBranch, filterSource, currentUser]);
+    }, [dailySales, filterDate, filterPeriod, filterSeller, filterBranch, filterSource, currentUser]);
 
     const { totalSales, transactionsCount } = useMemo(() => {
         const total = todaySales.reduce((sum, sale) => {
@@ -127,13 +147,14 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
             stockChanges.set(item.productId, (stockChanges.get(item.productId) || 0) + quantityToApply);
         });
 
-        const updatedProducts = products.map(p => {
-            if (stockChanges.has(p.id)) {
-                return { ...p, stock: { ...p.stock, [finalSaleData.branchSoldFrom]: p.stock[finalSaleData.branchSoldFrom] + (stockChanges.get(p.id) || 0) } };
+        // Update only the products that changed
+        for (const [productId, change] of stockChanges.entries()) {
+            const product = products.find(p => p.id === productId);
+            if (product) {
+                const newStock = { ...product.stock, [finalSaleData.branchSoldFrom]: (product.stock[finalSaleData.branchSoldFrom] || 0) + change };
+                await updateProduct(productId, { stock: newStock });
             }
-            return p;
-        });
-        await setProducts(updatedProducts);
+        }
 
         if (isEditing && saleData.id) {
             await updateDailySale(saleData.id, saleData);
@@ -151,11 +172,26 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
                 }, true); // true to skip treasury
             } else {
                 const transactionType = newSale.direction === 'بيع' ? 'إيراد مبيعات' : 'مرتجع مبيعات';
-                await addTreasuryTransaction({
-                    date: newSale.date, type: transactionType, description: `${newSale.direction} فاتورة #${newSale.invoiceNumber}`,
-                    amountIn: newSale.direction === 'بيع' ? newSale.totalAmount : 0,
-                    amountOut: newSale.direction !== 'بيع' ? newSale.totalAmount : 0, relatedId: newSale.id
-                });
+                
+                if (newSale.paymentMethod === 'مختلط' && newSale.cashAmount && newSale.electronicAmount) {
+                    await addTreasuryTransaction({
+                        date: newSale.date, type: transactionType, description: `${newSale.direction} فاتورة #${newSale.invoiceNumber} (نقدي)`,
+                        amountIn: newSale.direction === 'بيع' ? newSale.cashAmount : 0,
+                        amountOut: newSale.direction !== 'بيع' ? newSale.cashAmount : 0, relatedId: newSale.id, paymentMethod: 'cash'
+                    });
+                    await addTreasuryTransaction({
+                        date: newSale.date, type: transactionType, description: `${newSale.direction} فاتورة #${newSale.invoiceNumber} (إلكتروني)`,
+                        amountIn: newSale.direction === 'بيع' ? newSale.electronicAmount : 0,
+                        amountOut: newSale.direction !== 'بيع' ? newSale.electronicAmount : 0, relatedId: newSale.id, paymentMethod: 'electronic'
+                    });
+                } else {
+                    const method = newSale.paymentMethod === 'إلكترونى' ? 'electronic' : 'cash';
+                    await addTreasuryTransaction({
+                        date: newSale.date, type: transactionType, description: `${newSale.direction} فاتورة #${newSale.invoiceNumber}`,
+                        amountIn: newSale.direction === 'بيع' ? newSale.totalAmount : 0,
+                        amountOut: newSale.direction !== 'بيع' ? newSale.totalAmount : 0, relatedId: newSale.id, paymentMethod: method
+                    });
+                }
             }
         }
         
@@ -178,15 +214,30 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
             return `- ${product?.name || 'صنف'} (${item.quantity}) ${formatCurrency(item.unitPrice)}`;
         }).join('%0a');
 
+        const locationText = sale.locationLink ? `*رابط الموقع:* ${sale.locationLink}%0a` : '';
         const message = `*فاتورة رقم: ${sale.invoiceNumber}*%0a` +
             `*التاريخ:* ${sale.date}%0a` +
             `*الإجمالي:* ${formatCurrency(sale.totalAmount)}%0a` +
+            locationText +
             `------------------%0a` +
             `*الأصناف:*%0a${itemsList}%0a` +
             `------------------%0a` +
             `شكراً لتعاملكم مع بطاح الأصلي!`;
 
         window.open(`https://wa.me/?text=${message}`, '_blank');
+    };
+
+    const handlePrintFilteredSales = () => {
+        import('../../lib/reportTemplates').then(({ generateFilteredSalesReportContent }) => {
+            const content = generateFilteredSalesReportContent(todaySales, filterDate, filterPeriod);
+            const reportWindow = window.open('', '_blank');
+            if (reportWindow) {
+                reportWindow.document.write(content);
+                reportWindow.document.close();
+            } else {
+                alert("يرجى السماح بالنوافذ المنبثقة لفتح التقرير.");
+            }
+        });
     };
 
     const uniqueSellers = useMemo(() => {
@@ -204,6 +255,10 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
                             وضع عدم الاتصال (سيتم المزامنة لاحقاً)
                         </div>
                     )}
+                    <button onClick={handlePrintFilteredSales} className="px-4 py-2 bg-secondary text-white rounded-lg flex items-center gap-2 hover:bg-secondary-dark transition shadow-md">
+                        <i className="fas fa-print"></i>
+                        طباعة المبيعات
+                    </button>
                     <button onClick={handleAddSale} className="px-4 py-2 bg-primary text-white rounded-lg flex items-center gap-2 hover:bg-primary-dark transition shadow-md">
                         <i className="fas fa-plus"></i>
                         فاتورة جديدة
@@ -214,7 +269,20 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
             {/* Filters */}
             <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border dark:border-gray-700 flex flex-wrap gap-4 items-end">
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">التاريخ</label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">فترة العرض</label>
+                    <select 
+                        value={filterPeriod} 
+                        onChange={(e) => setFilterPeriod(e.target.value as any)}
+                        className="p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 min-w-[120px]"
+                    >
+                        <option value="daily">يومي</option>
+                        <option value="weekly">أسبوعي</option>
+                        <option value="monthly">شهري</option>
+                        <option value="yearly">سنوي</option>
+                    </select>
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">التاريخ المرجعي</label>
                     <input 
                         type="date" 
                         value={filterDate} 
@@ -239,20 +307,22 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
                     </div>
                 )}
 
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">الفرع</label>
-                    <select 
-                        value={filterBranch} 
-                        onChange={(e) => setFilterBranch(e.target.value)}
-                        className="p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 min-w-[150px]"
-                    >
-                        <option value="all">الكل</option>
-                        <option value="main">المخزن</option>
-                        <option value="branch1">الرئيسي</option>
-                        <option value="branch2">فرع 1</option>
-                        <option value="branch3">فرع 2</option>
-                    </select>
-                </div>
+                {currentUser?.role === 'admin' && (
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">الفرع</label>
+                        <select 
+                            value={filterBranch} 
+                            onChange={(e) => setFilterBranch(e.target.value)}
+                            className="p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 min-w-[150px]"
+                        >
+                            <option value="all">الكل</option>
+                            <option value="main">المخزن</option>
+                            <option value="branch1">الرئيسي</option>
+                            <option value="branch2">فرع 1</option>
+                            <option value="branch3">فرع 2</option>
+                        </select>
+                    </div>
+                )}
 
                 <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">المصدر</label>
@@ -292,6 +362,7 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
                     <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-300">
                         <tr>
                             <th scope="col" className="px-6 py-3">رقم الفاتورة</th>
+                            <th scope="col" className="px-6 py-3">التاريخ والوقت</th>
                             <th scope="col" className="px-6 py-3">عدد الأصناف</th>
                             <th scope="col" className="px-6 py-3">الإجمالي</th>
                             <th scope="col" className="px-6 py-3">التوجيه</th>
@@ -302,7 +373,7 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
                     <tbody>
                         {todaySales.length === 0 ? (
                             <tr>
-                                <td colSpan={6} className="text-center py-8 text-gray-500">لا توجد فواتير مسجلة اليوم.</td>
+                                <td colSpan={7} className="text-center py-8 text-gray-500">لا توجد فواتير مسجلة اليوم.</td>
                             </tr>
                         ) : (
                             todaySales.map(sale => {
@@ -310,6 +381,7 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
                                 return (
                                 <tr key={sale.id} className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 even:bg-gray-50 dark:even:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-700">
                                     <td className="px-6 py-4 font-medium text-gray-900 whitespace-nowrap dark:text-white">{sale.invoiceNumber}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap" dir="ltr">{formatDateTime(sale.date, sale.timestamp)}</td>
                                     <td className="px-6 py-4">{items.length}</td>
                                     <td className="px-6 py-4 font-semibold">{formatCurrency(sale.totalAmount)}</td>
                                     <td className="px-6 py-4">{sale.direction}</td>

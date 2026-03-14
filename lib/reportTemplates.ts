@@ -1,7 +1,7 @@
 
 
 import { AppData, DailySale, Product } from '../types';
-import { formatCurrency, formatDate, calculateHours, normalizeSaleItems } from './utils';
+import { formatCurrency, formatDate, formatDateTime, calculateHours, normalizeSaleItems } from './utils';
 
 const getReportStyles = (themeColor: string) => `
 <style>
@@ -195,12 +195,12 @@ export const generateInvoiceContent = (sale: DailySale, products: Product[]) => 
             <h1 style="margin: 0; font-size: 20px; font-weight: bold;">بطاح الأصلي</h1>
             <p style="margin: 0; font-size: 12px;">لقطع غيار السيارات</p>
             <p style="margin: 0; font-size: 10px;">79 شارع رمسيس ناصية التوفيقية</p>
-            <p style="margin: 0; font-size: 10px;">تليفون: 01000000000</p>
+            <p style="margin: 0; font-size: 10px;">تليفون: 01080444447</p>
         </div>
         <hr>
         <div style="font-size: 12px; margin-bottom: 5px;">
             <div><strong>رقم الفاتورة:</strong> ${sale.invoiceNumber}</div>
-            <div><strong>التاريخ:</strong> ${formatDate(sale.date)}</div>
+            <div><strong>التاريخ والوقت:</strong> ${formatDateTime(sale.date, sale.timestamp)}</div>
             <div><strong>البائع:</strong> ${sale.sellerName}</div>
             ${sale.customerName ? `<div><strong>العميل:</strong> ${sale.customerName}</div>` : ''}
             ${sale.customerPhone ? `<div><strong>تليفون العميل:</strong> ${sale.customerPhone}</div>` : ''}
@@ -376,14 +376,14 @@ export const generateEmployeesReportContent = (appData: AppData) => {
             </div>
         </div>
         <table>
-            <thead><tr><th>الاسم</th><th>المنصب</th><th>الراتب</th><th>تاريخ التوظيف</th><th>الهاتف</th></tr></thead>
+            <thead><tr><th>الاسم</th><th>المنصب</th><th>الراتب</th><th>تاريخ التوظيف والوقت</th><th>الهاتف</th></tr></thead>
             <tbody>
                 ${employees.map(e => `
                     <tr>
                         <td>${e.name}</td>
                         <td>${e.position}</td>
                         <td>${formatCurrency(e.basicSalary)}</td>
-                        <td>${formatDate(e.hireDate)}</td>
+                        <td dir="ltr">${formatDateTime(e.hireDate, e.timestamp)}</td>
                         <td>${e.phone || '-'}</td>
                     </tr>`).join('')}
                 <tr class="total-row">
@@ -418,12 +418,12 @@ export const generateAdvancesReportContent = (appData: AppData) => {
             </div>
         </div>
         <table>
-            <thead><tr><th>التاريخ</th><th>الموظف</th><th>المبلغ</th><th>المسدد</th><th>المتبقي</th><th>الحالة</th></tr></thead>
+            <thead><tr><th>التاريخ والوقت</th><th>الموظف</th><th>المبلغ</th><th>المسدد</th><th>المتبقي</th><th>الحالة</th></tr></thead>
             <tbody>
                 ${advances.map(a => {
                     const remaining = a.amount - a.payment;
                     return `<tr>
-                        <td>${formatDate(a.date)}</td>
+                        <td dir="ltr">${formatDateTime(a.date, a.timestamp)}</td>
                         <td>${getEmployeeName(a.employeeId)}</td>
                         <td>${formatCurrency(a.amount)}</td>
                         <td>${formatCurrency(a.payment)}</td>
@@ -454,10 +454,10 @@ export const generateAttendanceReportContent = (appData: AppData) => {
         <div class="header"><h1>شركة بطاح الأصلي لقطع غيار السيارات</h1><h2>تقرير الحضور</h2><p>تاريخ التقرير: ${formatDate(new Date().toISOString())}</p></div>
         <div class="summary"><h3>ملخص الحضور</h3><div class="summary-grid"><div class="summary-item"><p>إجمالي الساعات</p><strong>${totalHours.toFixed(2)} ساعة</strong></div></div></div>
         <table>
-            <thead><tr><th>التاريخ</th><th>الموظف</th><th>الحاضر</th><th>الانصراف</th><th>الساعات</th></tr></thead>
+            <thead><tr><th>التاريخ والوقت</th><th>الموظف</th><th>الحاضر</th><th>الانصراف</th><th>الساعات</th></tr></thead>
             <tbody>
                 ${attendance.map(a => `<tr>
-                    <td>${formatDate(a.date)}</td>
+                    <td dir="ltr">${formatDateTime(a.date, a.timestamp)}</td>
                     <td>${getEmployeeName(a.employeeId)}</td>
                     <td>${a.checkIn}</td>
                     <td>${a.checkOut}</td>
@@ -479,10 +479,10 @@ export const generatePayrollReportContent = (appData: AppData) => {
         <div class="header"><h1>شركة بطاح الأصلي لقطع غيار السيارات</h1><h2>تقرير المرتبات</h2><p>تاريخ التقرير: ${formatDate(new Date().toISOString())}</p></div>
         <div class="summary"><h3>ملخص المرتبات</h3><div class="summary-grid"><div class="summary-item"><p>إجمالي المصروف</p><strong>${formatCurrency(totalDisbursed)}</strong></div></div></div>
         <table>
-            <thead><tr><th>التاريخ</th><th>الموظف</th><th>الراتب الأساسي</th><th>المصروف</th><th>المتبقي</th></tr></thead>
+            <thead><tr><th>التاريخ والوقت</th><th>الموظف</th><th>الراتب الأساسي</th><th>المصروف</th><th>المتبقي</th></tr></thead>
             <tbody>
                 ${payroll.map(p => `<tr>
-                    <td>${formatDate(p.date)}</td>
+                    <td dir="ltr">${formatDateTime(p.date, p.timestamp)}</td>
                     <td>${getEmployeeName(p.employeeId)}</td>
                     <td>${formatCurrency(p.basicSalary)}</td>
                     <td>${formatCurrency(p.disbursed)}</td>
@@ -502,10 +502,10 @@ export const generateExpensesReportContent = (appData: AppData) => {
         <div class="header"><h1>شركة بطاح الأصلي لقطع غيار السيارات</h1><h2>تقرير المصاريف</h2><p>تاريخ التقرير: ${formatDate(new Date().toISOString())}</p></div>
         <div class="summary"><h3>ملخص المصاريف</h3><div class="summary-grid"><div class="summary-item"><p>إجمالي المصاريف</p><strong>${formatCurrency(totalAmount)}</strong></div></div></div>
         <table>
-            <thead><tr><th>التاريخ</th><th>النوع</th><th>الاسم</th><th>المبلغ</th></tr></thead>
+            <thead><tr><th>التاريخ والوقت</th><th>النوع</th><th>الاسم</th><th>المبلغ</th></tr></thead>
             <tbody>
                 ${expenses.map(e => `<tr>
-                    <td>${formatDate(e.date)}</td>
+                    <td dir="ltr">${formatDateTime(e.date, e.timestamp)}</td>
                     <td>${e.type}</td>
                     <td>${e.name}</td>
                     <td>${formatCurrency(e.amount)}</td>
@@ -532,10 +532,10 @@ export const generateSuppliersReportContent = (appData: AppData) => {
         </div></div>
         <h3>الدفعات</h3>
         <table>
-            <thead><tr><th>التاريخ</th><th>المورد</th><th>الدفعة</th><th>الفاتورة</th></tr></thead>
+            <thead><tr><th>التاريخ والوقت</th><th>المورد</th><th>الدفعة</th><th>الفاتورة</th></tr></thead>
             <tbody>
                 ${payments.map(p => `<tr>
-                    <td>${formatDate(p.date)}</td>
+                    <td dir="ltr">${formatDateTime(p.date, p.timestamp)}</td>
                     <td>${getSupplierName(p.supplierId)}</td>
                     <td>${formatCurrency(p.payment)}</td>
                     <td>${formatCurrency(p.invoiceTotal)}</td>
@@ -545,6 +545,171 @@ export const generateSuppliersReportContent = (appData: AppData) => {
         <div class="footer"><p>تم إنشاء هذا التقرير بواسطة نظام إدارة شركة بطاح الأصلي المتكامل</p></div>
         `;
     return generateReportHTML('تقرير الموردين', '#10b981', content);
+};
+
+export const generateFilteredSalesReportContent = (sales: DailySale[], filterDate: string, filterPeriod: string) => {
+    let periodText = 'يومي';
+    if (filterPeriod === 'weekly') periodText = 'أسبوعي';
+    if (filterPeriod === 'monthly') periodText = 'شهري';
+    if (filterPeriod === 'yearly') periodText = 'سنوي';
+
+    let html = `
+        <!DOCTYPE html>
+        <html lang="ar" dir="rtl">
+        <head>
+            <meta charset="UTF-8">
+            <title>تقرير المبيعات - ${periodText}</title>
+            ${getReportStyles('#10b981')}
+            <style>
+                @media print {
+                    .no-print { display: none; }
+                    body { background-color: white; }
+                    table { box-shadow: none; }
+                }
+            </style>
+        </head>
+        <body>
+            <div class="no-print" style="text-align: left; margin-bottom: 20px;">
+                <button onclick="window.print()" style="padding: 10px 20px; background: #10b981; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px;">طباعة التقرير</button>
+            </div>
+            <div class="header">
+                <h1>تقرير المبيعات المفلتر</h1>
+                <h2>الفترة: ${periodText} (${filterDate})</h2>
+                <p>تاريخ الطباعة: ${formatDate(new Date().toISOString())}</p>
+            </div>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>رقم الفاتورة</th>
+                        <th>التاريخ والوقت</th>
+                        <th>الفرع</th>
+                        <th>البائع</th>
+                        <th>النوع</th>
+                        <th>المبلغ</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+
+    let total = 0;
+    sales.forEach(sale => {
+        if (sale.direction === 'بيع') total += sale.totalAmount;
+        if (sale.direction === 'مرتجع') total -= sale.totalAmount;
+        
+        html += `
+            <tr>
+                <td>${sale.invoiceNumber}</td>
+                <td dir="ltr">${formatDateTime(sale.date, sale.timestamp)}</td>
+                <td>${sale.branchSoldFrom === 'main' ? 'الرئيسي' : sale.branchSoldFrom}</td>
+                <td>${sale.sellerName}</td>
+                <td>${sale.direction}</td>
+                <td style="font-weight: bold; color: ${sale.direction === 'مرتجع' ? 'red' : 'green'};">${formatCurrency(sale.totalAmount)}</td>
+            </tr>
+        `;
+    });
+
+    html += `
+                </tbody>
+            </table>
+            
+            <div class="summary" style="margin-top: 30px; border-right-color: #10b981;">
+                <h3>ملخص المبيعات</h3>
+                <div class="summary-grid">
+                    <div class="summary-item">
+                        <p>إجمالي العمليات</p>
+                        <strong>${sales.length}</strong>
+                    </div>
+                    <div class="summary-item">
+                        <p>صافي المبيعات</p>
+                        <strong style="color: ${total >= 0 ? '#10b981' : '#ef4444'};">${formatCurrency(total)}</strong>
+                    </div>
+                </div>
+            </div>
+        </body>
+        </html>
+    `;
+    return html;
+};
+
+export const generateInventoryReportContent = (appData: AppData, branch: string) => {
+    const branchName = branch === 'main' ? 'الرئيسي' : branch === 'branch1' ? 'فرع 1' : branch === 'branch2' ? 'فرع 2' : 'فرع 3';
+    
+    let html = `
+        <!DOCTYPE html>
+        <html lang="ar" dir="rtl">
+        <head>
+            <meta charset="UTF-8">
+            <title>تقرير جرد المخزون - ${branchName}</title>
+            ${getReportStyles('#3b82f6')}
+            <style>
+                @media print {
+                    .no-print { display: none; }
+                    body { background-color: white; }
+                    table { box-shadow: none; }
+                }
+                .empty-cell {
+                    width: 100px;
+                    border-bottom: 1px dotted #999;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="no-print" style="text-align: left; margin-bottom: 20px;">
+                <button onclick="window.print()" style="padding: 10px 20px; background: #3b82f6; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px;">طباعة التقرير</button>
+            </div>
+            <div class="header">
+                <h1>تقرير جرد المخزون</h1>
+                <h2>الفرع: ${branchName}</h2>
+                <p>تاريخ الجرد: ${formatDate(new Date().toISOString())}</p>
+            </div>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>كود الصنف</th>
+                        <th>اسم الصنف</th>
+                        <th>التصنيف</th>
+                        <th>العدد على النظام</th>
+                        <th>العدد الفعلي</th>
+                        <th>ملاحظات</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+
+    // Sort products by category then name
+    const sortedProducts = [...appData.products].sort((a, b) => {
+        if (a.mainCategory !== b.mainCategory) return a.mainCategory.localeCompare(b.mainCategory);
+        return a.name.localeCompare(b.name);
+    });
+
+    sortedProducts.forEach(product => {
+        const stock = product.stock[branch as keyof typeof product.stock] || 0;
+        html += `
+            <tr>
+                <td>${product.sku}</td>
+                <td>${product.name}</td>
+                <td>${product.mainCategory}</td>
+                <td style="font-weight: bold; text-align: center;">${stock}</td>
+                <td class="empty-cell"></td>
+                <td class="empty-cell" style="width: 150px;"></td>
+            </tr>
+        `;
+    });
+
+    html += `
+                </tbody>
+            </table>
+            
+            <div style="margin-top: 50px; display: flex; justify-content: space-between;">
+                <div>توقيع أمين المخزن: ___________________</div>
+                <div>توقيع المراجع: ___________________</div>
+            </div>
+        </body>
+        </html>
+    `;
+    return html;
 };
 
 export const generateProductCardexReportContent = (appData: AppData, productId: number) => {
@@ -572,13 +737,13 @@ export const generateProductCardexReportContent = (appData: AppData, productId: 
             </div>
         </div>
         <table>
-            <thead><tr><th>التاريخ</th><th>رقم الفاتورة</th><th>نوع الحركة</th><th>الفرع</th><th>الكمية</th><th>ملاحظات</th></tr></thead>
+            <thead><tr><th>التاريخ والوقت</th><th>رقم الفاتورة</th><th>نوع الحركة</th><th>الفرع</th><th>الكمية</th><th>ملاحظات</th></tr></thead>
             <tbody>
                 ${movements.length > 0 ? movements.map(m => {
                     const quantityChange = m.direction === 'مرتجع' ? `+${m.quantity}` : `-${m.quantity}`;
                     const rowClass = m.direction === 'مرتجع' ? 'text-green-600' : 'text-red-600';
                     return `<tr>
-                        <td>${formatDate(m.date)}</td>
+                        <td dir="ltr">${formatDateTime(m.date, m.timestamp)}</td>
                         <td>${m.invoiceNumber}</td>
                         <td>${m.direction}</td>
                         <td>${m.branchSoldFrom}</td>

@@ -14,11 +14,18 @@ interface SalesReportViewProps {
 }
 
 const SalesReportView: React.FC<SalesReportViewProps> = ({ setActiveReport }) => {
-    const appData = useStore(state => state.appData);
+    const { appData, currentUser } = useStore(state => ({
+        appData: state.appData,
+        currentUser: state.currentUser
+    }));
     const { dailySales = [], products = [] } = appData || {};
 
     const salesByDate = useMemo(() => {
-        const data = dailySales.reduce((acc: Record<string, { revenue: number; cost: number }>, sale) => {
+        const filteredSales = currentUser?.role === 'admin' 
+            ? dailySales 
+            : dailySales.filter(sale => sale.branchSoldFrom === currentUser?.branch);
+
+        const data = filteredSales.reduce((acc: Record<string, { revenue: number; cost: number }>, sale) => {
             const date = sale.date;
             if (!acc[date]) {
                 acc[date] = { revenue: 0, cost: 0 };

@@ -132,7 +132,7 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveSection }) => {
 
     const { 
         currentTreasuryBalance, dailyNetProfit, sellerTodaySales,
-        todayInvoicesCount, todayExpensesTotal, reorderPointProductsCount, pendingOrdersCount
+        todayInvoicesCount, todayExpensesTotal, reorderPointProductsCount, pendingOrdersCount, dailySalesTotal
     } = useMemo(() => {
         let balance = (treasury || []).reduce((sum, t) => sum + t.amountIn - t.amountOut, 0);
 
@@ -143,6 +143,7 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveSection }) => {
         const todaySales = salesToConsider.filter(s => s.date === todayStr);
         
         let profit = 0;
+        let totalSalesAmount = 0;
         todaySales.forEach(sale => {
             const saleRevenue = sale.totalAmount;
             const items = normalizeSaleItems(sale);
@@ -153,8 +154,10 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveSection }) => {
 
             if (sale.direction === 'بيع') {
                 profit += (saleRevenue - saleCost);
+                totalSalesAmount += saleRevenue;
             } else if (sale.direction === 'مرتجع') {
                 profit -= (saleRevenue - saleCost);
+                totalSalesAmount -= saleRevenue;
             }
         });
         
@@ -181,7 +184,8 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveSection }) => {
             todayInvoicesCount: invoicesCount,
             todayExpensesTotal: expensesTotal,
             reorderPointProductsCount: lowStockCount,
-            pendingOrdersCount: pendingCount
+            pendingOrdersCount: pendingCount,
+            dailySalesTotal: totalSalesAmount
         };
     }, [treasury, dailySales, products, expenses, orders, todayStr, currentUser, users]);
 

@@ -3,6 +3,7 @@ import { Employee, Role, Branch } from '../../types';
 import { formatCurrency, formatDate } from '../../lib/utils';
 import SectionHeader from '../shared/SectionHeader';
 import Modal from '../shared/Modal';
+import AdminPasswordModal from '../shared/AdminPasswordModal';
 import useStore from '../../lib/store';
 import ConfirmationModal from '../shared/ConfirmationModal';
 
@@ -23,13 +24,10 @@ const EmployeeModal: React.FC<{
         email: ''
     });
 
-    const { storefrontSettings, uploadImage } = useStore(state => ({
-        storefrontSettings: state.appData?.storefrontSettings,
+    const { uploadImage } = useStore(state => ({
         uploadImage: state.uploadImage
     }));
-    const [securityPassword, setSecurityPassword] = useState('');
     const [showSecurityCheck, setShowSecurityCheck] = useState(false);
-    const [securityError, setSecurityError] = useState('');
     const [isUploading, setIsUploading] = useState(false);
 
     React.useEffect(() => {
@@ -48,8 +46,6 @@ const EmployeeModal: React.FC<{
             });
         }
         setShowSecurityCheck(false);
-        setSecurityPassword('');
-        setSecurityError('');
     }, [employeeToEdit, isOpen]);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -74,20 +70,12 @@ const EmployeeModal: React.FC<{
 
     const handlePreSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (storefrontSettings?.adminPassword) {
-            setShowSecurityCheck(true);
-        } else {
-            handleSubmit();
-        }
+        setShowSecurityCheck(true);
     };
 
-    const handleSecuritySubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (securityPassword === storefrontSettings?.adminPassword) {
-            handleSubmit();
-        } else {
-            setSecurityError('كلمة المرور غير صحيحة');
-        }
+    const handleSecuritySuccess = () => {
+        setShowSecurityCheck(false);
+        handleSubmit();
     };
 
     const handleSubmit = () => {
@@ -96,21 +84,12 @@ const EmployeeModal: React.FC<{
 
     if (showSecurityCheck) {
         return (
-            <Modal isOpen={isOpen} onClose={() => setShowSecurityCheck(false)} title="تأكيد الأمان" onSave={handleSecuritySubmit} saveLabel="تأكيد">
-                <div className="space-y-4">
-                    <p className="text-gray-600 dark:text-gray-300">يرجى إدخال كلمة مرور العمليات الحساسة للمتابعة.</p>
-                    <input
-                        type="password"
-                        value={securityPassword}
-                        onChange={(e) => { setSecurityPassword(e.target.value); setSecurityError(''); }}
-                        className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
-                        placeholder="كلمة المرور"
-                        autoFocus
-                    />
-                    {securityError && <p className="text-red-500 text-sm">{securityError}</p>}
-                    <button type="button" onClick={() => setShowSecurityCheck(false)} className="text-sm text-gray-500 underline">رجوع</button>
-                </div>
-            </Modal>
+            <AdminPasswordModal 
+                isOpen={isOpen} 
+                onClose={() => setShowSecurityCheck(false)} 
+                onSuccess={handleSecuritySuccess}
+                actionDescription={employeeToEdit ? "تعديل بيانات موظف" : "إضافة موظف جديد"}
+            />
         );
     }
 
@@ -265,6 +244,8 @@ const Employees: React.FC<{ employees: Employee[] }> = ({ employees }) => {
     const [userModalOpen, setUserModalOpen] = useState(false);
     const [employeeForUser, setEmployeeForUser] = useState<Employee | null>(null);
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
+    const [showSecurityCheck, setShowSecurityCheck] = useState(false);
+    const [securityAction, setSecurityAction] = useState<'deleteEmployee' | 'createUser' | null>(null);
 
     const handleAdd = () => {
         setEmployeeToEdit(null);
@@ -289,6 +270,20 @@ const Employees: React.FC<{ employees: Employee[] }> = ({ employees }) => {
         } finally {
             setIsDeleting(false);
         }
+    };
+
+    const handleCreateUserClick = (emp: Employee) => {
+        setEmployeeForUser(emp);
+        setSecurityAction('createUser');
+        setShowSecurityCheck(true);
+    };
+
+    const handleSecuritySuccess = () => {
+        setShowSecurityCheck(false);
+        if (securityAction === 'createUser') {
+            setUserModalOpen(true);
+        }
+        setSecurityAction(null);
     };
 
     const handleSave = (employee: Omit<Employee, 'id'> & { id?: number }) => {
@@ -374,7 +369,7 @@ const Employees: React.FC<{ employees: Employee[] }> = ({ employees }) => {
                                 <td className="px-6 py-4 font-semibold">{formatCurrency(emp.basicSalary)}</td>
                                 <td className="px-6 py-4">{formatDate(emp.hireDate)}</td>
                                 <td className="px-6 py-4 flex gap-3">
-                                    <button onClick={() => { setEmployeeForUser(emp); setUserModalOpen(true); }} className="text-green-500 hover:text-green-700 text-lg" title="إنشاء حساب دخول"><i className="fas fa-user-plus"></i></button>
+                                    <button onClick={() => handleCreateUserClick(emp)} className="text-green-500 hover:text-green-700 text-lg" title="إنشاء حساب دخول"><i className="fas fa-user-plus"></i></button>
                                     <button onClick={() => handleEdit(emp)} className="text-blue-500 hover:text-blue-700 text-lg" aria-label={`تعديل ${emp.name}`}><i className="fas fa-edit"></i></button>
                                     <button onClick={() => setEmployeeToDelete(emp)} className="text-red-500 hover:text-red-700 text-lg w-6 text-center" aria-label={`حذف ${emp.name}`}>
                                         <i className="fas fa-trash"></i>
@@ -393,6 +388,18 @@ const Employees: React.FC<{ employees: Employee[] }> = ({ employees }) => {
             <EmployeeModal isOpen={isModalOpen} onClose={() => setModalOpen(false)} onSave={handleSave} employeeToEdit={employeeToEdit} />
             <CreateUserModal isOpen={userModalOpen} onClose={() => setUserModalOpen(false)} employee={employeeForUser} />
             
+            {showSecurityCheck && (
+                <AdminPasswordModal
+                    isOpen={showSecurityCheck}
+                    onClose={() => {
+                        setShowSecurityCheck(false);
+                        setSecurityAction(null);
+                    }}
+                    onSuccess={handleSecuritySuccess}
+                    actionDescription={securityAction === 'deleteEmployee' ? 'حذف موظف' : 'إنشاء حساب مستخدم'}
+                />
+            )}
+
             {employeeToDelete && (
                 <ConfirmationModal
                     isOpen={!!employeeToDelete}

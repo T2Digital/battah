@@ -36,6 +36,7 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
     const [electronicAmount, setElectronicAmount] = useState<number>(0);
     const [customerName, setCustomerName] = useState('');
     const [customerPhone, setCustomerPhone] = useState('');
+    const [locationLink, setLocationLink] = useState('');
     
     const [isListening, setIsListening] = useState(false);
     
@@ -81,6 +82,7 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
             setElectronicAmount(existingSale.electronicAmount || 0);
             setCustomerName(existingSale.customerName || '');
             setCustomerPhone(existingSale.customerPhone || '');
+            setLocationLink(existingSale.locationLink || '');
             
             const itemsToEdit = normalizeSaleItems(existingSale);
             const editableItems = itemsToEdit.map(item => {
@@ -98,7 +100,7 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
             setInvoiceNumber(generateInvoiceNumber());
             setDate(new Date().toISOString().split('T')[0]);
             setDirection('بيع');
-            setBranchSoldFrom(currentUser.branch);
+            setBranchSoldFrom('branch1');
             setNotes('');
             setItems([]);
             setInvoiceType('retail');
@@ -301,6 +303,7 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
             electronicAmount: paymentMethod === 'إلكترونى' ? electronicAmount : (paymentMethod === 'نقدى' || paymentMethod === 'آجل' ? 0 : electronicAmount),
             customerName,
             customerPhone,
+            locationLink,
             remainingDebt: paymentMethod === 'آجل' ? totalAmount : (paymentMethod === 'نقدى' ? totalAmount - cashAmount : (paymentMethod === 'إلكترونى' ? totalAmount - electronicAmount : totalAmount - (cashAmount + electronicAmount))),
             items: items.map(({ productName, stock, ...rest }) => ({
                 ...rest,
@@ -359,77 +362,6 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
                     </div>
                 </div>
                 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label>طريقة الدفع</label>
-                            <select 
-                                value={paymentMethod} 
-                                onChange={e => setPaymentMethod(e.target.value as 'نقدى' | 'إلكترونى' | 'مختلط' | 'آجل')} 
-                                className="w-full mt-1 p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
-                            >
-                                <option value="نقدى">نقدى</option>
-                                <option value="إلكترونى">إلكترونى</option>
-                                <option value="مختلط">مختلط</option>
-                                <option value="آجل">آجل</option>
-                            </select>
-                        </div>
-                        {paymentMethod === 'مختلط' && (
-                            <div className="grid grid-cols-2 gap-2">
-                                <div>
-                                    <label>المبلغ النقدى</label>
-                                    <input type="number" value={cashAmount === 0 ? '' : cashAmount} onChange={e => setCashAmount(Number(e.target.value))} className="w-full mt-1 p-2 border rounded dark:bg-gray-700 dark:border-gray-600" />
-                                </div>
-                                <div>
-                                    <label>المبلغ الإلكترونى</label>
-                                    <input type="number" value={electronicAmount === 0 ? '' : electronicAmount} onChange={e => setElectronicAmount(Number(e.target.value))} className="w-full mt-1 p-2 border rounded dark:bg-gray-700 dark:border-gray-600" />
-                                </div>
-                            </div>
-                        )}
-                        {(paymentMethod === 'نقدى' || paymentMethod === 'إلكترونى') && (
-                            <div className="grid grid-cols-2 gap-2">
-                                <div>
-                                    <label className="flex justify-between items-center">
-                                        <span>المدفوع ({paymentMethod})</span>
-                                        <button 
-                                            type="button" 
-                                            onClick={() => paymentMethod === 'نقدى' ? setCashAmount(totalAmount) : setElectronicAmount(totalAmount)}
-                                            className="text-xs text-primary hover:underline"
-                                        >
-                                            مدفوع بالكامل
-                                        </button>
-                                    </label>
-                                    <input 
-                                        type="number" 
-                                        value={paymentMethod === 'نقدى' ? (cashAmount === 0 ? '' : cashAmount) : (electronicAmount === 0 ? '' : electronicAmount)} 
-                                        onChange={e => paymentMethod === 'نقدى' ? setCashAmount(Number(e.target.value)) : setElectronicAmount(Number(e.target.value))} 
-                                        className="w-full mt-1 p-2 border rounded dark:bg-gray-700 dark:border-gray-600" 
-                                    />
-                                </div>
-                                <div>
-                                    <label>المتبقي (آجل)</label>
-                                    <input 
-                                        type="number" 
-                                        value={Math.max(0, totalAmount - (paymentMethod === 'نقدى' ? cashAmount : electronicAmount))} 
-                                        readOnly 
-                                        className="w-full mt-1 p-2 border rounded bg-gray-100 dark:bg-gray-600 dark:border-gray-500 text-red-500 font-bold" 
-                                    />
-                                </div>
-                            </div>
-                        )}
-                        {(paymentMethod === 'آجل' || paymentMethod === 'مختلط' || (paymentMethod === 'نقدى' && totalAmount - cashAmount > 0) || (paymentMethod === 'إلكترونى' && totalAmount - electronicAmount > 0)) && (
-                            <>
-                                <div>
-                                    <label>اسم العميل</label>
-                                    <input type="text" value={customerName} onChange={e => setCustomerName(e.target.value)} className="w-full mt-1 p-2 border rounded dark:bg-gray-700 dark:border-gray-600" placeholder="اسم العميل (مطلوب للآجل)" required />
-                                </div>
-                                <div>
-                                    <label>رقم هاتف العميل</label>
-                                    <input type="tel" value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} className="w-full mt-1 p-2 border rounded dark:bg-gray-700 dark:border-gray-600" placeholder="رقم الهاتف" />
-                                </div>
-                            </>
-                        )}
-                    </div>
-
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label>البيع من فرع</label>
@@ -572,6 +504,84 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
                         <div className="text-sm text-gray-500">المجموع: {formatCurrency(items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0))}</div>
                         {discount > 0 && <div className="text-sm text-red-500">خصم ({discount}%): -{formatCurrency(items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0) * discount / 100)}</div>}
                         <div className="font-bold text-2xl">الإجمالي النهائي: {formatCurrency(totalAmount)}</div>
+                    </div>
+                </div>
+                
+                <div className="border-t pt-4 mt-4">
+                    <h4 className="font-bold mb-4 text-lg">تفاصيل الدفع</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label>طريقة الدفع</label>
+                            <select 
+                                value={paymentMethod} 
+                                onChange={e => setPaymentMethod(e.target.value as 'نقدى' | 'إلكترونى' | 'مختلط' | 'آجل')} 
+                                className="w-full mt-1 p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
+                            >
+                                <option value="نقدى">نقدى</option>
+                                <option value="إلكترونى">إلكترونى</option>
+                                <option value="مختلط">مختلط</option>
+                                <option value="آجل">آجل</option>
+                            </select>
+                        </div>
+                        {paymentMethod === 'مختلط' && (
+                            <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label>المبلغ النقدى</label>
+                                    <input type="number" value={cashAmount === 0 ? '' : cashAmount} onChange={e => setCashAmount(Number(e.target.value))} className="w-full mt-1 p-2 border rounded dark:bg-gray-700 dark:border-gray-600" />
+                                </div>
+                                <div>
+                                    <label>المبلغ الإلكترونى</label>
+                                    <input type="number" value={electronicAmount === 0 ? '' : electronicAmount} onChange={e => setElectronicAmount(Number(e.target.value))} className="w-full mt-1 p-2 border rounded dark:bg-gray-700 dark:border-gray-600" />
+                                </div>
+                            </div>
+                        )}
+                        {(paymentMethod === 'نقدى' || paymentMethod === 'إلكترونى') && (
+                            <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label className="flex justify-between items-center">
+                                        <span>المدفوع ({paymentMethod})</span>
+                                        <button 
+                                            type="button" 
+                                            onClick={() => paymentMethod === 'نقدى' ? setCashAmount(totalAmount) : setElectronicAmount(totalAmount)}
+                                            className="text-xs text-primary hover:underline"
+                                        >
+                                            مدفوع بالكامل
+                                        </button>
+                                    </label>
+                                    <input 
+                                        type="number" 
+                                        value={paymentMethod === 'نقدى' ? (cashAmount === 0 ? '' : cashAmount) : (electronicAmount === 0 ? '' : electronicAmount)} 
+                                        onChange={e => paymentMethod === 'نقدى' ? setCashAmount(Number(e.target.value)) : setElectronicAmount(Number(e.target.value))} 
+                                        className="w-full mt-1 p-2 border rounded dark:bg-gray-700 dark:border-gray-600" 
+                                    />
+                                </div>
+                                <div>
+                                    <label>المتبقي (آجل)</label>
+                                    <input 
+                                        type="number" 
+                                        value={Math.max(0, totalAmount - (paymentMethod === 'نقدى' ? cashAmount : electronicAmount))} 
+                                        readOnly 
+                                        className="w-full mt-1 p-2 border rounded bg-gray-100 dark:bg-gray-600 dark:border-gray-500 text-red-500 font-bold" 
+                                    />
+                                </div>
+                            </div>
+                        )}
+                        {(paymentMethod === 'آجل' || paymentMethod === 'مختلط' || (paymentMethod === 'نقدى' && totalAmount - cashAmount > 0) || (paymentMethod === 'إلكترونى' && totalAmount - electronicAmount > 0)) && (
+                            <>
+                                <div>
+                                    <label>اسم العميل</label>
+                                    <input type="text" value={customerName} onChange={e => setCustomerName(e.target.value)} className="w-full mt-1 p-2 border rounded dark:bg-gray-700 dark:border-gray-600" placeholder="اسم العميل (مطلوب للآجل)" required />
+                                </div>
+                                <div>
+                                    <label>رقم هاتف العميل</label>
+                                    <input type="tel" value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} className="w-full mt-1 p-2 border rounded dark:bg-gray-700 dark:border-gray-600" placeholder="رقم الهاتف" />
+                                </div>
+                                <div>
+                                    <label>رابط الموقع (Location)</label>
+                                    <input type="url" value={locationLink} onChange={e => setLocationLink(e.target.value)} className="w-full mt-1 p-2 border rounded dark:bg-gray-700 dark:border-gray-600" placeholder="رابط خرائط جوجل" />
+                                </div>
+                            </>
+                        )}
                     </div>
                 </div>
                 

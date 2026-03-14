@@ -3,7 +3,7 @@
 import React, { useMemo, useState } from 'react';
 import useStore from '../../lib/store';
 import { Employee } from '../../types';
-import { formatCurrency, formatDate } from '../../lib/utils';
+import { formatCurrency, formatDate, formatDateTime } from '../../lib/utils';
 import SectionHeader from '../shared/SectionHeader';
 import { generateEmployeesReportContent } from '../../lib/reportTemplates';
 
@@ -77,7 +77,7 @@ const EmployeesReportView: React.FC<EmployeesReportViewProps> = ({ setActiveRepo
                             <th className="px-6 py-3">الاسم</th>
                             <th className="px-6 py-3">المنصب</th>
                             <th className="px-6 py-3">الراتب</th>
-                            <th className="px-6 py-3">تاريخ التوظيف</th>
+                            <th className="px-6 py-3">تاريخ التوظيف والوقت</th>
                             <th className="px-6 py-3">الهاتف</th>
                         </tr>
                     </thead>
@@ -87,7 +87,7 @@ const EmployeesReportView: React.FC<EmployeesReportViewProps> = ({ setActiveRepo
                                 <td className="px-6 py-4">{emp.name}</td>
                                 <td className="px-6 py-4">{emp.position}</td>
                                 <td className="px-6 py-4">{formatCurrency(emp.basicSalary)}</td>
-                                <td className="px-6 py-4">{formatDate(emp.hireDate)}</td>
+                                <td className="px-6 py-4 whitespace-nowrap" dir="ltr">{formatDateTime(emp.hireDate, emp.timestamp)}</td>
                                 <td className="px-6 py-4">{emp.phone || '-'}</td>
                             </tr>
                         ))}

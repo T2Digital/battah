@@ -77,6 +77,7 @@ export interface SaleItem {
 export interface DailySale {
     id: number;
     date: string;
+    timestamp?: string;
     invoiceNumber: string;
     sellerId: string;
     sellerName: string;
@@ -94,7 +95,9 @@ export interface DailySale {
     electronicAmount?: number;
     customerName?: string;
     customerPhone?: string;
+    locationLink?: string; // Added
     remainingDebt?: number;
+    paidAmount?: number;
 
     // New multi-item structure (optional for backward compatibility)
     items?: SaleItem[];
@@ -113,6 +116,7 @@ export interface Employee {
     position: string;
     basicSalary: number;
     hireDate: string;
+    timestamp?: string;
     phone?: string;
     address?: string;
     email?: string; // Added for linking to auth
@@ -122,6 +126,7 @@ export interface Employee {
 export interface Advance {
     id: number;
     date: string;
+    timestamp?: string;
     employeeId: number;
     amount: number;
     payment: number;
@@ -131,20 +136,23 @@ export interface Advance {
 export interface Attendance {
     id: number;
     date: string;
+    timestamp?: string;
     employeeId: number;
     checkIn?: string;
     checkOut?: string;
+    daysAttended?: number;
     notes?: string;
 }
 
 export interface Payroll {
     id: number;
     date: string;
+    timestamp?: string;
     employeeId: number;
     basicSalary: number;
     incentives?: number; // Added
     deductions?: number; // Added (calculated from advances/expenses)
-    workHours?: number; // Added
+    daysAttended?: number; // Added
     periodStart?: string; // Added
     periodEnd?: string; // Added
     disbursed: number;
@@ -169,6 +177,7 @@ export interface PurchaseOrder {
     id: number;
     supplierId: number;
     orderDate: string;
+    timestamp?: string;
     status: 'معلق' | 'مكتمل' | 'ملغي';
     items: PurchaseOrderItem[];
     totalAmount: number;
@@ -178,6 +187,7 @@ export interface PurchaseOrder {
 export interface Payment {
     id: number;
     date: string;
+    timestamp?: string;
     supplierId: number;
     payment: number;
     invoiceTotal: number;
@@ -189,6 +199,7 @@ export interface Payment {
 export interface Expense {
     id: number;
     date: string;
+    timestamp?: string;
     type: 'شخصية' | 'عامة' | 'موظفين';
     name: string;
     amount: number;
@@ -199,16 +210,19 @@ export interface Expense {
 export interface TreasuryTransaction {
     id: number;
     date: string;
+    timestamp?: string;
     type: string;
     description: string;
     amountIn: number;
     amountOut: number;
     relatedId?: number | string; // e.g., saleId, expenseId, orderId (string)
+    paymentMethod?: 'cash' | 'electronic'; // Added
 }
 
 export interface DailyReview {
     id: number;
     date: string;
+    timestamp?: string;
     branch: Branch;
     salesCash: number;
     salesElectronic: number;
@@ -232,6 +246,7 @@ export interface OrderItem {
 export interface Order {
     id: number | string;
     date: string;
+    timestamp?: string;
     createdAt: Timestamp; // To track new orders for notifications
     customerName: string;
     customerPhone: string;
@@ -281,6 +296,7 @@ export interface CartItem {
 export interface StockTransfer {
     id: number;
     date: string;
+    timestamp?: string;
     productId: number;
     productName: string;
     quantity: number;

@@ -2,7 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import useStore from '../../lib/store';
 import { Advance, Employee, Expense, Payroll } from '../../types';
-import { formatCurrency, formatDate } from '../../lib/utils';
+import { formatCurrency, formatDate, formatDateTime } from '../../lib/utils';
 import SectionHeader from '../shared/SectionHeader';
 
 interface FinancialReportViewProps {
@@ -64,27 +64,27 @@ const FinancialReportView: React.FC<FinancialReportViewProps> = ({ setActiveRepo
                 {activeTab === 'expenses' && (
                     <table className="w-full text-sm text-right">
                         <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-300">
-                            <tr><th className="px-6 py-3">التاريخ</th><th className="px-6 py-3">النوع</th><th className="px-6 py-3">الاسم</th><th className="px-6 py-3">المبلغ</th></tr>
+                            <tr><th className="px-6 py-3">التاريخ والوقت</th><th className="px-6 py-3">النوع</th><th className="px-6 py-3">الاسم</th><th className="px-6 py-3">المبلغ</th></tr>
                         </thead>
-                        <tbody>{expenses.map(e => <tr key={e.id} className="border-b dark:border-gray-700"><td>{formatDate(e.date)}</td><td>{e.type}</td><td>{e.name}</td><td>{formatCurrency(e.amount)}</td></tr>).map(el => React.cloneElement(el, { className: `${el.props.className} hover:bg-gray-50 dark:hover:bg-gray-600`, children: el.props.children.map((c:any) => React.cloneElement(c, {className: 'px-6 py-4'}))}))}</tbody>
+                        <tbody>{expenses.map(e => <tr key={e.id} className="border-b dark:border-gray-700"><td className="whitespace-nowrap" dir="ltr">{formatDateTime(e.date, e.timestamp)}</td><td>{e.type}</td><td>{e.name}</td><td>{formatCurrency(e.amount)}</td></tr>).map(el => React.cloneElement(el, { className: `${el.props.className} hover:bg-gray-50 dark:hover:bg-gray-600`, children: el.props.children.map((c:any) => React.cloneElement(c, {className: 'px-6 py-4'}))}))}</tbody>
                         <tfoot><tr className="font-bold bg-gray-100 dark:bg-gray-700"><td colSpan={3} className="px-6 py-3">الإجمالي</td><td className="px-6 py-3">{formatCurrency(totalExpenses)}</td></tr></tfoot>
                     </table>
                 )}
                  {activeTab === 'advances' && (
                     <table className="w-full text-sm text-right">
                         <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-300">
-                            <tr><th className="px-6 py-3">التاريخ</th><th className="px-6 py-3">الموظف</th><th className="px-6 py-3">المبلغ</th><th className="px-6 py-3">المتبقي</th></tr>
+                            <tr><th className="px-6 py-3">التاريخ والوقت</th><th className="px-6 py-3">الموظف</th><th className="px-6 py-3">المبلغ</th><th className="px-6 py-3">المتبقي</th></tr>
                         </thead>
-                        <tbody>{advances.map(a => <tr key={a.id} className="border-b dark:border-gray-700"><td>{formatDate(a.date)}</td><td>{getEmployeeName(a.employeeId)}</td><td>{formatCurrency(a.amount)}</td><td>{formatCurrency(a.amount - a.payment)}</td></tr>).map(el => React.cloneElement(el, { className: `${el.props.className} hover:bg-gray-50 dark:hover:bg-gray-600`, children: el.props.children.map((c:any) => React.cloneElement(c, {className: 'px-6 py-4'}))}))}</tbody>
+                        <tbody>{advances.map(a => <tr key={a.id} className="border-b dark:border-gray-700"><td className="whitespace-nowrap" dir="ltr">{formatDateTime(a.date, a.timestamp)}</td><td>{getEmployeeName(a.employeeId)}</td><td>{formatCurrency(a.amount)}</td><td>{formatCurrency(a.amount - a.payment)}</td></tr>).map(el => React.cloneElement(el, { className: `${el.props.className} hover:bg-gray-50 dark:hover:bg-gray-600`, children: el.props.children.map((c:any) => React.cloneElement(c, {className: 'px-6 py-4'}))}))}</tbody>
                         <tfoot><tr className="font-bold bg-gray-100 dark:bg-gray-700"><td colSpan={2} className="px-6 py-3">الإجمالي</td><td className="px-6 py-3">{formatCurrency(totalAdvances)}</td><td></td></tr></tfoot>
                     </table>
                 )}
                 {activeTab === 'payroll' && (
                      <table className="w-full text-sm text-right">
                         <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-300">
-                            <tr><th className="px-6 py-3">التاريخ</th><th className="px-6 py-3">الموظف</th><th className="px-6 py-3">الراتب الأساسي</th><th className="px-6 py-3">المصروف</th></tr>
+                            <tr><th className="px-6 py-3">التاريخ والوقت</th><th className="px-6 py-3">الموظف</th><th className="px-6 py-3">الراتب الأساسي</th><th className="px-6 py-3">المصروف</th></tr>
                         </thead>
-                        <tbody>{payroll.map(p => <tr key={p.id} className="border-b dark:border-gray-700"><td>{formatDate(p.date)}</td><td>{getEmployeeName(p.employeeId)}</td><td>{formatCurrency(p.basicSalary)}</td><td>{formatCurrency(p.disbursed)}</td></tr>).map(el => React.cloneElement(el, { className: `${el.props.className} hover:bg-gray-50 dark:hover:bg-gray-600`, children: el.props.children.map((c:any) => React.cloneElement(c, {className: 'px-6 py-4'}))}))}</tbody>
+                        <tbody>{payroll.map(p => <tr key={p.id} className="border-b dark:border-gray-700"><td className="whitespace-nowrap" dir="ltr">{formatDateTime(p.date, p.timestamp)}</td><td>{getEmployeeName(p.employeeId)}</td><td>{formatCurrency(p.basicSalary)}</td><td>{formatCurrency(p.disbursed)}</td></tr>).map(el => React.cloneElement(el, { className: `${el.props.className} hover:bg-gray-50 dark:hover:bg-gray-600`, children: el.props.children.map((c:any) => React.cloneElement(c, {className: 'px-6 py-4'}))}))}</tbody>
                         <tfoot><tr className="font-bold bg-gray-100 dark:bg-gray-700"><td colSpan={3} className="px-6 py-3">الإجمالي</td><td className="px-6 py-3">{formatCurrency(totalPayroll)}</td></tr></tfoot>
                     </table>
                 )}

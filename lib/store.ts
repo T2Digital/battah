@@ -132,6 +132,7 @@ type AppActions = {
     setDailyReviews: (reviews: DailyReview[]) => Promise<void>;
     deleteDailyReview: (reviewId: number) => Promise<void>;
     addTreasuryTransaction: (transaction: Omit<TreasuryTransaction, 'id'>) => Promise<void>;
+    deleteTreasuryTransaction: (transactionId: number | string) => Promise<void>;
     
     // Sales action (no longer a simple set, but an atomic add)
     addDailySale: (sale: Omit<DailySale, 'id'>) => Promise<DailySale>;
@@ -160,6 +161,7 @@ type AppActions = {
     updateSettings: (settings: Partial<Settings>) => Promise<void>;
     sendBroadcast: (message: string) => Promise<void>;
     resetTreasury: (initialBalance: number) => Promise<void>;
+    clearTreasury: () => Promise<void>;
 };
 
 const useStore = create<AppState & AppActions>((set, get) => ({
@@ -328,17 +330,6 @@ const useStore = create<AppState & AppActions>((set, get) => ({
     
             // --- SECTION 1: One-time fetches and Reconciliation for missed notifications ---
     
-            // Fetch users once to avoid permission issues with listeners
-            const usersSnapshot = await getDocs(collection(db, 'users'));
-            const usersData = usersSnapshot.docs.map(d => ({ ...(d.data() as User), id: d.data().id ?? d.id }));
-            
-            // Fetch products once (since we removed the listener for scalability)
-            // Ideally this should be paginated, but for now we fetch all to ensure DailySales works.
-            const productsSnapshot = await getDocs(collection(db, 'products'));
-            const productsData = productsSnapshot.docs.map(d => ({ ...(d.data() as Product), id: d.data().id ?? (isNaN(parseInt(d.id, 10)) ? d.id : parseInt(d.id, 10)) }));
-
-            set(state => ({ appData: { ...(state.appData as AppData), users: usersData, products: productsData } }));
-            
             // Fetch all orders and notifications once to find any orders that were placed while admin was offline
             const [ordersSnapshot, notificationsSnapshot] = await Promise.all([
                 getDocs(collection(db, 'orders')),
@@ -383,9 +374,7 @@ const useStore = create<AppState & AppActions>((set, get) => ({
             adminUnsubscribers.push(settingsUnsub);
 
             const collectionsToListen: (keyof AppData)[] = [
-                // 'users' is already fetched. No need for a listener that might fail.
-                // 'products' is now fetched via pagination to support scalability.
-                'dailySales', 'employees', 'advances', 'attendance', 'payroll', 'suppliers', 
+                'users', 'products', 'dailySales', 'employees', 'advances', 'attendance', 'payroll', 'suppliers', 
                 'purchaseOrders', 'payments', 'expenses', 'treasury', 'dailyReview', 
                 'notifications', 'stockTransfers', 'orders', 'broadcasts'
             ];
@@ -461,24 +450,6 @@ const useStore = create<AppState & AppActions>((set, get) => ({
         await signInWithEmailAndPassword(auth, email, pass);
     },
     logout: async () => {
-        const user = get().currentUser;
-        if (user) {
-            // Record Check-out
-            const today = new Date().toISOString().split('T')[0];
-            
-            const employeesSnapshot = await getDocs(collection(db, "employees"));
-            const employees = employeesSnapshot.docs.map(d => ({ ...d.data(), id: Number(d.id) } as Employee));
-            const employee = employees.find(e => e.email === user.username || e.name === user.name);
-
-            if (employee) {
-                const attendanceQuery = query(collection(db, "attendance"), where("date", "==", today), where("employeeId", "==", employee.id));
-                const attendanceSnapshot = await getDocs(attendanceQuery);
-                if (!attendanceSnapshot.empty) {
-                    const docRef = attendanceSnapshot.docs[0].ref;
-                    await updateDoc(docRef, { checkOut: new Date().toLocaleTimeString('en-US', { hour12: false }) });
-                }
-            }
-        }
         await signOut(auth);
         window.location.hash = '';
     },
@@ -491,38 +462,6 @@ const useStore = create<AppState & AppActions>((set, get) => ({
                 const userDoc = querySnapshot.docs[0];
                 const remoteUser = userDoc.data() as User;
                 set({ currentUser: remoteUser });
-
-                // Record Check-in
-                const today = new Date().toISOString().split('T')[0];
-                const employeesSnapshot = await getDocs(collection(db, "employees"));
-                const employees = employeesSnapshot.docs.map(d => ({ ...d.data(), id: Number(d.id) } as Employee));
-                const employee = employees.find(e => e.email === email || e.name === remoteUser.name);
-
-                if (employee) {
-                    const attendanceQuery = query(collection(db, "attendance"), where("date", "==", today), where("employeeId", "==", employee.id));
-                    const attendanceSnapshot = await getDocs(attendanceQuery);
-                    
-                    if (attendanceSnapshot.empty) {
-                        // Create new attendance record
-                        // Get max ID first (need to query all attendance or just use a random ID/timestamp based ID for simplicity, but existing logic uses numeric IDs)
-                        // To be safe with numeric IDs, I should fetch all attendance or use a counter.
-                        // Since I don't have appData loaded yet, I'll fetch all attendance IDs? That's heavy.
-                        // I'll use a timestamp-based ID for now or fetch max ID from a settings doc if I had one.
-                        // Or just fetch all attendance docs (might be large).
-                        // Let's fetch all attendance docs to find max ID. It's not ideal but consistent with current app logic.
-                        const allAttendanceSnapshot = await getDocs(collection(db, "attendance"));
-                        const maxId = Math.max(0, ...allAttendanceSnapshot.docs.map(d => Number(d.id) || 0));
-                        
-                        const newRecord: Attendance = {
-                            id: maxId + 1,
-                            date: today,
-                            employeeId: employee.id,
-                            checkIn: new Date().toLocaleTimeString('en-US', { hour12: false }),
-                        };
-                        await setDoc(doc(db, "attendance", String(newRecord.id)), newRecord);
-                    }
-                }
-
             } else {
                 console.warn(`User profile not found in DB for email: ${email}. Logging out.`);
                 await get().logout();
@@ -589,6 +528,18 @@ const useStore = create<AppState & AppActions>((set, get) => ({
                 });
                 await batch.commit();
             }
+
+            // Update local state
+            set(state => {
+                if (!state.appData) return state;
+                const updatedProducts = state.appData.products.map(p => {
+                    if (!category || (category as string) === 'all' || p.mainCategory === category) {
+                        return { ...p, sellingPrice: Math.round(p.sellingPrice * (1 + percentage / 100)) };
+                    }
+                    return p;
+                });
+                return { appData: { ...state.appData, products: updatedProducts } };
+            });
         } catch (error) {
             console.error("Error adjusting prices:", error);
             throw error;
@@ -597,7 +548,7 @@ const useStore = create<AppState & AppActions>((set, get) => ({
 
     addDailySale: async (sale) => {
         const maxId = Math.max(0, ...(get().appData?.dailySales.map(s => Number(s.id) || 0) || []));
-        const newSale = { ...sale, id: maxId + 1 };
+        const newSale = { ...sale, id: maxId + 1, timestamp: new Date().toISOString() };
         await setDoc(doc(db, "dailySales", String(newSale.id)), newSale);
         get().addToast('تم حفظ الفاتورة بنجاح', 'success');
         return newSale as DailySale;
@@ -608,30 +559,32 @@ const useStore = create<AppState & AppActions>((set, get) => ({
     },
     deleteDailySale: async (saleId: number | string) => {
         try {
-            const saleDocRef = doc(db, "dailySales", String(saleId));
-            const saleSnapshot = await getDoc(saleDocRef);
-            if (!saleSnapshot.exists()) throw new Error("Sale not found!");
-            const saleToDelete = saleSnapshot.data() as DailySale;
+            const state = get();
+            const saleToDelete = state.appData?.dailySales.find(s => String(s.id) === String(saleId));
+            if (!saleToDelete) throw new Error("Sale not found!");
 
             const batch = writeBatch(db);
+            const saleDocRef = doc(db, "dailySales", String(saleId));
             batch.delete(saleDocRef);
 
-            const treasuryQuery = query(collection(db, "treasury"), where("relatedId", "==", saleId), where("type", "in", ["إيراد مبيعات", "مرتجع مبيعات"]));
-            const treasurySnapshot = await getDocs(treasuryQuery);
-            treasurySnapshot.forEach(doc => batch.delete(doc.ref));
+            const treasuryTransactions = state.appData?.treasury.filter(t => String(t.relatedId) === String(saleId) && ["إيراد مبيعات", "مرتجع مبيعات"].includes(t.type)) || [];
+            treasuryTransactions.forEach(t => {
+                const tRef = doc(db, "treasury", String(t.id));
+                batch.delete(tRef);
+            });
 
             const items = normalizeSaleItems(saleToDelete);
             for (const item of items) {
-                const productRef = doc(db, "products", String(item.productId));
-                const productDoc = await getDoc(productRef);
-                if (productDoc.exists()) {
-                    const product = productDoc.data() as Product;
+                const product = state.appData?.products.find(p => String(p.id) === String(item.productId));
+                if (product) {
+                    const productRef = doc(db, "products", String(item.productId));
                     const quantityToRestore = saleToDelete.direction === 'بيع' ? item.quantity : -item.quantity;
-                    const newStock = { ...product.stock, [saleToDelete.branchSoldFrom]: product.stock[saleToDelete.branchSoldFrom] + quantityToRestore };
+                    const newStock = { ...product.stock, [saleToDelete.branchSoldFrom]: (product.stock[saleToDelete.branchSoldFrom] || 0) + quantityToRestore };
                     batch.update(productRef, { stock: newStock });
                 }
             }
             await batch.commit();
+            get().addToast('تم حذف الفاتورة بنجاح', 'success');
         } catch (error) {
             console.error("Error deleting daily sale:", error);
             throw error;
@@ -728,7 +681,7 @@ const useStore = create<AppState & AppActions>((set, get) => ({
     },
     addAdvance: async (advance) => {
         const maxId = Math.max(0, ...(get().appData?.advances.map(a => Number(a.id) || 0) || []));
-        const newAdvance = { ...advance, id: maxId + 1 };
+        const newAdvance = { ...advance, id: maxId + 1, timestamp: new Date().toISOString() };
         await setDoc(doc(db, "advances", String(newAdvance.id)), newAdvance);
         if (newAdvance.amount > 0) {
             const employeeName = get().appData?.employees.find(e => e.id === newAdvance.employeeId)?.name || 'موظف';
@@ -757,7 +710,7 @@ const useStore = create<AppState & AppActions>((set, get) => ({
     },
     addPayroll: async (payroll) => {
         const maxId = Math.max(0, ...(get().appData?.payroll.map(p => Number(p.id) || 0) || []));
-        const newPayroll = { ...payroll, id: maxId + 1 };
+        const newPayroll = { ...payroll, id: maxId + 1, timestamp: new Date().toISOString() };
         await setDoc(doc(db, "payroll", String(newPayroll.id)), newPayroll);
         if (newPayroll.disbursed > 0) {
             const employeeName = get().appData?.employees.find(e => e.id === newPayroll.employeeId)?.name || 'موظف';
@@ -805,7 +758,7 @@ const useStore = create<AppState & AppActions>((set, get) => ({
     },
     addPurchaseOrder: async (order) => {
         const maxId = Math.max(0, ...(get().appData?.purchaseOrders.map(o => Number(o.id) || 0) || []));
-        const newOrder = { ...order, id: maxId + 1 };
+        const newOrder = { ...order, id: maxId + 1, timestamp: new Date().toISOString() };
         await setDoc(doc(db, "purchaseOrders", String(newOrder.id)), newOrder);
         get().addToast('تم إضافة طلب الشراء بنجاح', 'success');
     },
@@ -823,7 +776,7 @@ const useStore = create<AppState & AppActions>((set, get) => ({
     },
     addPayment: async (payment) => {
         const maxId = Math.max(0, ...(get().appData?.payments.map(p => Number(p.id) || 0) || []));
-        const newPayment = { ...payment, id: maxId + 1 };
+        const newPayment = { ...payment, id: maxId + 1, timestamp: new Date().toISOString() };
         await setDoc(doc(db, "payments", String(newPayment.id)), newPayment);
         if (newPayment.payment > 0) {
             const supplierName = get().appData?.suppliers.find(s => s.id === newPayment.supplierId)?.name || 'مورد';
@@ -848,7 +801,7 @@ const useStore = create<AppState & AppActions>((set, get) => ({
     },
     addExpense: async (expense, skipTreasury = false) => {
         const maxId = Math.max(0, ...(get().appData?.expenses.map(e => Number(e.id) || 0) || []));
-        const newExpense = { ...expense, id: maxId + 1 };
+        const newExpense = { ...expense, id: maxId + 1, timestamp: new Date().toISOString() };
         await setDoc(doc(db, "expenses", String(newExpense.id)), newExpense);
         if (newExpense.amount > 0 && !skipTreasury) {
             await get().addTreasuryTransaction({
@@ -888,8 +841,11 @@ const useStore = create<AppState & AppActions>((set, get) => ({
     },
     addTreasuryTransaction: async (transaction) => {
         const maxId = Math.max(0, ...(get().appData?.treasury.map(t => Number(t.id) || 0) || []));
-        const newTransaction = { ...transaction, id: maxId + 1 };
+        const newTransaction = { ...transaction, id: maxId + 1, timestamp: new Date().toISOString() };
         await setDoc(doc(db, "treasury", String(newTransaction.id)), newTransaction);
+    },
+    deleteTreasuryTransaction: async (transactionId) => {
+        await deleteDoc(doc(db, "treasury", String(transactionId)));
     },
 
     addStockTransfer: async (transfer) => {
@@ -916,6 +872,7 @@ const useStore = create<AppState & AppActions>((set, get) => ({
         const newTransfer: StockTransfer = { 
             ...transfer, 
             id: maxId + 1,
+            timestamp: new Date().toISOString(),
             productName: product.name,
         };
         const transferRef = doc(db, "stockTransfers", String(newTransfer.id));
@@ -1051,6 +1008,7 @@ const useStore = create<AppState & AppActions>((set, get) => ({
                 const newOrderRef = doc(db, "orders", orderId);
                 const newOrderData: Omit<Order, 'id'> = {
                     date: new Date().toISOString().split('T')[0],
+                    timestamp: new Date().toISOString(),
                     createdAt: Timestamp.now(),
                     customerName: customerDetails.name, customerPhone: customerDetails.phone, customerAddress: customerDetails.address,
                     items, 
@@ -1151,7 +1109,7 @@ const useStore = create<AppState & AppActions>((set, get) => ({
             }
     
             const newSale: DailySale = {
-                id: maxSaleId + 1, date: orderToUpdate.date, invoiceNumber: `ONLINE-${orderToUpdate.id}`,
+                id: maxSaleId + 1, date: orderToUpdate.date, timestamp: new Date().toISOString(), invoiceNumber: `ONLINE-${orderToUpdate.id}`,
                 sellerId: seller.id, sellerName: seller.name, source: 'أونلاين', branchSoldFrom: 'main', 
                 direction: 'بيع', items: saleItems, totalAmount: orderToUpdate.totalAmount,
             };
@@ -1159,7 +1117,7 @@ const useStore = create<AppState & AppActions>((set, get) => ({
             
             const maxTreasuryId = Math.max(0, ...appData.treasury.map(t => Number(t.id) || 0));
             const newTransaction: TreasuryTransaction = {
-                id: maxTreasuryId + 1, date: orderToUpdate.date, type: 'إيراد مبيعات',
+                id: maxTreasuryId + 1, date: orderToUpdate.date, timestamp: new Date().toISOString(), type: 'إيراد مبيعات',
                 description: `طلب أونلاين #${orderToUpdate.id}`, amountIn: orderToUpdate.totalAmount, amountOut: 0, relatedId: orderToUpdate.id,
             };
             batch.set(doc(db, "treasury", String(newTransaction.id)), newTransaction);
@@ -1203,34 +1161,38 @@ const useStore = create<AppState & AppActions>((set, get) => ({
 
     deleteOrder: async (orderId: number | string) => {
         try {
-            const orderDocRef = doc(db, "orders", String(orderId));
-            const orderSnapshot = await getDoc(orderDocRef);
-        
-            if (!orderSnapshot.exists()) throw new Error(`Order with ID ${orderId} not found!`);
-            const orderToDelete = orderSnapshot.data() as Order;
+            const state = get();
+            const orderToDelete = state.appData?.orders.find(o => String(o.id) === String(orderId));
+            if (!orderToDelete) throw new Error(`Order with ID ${orderId} not found!`);
         
             const batch = writeBatch(db);
+            const orderDocRef = doc(db, "orders", String(orderId));
             batch.delete(orderDocRef);
         
-            const notificationsQuery = query(collection(db, "notifications"), where("orderId", "==", orderId));
-            const notificationsSnapshot = await getDocs(notificationsQuery);
-            notificationsSnapshot.forEach(doc => batch.delete(doc.ref));
+            const notifications = state.appData?.notifications.filter(n => String(n.orderId) === String(orderId)) || [];
+            notifications.forEach(n => {
+                const nRef = doc(db, "notifications", String(n.id));
+                batch.delete(nRef);
+            });
         
             if (['confirmed', 'shipped'].includes(orderToDelete.status)) {
-                const salesQuery = query(collection(db, "dailySales"), where("invoiceNumber", "==", `ONLINE-${orderId}`));
-                const salesSnapshot = await getDocs(salesQuery);
-                salesSnapshot.forEach(doc => batch.delete(doc.ref));
+                const sales = state.appData?.dailySales.filter(s => s.invoiceNumber === `ONLINE-${orderId}`) || [];
+                sales.forEach(s => {
+                    const sRef = doc(db, "dailySales", String(s.id));
+                    batch.delete(sRef);
+                });
         
-                const treasuryQuery = query(collection(db, "treasury"), where("relatedId", "==", orderId), where("type", "==", "إيراد مبيعات"));
-                const treasurySnapshot = await getDocs(treasuryQuery);
-                treasurySnapshot.forEach(doc => batch.delete(doc.ref));
+                const treasuryTransactions = state.appData?.treasury.filter(t => String(t.relatedId) === String(orderId) && t.type === "إيراد مبيعات") || [];
+                treasuryTransactions.forEach(t => {
+                    const tRef = doc(db, "treasury", String(t.id));
+                    batch.delete(tRef);
+                });
         
                 for (const item of orderToDelete.items) {
-                    const productRef = doc(db, "products", String(item.productId));
-                    const productDoc = await getDoc(productRef);
-                    if (productDoc.exists()) {
-                        const product = productDoc.data() as Product;
-                        const newStock = { ...product.stock, main: product.stock.main + item.quantity };
+                    const product = state.appData?.products.find(p => String(p.id) === String(item.productId));
+                    if (product) {
+                        const productRef = doc(db, "products", String(item.productId));
+                        const newStock = { ...product.stock, main: (product.stock.main || 0) + item.quantity };
                         batch.update(productRef, { stock: newStock });
                     }
                 }
@@ -1348,6 +1310,17 @@ const useStore = create<AppState & AppActions>((set, get) => ({
         
         await get().addTreasuryTransaction(transaction);
         get().addToast('تم ضبط رصيد الخزينة بنجاح', 'success');
+    },
+    clearTreasury: async () => {
+        const batch = writeBatch(db);
+        const state = get();
+        const treasuryDocs = state.appData?.treasury || [];
+        treasuryDocs.forEach(t => {
+            const tRef = doc(db, "treasury", String(t.id));
+            batch.delete(tRef);
+        });
+        await batch.commit();
+        get().addToast('تم مسح جميع معاملات الخزينة بنجاح', 'success');
     },
 }));
 

@@ -6,7 +6,7 @@ import SectionHeader from '../shared/SectionHeader';
 import ProductModal from './ProductModal';
 import StorefrontSettings from './StorefrontSettings';
 import ConfirmationModal from '../shared/ConfirmationModal';
-import { formatCurrency, formatDate } from '../../lib/utils';
+import { formatCurrency, formatDate, formatDateTime } from '../../lib/utils';
 import StockTransferModal from './StockTransferModal';
 import PriceIncreaseModal from './PriceIncreaseModal';
 import * as XLSX from 'xlsx';
@@ -28,7 +28,7 @@ const StockTransfersList: React.FC<{ transfers: StockTransfer[] }> = ({ transfer
              <table className="w-full text-sm text-right text-gray-500 dark:text-gray-400">
                  <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-300">
                     <tr>
-                        <th className="px-6 py-3">التاريخ</th>
+                        <th className="px-6 py-3">التاريخ والوقت</th>
                         <th className="px-6 py-3">المنتج</th>
                         <th className="px-6 py-3">الكمية</th>
                         <th className="px-6 py-3">من فرع</th>
@@ -39,7 +39,7 @@ const StockTransfersList: React.FC<{ transfers: StockTransfer[] }> = ({ transfer
                 <tbody>
                     {sortedTransfers.length > 0 ? sortedTransfers.map(t => (
                         <tr key={t.id} className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
-                            <td className="px-6 py-4">{formatDate(t.date)}</td>
+                            <td className="px-6 py-4 whitespace-nowrap" dir="ltr">{formatDateTime(t.date, t.timestamp)}</td>
                             <td className="px-6 py-4 font-medium text-gray-900 dark:text-white">{t.productName}</td>
                             <td className="px-6 py-4 font-bold">{t.quantity}</td>
                             <td className="px-6 py-4">{branchNames[t.fromBranch]}</td>
@@ -68,7 +68,8 @@ const Inventory: React.FC = () => {
         updateStorefrontSettings,
         fetchProducts,
         searchProducts,
-        globalProducts // Get global products from store
+        globalProducts, // Get global products from store
+        currentUser
     } = useStore(state => ({
         stockTransfers: state.appData?.stockTransfers || [],
         setProducts: state.setProducts,
@@ -79,7 +80,8 @@ const Inventory: React.FC = () => {
         updateStorefrontSettings: state.updateStorefrontSettings,
         fetchProducts: state.fetchProducts,
         searchProducts: state.searchProducts,
-        globalProducts: state.appData?.products || [] // Access global products
+        globalProducts: state.appData?.products || [], // Access global products
+        currentUser: state.currentUser
     }));
 
     const [products, setLocalProducts] = useState<Product[]>([]);
@@ -359,15 +361,16 @@ const Inventory: React.FC = () => {
                                 <tr>
                                     <th className="px-6 py-3">المنتج</th>
                                     <th className="px-6 py-3">الكود</th>
-                                    <th className="px-6 py-3">سعر الشراء</th>
+                                    {currentUser?.role === 'admin' && <th className="px-6 py-3">سعر الشراء</th>}
                                     <th className="px-6 py-3">سعر البيع</th>
-                                    <th className="px-6 py-3">الرصيد الكلي</th>
+                                    <th className="px-6 py-3">{currentUser?.role === 'admin' ? 'الرصيد الكلي' : 'رصيد الفرع'}</th>
                                     <th className="px-6 py-3">الإجراءات</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {filteredProducts.map(p => {
                                     const totalStock = p.stock.main + p.stock.branch1 + p.stock.branch2 + p.stock.branch3;
+                                    const displayStock = currentUser?.role === 'admin' ? totalStock : (p.stock[currentUser?.branch as keyof typeof p.stock] || 0);
                                     return (
                                         <tr key={p.id} className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
                                             <td className="px-6 py-4 font-medium text-gray-900 dark:text-white flex items-center gap-3">
@@ -375,12 +378,14 @@ const Inventory: React.FC = () => {
                                                 {p.name}
                                             </td>
                                             <td className="px-6 py-4">{p.sku}</td>
-                                            <td className="px-6 py-4">{formatCurrency(p.purchasePrice)}</td>
+                                            {currentUser?.role === 'admin' && <td className="px-6 py-4">{formatCurrency(p.purchasePrice)}</td>}
                                             <td className="px-6 py-4">{formatCurrency(p.sellingPrice)}</td>
-                                            <td className={`px-6 py-4 font-bold ${totalStock <= (p.reorderPoint || 0) ? 'text-red-500' : ''}`}>{totalStock}</td>
+                                            <td className={`px-6 py-4 font-bold ${displayStock <= (p.reorderPoint || 0) ? 'text-red-500' : ''}`}>{displayStock}</td>
                                             <td className="px-6 py-4 flex gap-3">
                                                 <button onClick={() => handleEditProduct(p)} className="text-blue-500 hover:text-blue-700 text-lg"><i className="fas fa-edit"></i></button>
-                                                <button onClick={() => setProductToDelete(p)} className="text-red-500 hover:text-red-700 text-lg"><i className="fas fa-trash"></i></button>
+                                                {currentUser?.role === 'admin' && (
+                                                    <button onClick={() => setProductToDelete(p)} className="text-red-500 hover:text-red-700 text-lg"><i className="fas fa-trash"></i></button>
+                                                )}
                                             </td>
                                         </tr>
                                     );

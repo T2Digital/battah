@@ -11,11 +11,14 @@ interface PurchaseOrderModalProps {
     orderToEdit: PurchaseOrder | null;
     suppliers: Supplier[];
     products: Product[];
+    addProduct?: (product: Omit<Product, 'id'>) => Promise<Product>;
+    isDirectStatement?: boolean;
+    onSaveDirect?: (order: Omit<PurchaseOrder, 'id'> & { id?: number }, branch: 'main' | 'branch1' | 'branch2' | 'branch3') => void;
 }
 
 type EditablePurchaseOrderItem = Omit<PurchaseOrderItem, 'quantity' | 'purchasePrice'> & { id: number; quantity: number | ''; purchasePrice: number | '' };
 
-const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, onClose, onSave, orderToEdit, suppliers, products }) => {
+const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, onClose, onSave, orderToEdit, suppliers, products, addProduct, isDirectStatement, onSaveDirect }) => {
     const [formData, setFormData] = useState({
         supplierId: 0,
         orderDate: new Date().toISOString().split('T')[0],
@@ -23,6 +26,7 @@ const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, onClose
         items: [] as EditablePurchaseOrderItem[],
         notes: ''
     });
+    const [receiveBranch, setReceiveBranch] = useState<'main' | 'branch1' | 'branch2' | 'branch3'>('main');
     
     const [productSearch, setProductSearch] = useState('');
     const [showSuggestions, setShowSuggestions] = useState(false);
@@ -88,6 +92,30 @@ const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, onClose
         setFormData(prev => ({ ...prev, items: [...prev.items, newItem] }));
     };
 
+    const handleAddNewProduct = async () => {
+        if (!productSearch.trim() || !addProduct) return;
+        
+        try {
+            const newProductData: Omit<Product, 'id'> = {
+                name: productSearch.trim(),
+                sku: `NEW-${Date.now()}`,
+                mainCategory: 'قطع غيار',
+                category: 'غير مصنف',
+                brand: 'غير محدد',
+                purchasePrice: 0,
+                sellingPrice: 0,
+                stock: { main: 0, branch1: 0, branch2: 0, branch3: 0 },
+                images: []
+            };
+            
+            const addedProduct = await addProduct(newProductData);
+            addItem(addedProduct);
+        } catch (error) {
+            console.error("Failed to add new product:", error);
+            alert("حدث خطأ أثناء إضافة المنتج الجديد.");
+        }
+    };
+
     const removeItem = (index: number) => {
         setFormData(prev => ({ ...prev, items: prev.items.filter((_, i) => i !== index) }));
     };
@@ -104,6 +132,7 @@ const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, onClose
         }
         const finalOrderData = {
             ...formData,
+            status: isDirectStatement ? 'مكتمل' as const : formData.status,
             totalAmount,
             items: formData.items.map(i => ({
                 productId: i.productId,
@@ -111,13 +140,17 @@ const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, onClose
                 purchasePrice: Number(i.purchasePrice)
             }))
         };
-        onSave(orderToEdit ? { ...finalOrderData, id: orderToEdit.id } : finalOrderData);
+        if (isDirectStatement && onSaveDirect) {
+            onSaveDirect(orderToEdit ? { ...finalOrderData, id: orderToEdit.id } : finalOrderData, receiveBranch);
+        } else {
+            onSave(orderToEdit ? { ...finalOrderData, id: orderToEdit.id } : finalOrderData);
+        }
     };
 
     const getProductName = (id: number) => products.find(p => p.id === id)?.name || 'N/A';
 
     return (
-        <Modal isOpen={isOpen} onClose={onClose} title={orderToEdit ? 'تعديل أمر شراء' : 'إنشاء أمر شراء جديد'} onSave={handleSubmit}>
+        <Modal isOpen={isOpen} onClose={onClose} title={isDirectStatement ? 'إضافة بيان بضاعة مباشر' : (orderToEdit ? 'تعديل أمر شراء' : 'إنشاء أمر شراء جديد')} onSave={handleSubmit}>
             <div className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
@@ -130,15 +163,31 @@ const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, onClose
                         <label>التاريخ *</label>
                         <input type="date" name="orderDate" value={formData.orderDate} onChange={handleChange} required className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700" />
                     </div>
+                    {isDirectStatement && (
+                        <div className="md:col-span-2">
+                            <label>استلام في الفرع *</label>
+                            <select value={receiveBranch} onChange={e => setReceiveBranch(e.target.value as any)} className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700">
+                                <option value="main">الرئيسي</option>
+                                <option value="branch1">فرع 1</option>
+                                <option value="branch2">فرع 2</option>
+                                <option value="branch3">فرع 3</option>
+                            </select>
+                        </div>
+                    )}
                 </div>
 
                 <div className="border-t pt-4 mt-4">
                     <h4 className="font-bold mb-2">الأصناف</h4>
                     <div className="relative mb-2">
                         <input type="text" value={productSearch} onChange={e => setProductSearch(e.target.value)} onFocus={() => setShowSuggestions(true)} onBlur={() => setTimeout(() => setShowSuggestions(false), 200)} placeholder="ابحث لإضافة صنف..." className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" />
-                        {filteredProducts.length > 0 && showSuggestions && (
+                        {showSuggestions && (productSearch.trim() !== '' || filteredProducts.length > 0) && (
                             <ul className="absolute z-10 w-full bg-white dark:bg-gray-600 border dark:border-gray-500 rounded-md mt-1 max-h-40 overflow-y-auto shadow-lg">
                                 {filteredProducts.map(p => <li key={p.id} onMouseDown={() => addItem(p)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-500 cursor-pointer">{p.name}</li>)}
+                                {productSearch.trim() !== '' && !filteredProducts.some(p => p.name.toLowerCase() === productSearch.trim().toLowerCase()) && addProduct && (
+                                    <li onMouseDown={handleAddNewProduct} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-500 cursor-pointer text-primary font-bold">
+                                        + إضافة "{productSearch.trim()}" كمنتج جديد
+                                    </li>
+                                )}
                             </ul>
                         )}
                     </div>

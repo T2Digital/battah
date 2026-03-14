@@ -113,7 +113,11 @@ const AIChatbot: React.FC<AIChatbotProps> = ({ setSelectedProduct, addToCart, op
         else if (/(اهلا|سلام|هاي|مرحبا|ازيك|عامل|صباح|مسا|يا باشا|يا هندسة)/.test(lowerText)) {
             return "أهلاً بيك يا ريس! منور متجر بطاح الأصلي. معاك مساعد بطاح، أقدر أخدمك في إيه؟ بتدور على قطعة معينة ولا عربيتك فيها مشكلة ومحتاج استشارة؟";
         }
-        // 4. General Product Search (Fallback)
+        // 4. Company Info
+        else if (/(عنوان|مكان|موقع|تليفون|رقم|تواصل|اتصال|موبايل|فرع)/.test(lowerText)) {
+            return "إحنا موجودين في 79 شارع رمسيس ناصية التوفيقية، القاهرة.\nتقدر تتواصل معانا على رقم الموبايل أو الواتساب: 01080444447\nمواعيد العمل من 9 صباحاً لـ 10 مساءً.";
+        }
+        // 5. General Product Search (Fallback)
         else {
             foundProducts = searchLocalProducts(lowerText);
             if (foundProducts.length > 0) {
@@ -133,11 +137,16 @@ const AIChatbot: React.FC<AIChatbotProps> = ({ setSelectedProduct, addToCart, op
         return response;
     };
 
-    const handleSend = async (e: FormEvent) => {
-        e.preventDefault();
-        if (!input.trim() || isLoading) return;
+    const handleQuickReply = (text: string) => {
+        setInput(text);
+        handleSend(undefined, text);
+    };
 
-        const userMsg = input;
+    const handleSend = async (e?: FormEvent, textOverride?: string) => {
+        if (e) e.preventDefault();
+        const userMsg = textOverride || input;
+        if (!userMsg.trim() || isLoading) return;
+
         setInput('');
         setMessages(prev => [...prev, { text: userMsg, sender: 'user' }]);
         setIsLoading(true);
@@ -190,7 +199,13 @@ const AIChatbot: React.FC<AIChatbotProps> = ({ setSelectedProduct, addToCart, op
                             <div className="text-center text-gray-500 text-sm mt-10">
                                 <i className="fas fa-robot text-5xl mb-4 text-gray-300 dark:text-gray-600"></i>
                                 <p className="font-bold text-gray-700 dark:text-gray-300 mb-2">أهلاً يا باشا! 👋</p>
-                                <p className="leading-relaxed">أنا "مساعد بطاح"، معاك لو محتاج أي قطعة غيار أو عندك مشكلة في عربيتك.</p>
+                                <p className="leading-relaxed mb-4">أنا "مساعد بطاح"، معاك لو محتاج أي قطعة غيار أو عندك مشكلة في عربيتك.</p>
+                                <div className="flex flex-wrap justify-center gap-2">
+                                    <button onClick={() => handleQuickReply('العربية بتسخن')} className="px-3 py-1.5 bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 rounded-full text-xs hover:bg-blue-200 transition-colors border border-blue-200 dark:border-blue-800">العربية بتسخن</button>
+                                    <button onClick={() => handleQuickReply('صوت تصفير في الفرامل')} className="px-3 py-1.5 bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 rounded-full text-xs hover:bg-blue-200 transition-colors border border-blue-200 dark:border-blue-800">تصفير في الفرامل</button>
+                                    <button onClick={() => handleQuickReply('عنوان المحل فين؟')} className="px-3 py-1.5 bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 rounded-full text-xs hover:bg-blue-200 transition-colors border border-blue-200 dark:border-blue-800">عنوان المحل فين؟</button>
+                                    <button onClick={() => handleQuickReply('رقم التليفون للتواصل')} className="px-3 py-1.5 bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 rounded-full text-xs hover:bg-blue-200 transition-colors border border-blue-200 dark:border-blue-800">رقم التليفون</button>
+                                </div>
                             </div>
                         )}
                         

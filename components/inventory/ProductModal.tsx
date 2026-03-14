@@ -4,6 +4,7 @@ import { GoogleGenAI } from "@google/genai";
 import CreatableSelect from 'react-select/creatable';
 import { Product, MainCategory } from '../../types';
 import Modal from '../shared/Modal';
+import AdminPasswordModal from '../shared/AdminPasswordModal';
 import useStore from '../../lib/store';
 
 interface ProductModalProps {
@@ -130,20 +131,23 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, ex
 
     const handlePreSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (storefrontSettings?.adminPassword) {
+        // Check if price changed
+        const priceChanged = !existingProduct || 
+            existingProduct.purchasePrice !== formData.purchasePrice ||
+            existingProduct.sellingPrice !== formData.sellingPrice ||
+            existingProduct.wholesalePrice !== formData.wholesalePrice ||
+            existingProduct.retailPrice !== formData.retailPrice;
+
+        if (priceChanged) {
             setShowSecurityCheck(true);
         } else {
             handleSubmit();
         }
     };
 
-    const handleSecuritySubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (securityPassword === storefrontSettings?.adminPassword) {
-            handleSubmit();
-        } else {
-            setSecurityError('كلمة المرور غير صحيحة');
-        }
+    const handleSecuritySuccess = () => {
+        setShowSecurityCheck(false);
+        handleSubmit();
     };
 
     const handleSubmit = async () => {
@@ -172,21 +176,12 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, ex
 
     if (showSecurityCheck) {
         return (
-            <Modal isOpen={isOpen} onClose={() => setShowSecurityCheck(false)} title="تأكيد الأمان" onSave={handleSecuritySubmit} saveLabel="تأكيد">
-                <div className="space-y-4">
-                    <p className="text-gray-600 dark:text-gray-300">يرجى إدخال كلمة مرور العمليات الحساسة للمتابعة.</p>
-                    <input
-                        type="password"
-                        value={securityPassword}
-                        onChange={(e) => { setSecurityPassword(e.target.value); setSecurityError(''); }}
-                        className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
-                        placeholder="كلمة المرور"
-                        autoFocus
-                    />
-                    {securityError && <p className="text-red-500 text-sm">{securityError}</p>}
-                    <button type="button" onClick={() => setShowSecurityCheck(false)} className="text-sm text-gray-500 underline">رجوع</button>
-                </div>
-            </Modal>
+            <AdminPasswordModal 
+                isOpen={isOpen} 
+                onClose={() => setShowSecurityCheck(false)} 
+                onSuccess={handleSecuritySuccess}
+                actionDescription="تعديل أسعار المنتج"
+            />
         );
     }
 

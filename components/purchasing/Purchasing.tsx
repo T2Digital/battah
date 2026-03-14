@@ -3,14 +3,17 @@ import { PurchaseOrder, Supplier, Product } from '../../types';
 import SectionHeader from '../shared/SectionHeader';
 import PurchaseOrderModal from './PurchaseOrderModal';
 import ReceiveOrderModal from './ReceiveOrderModal';
+import PriceComparisonModal from './PriceComparisonModal';
 import ConfirmationModal from '../shared/ConfirmationModal';
-import { formatDate, formatCurrency } from '../../lib/utils';
+import { formatDate, formatCurrency, formatDateTime } from '../../lib/utils';
 import useStore from '../../lib/store';
 
 const Purchasing: React.FC = () => {
     const { 
         products, 
         setProducts,
+        addProduct,
+        updateProduct,
         purchaseOrders,
         addPurchaseOrder,
         updatePurchaseOrder,
@@ -19,6 +22,8 @@ const Purchasing: React.FC = () => {
     } = useStore(state => ({
         products: state.appData?.products || [],
         setProducts: state.setProducts,
+        addProduct: state.addProduct,
+        updateProduct: state.updateProduct,
         purchaseOrders: state.appData?.purchaseOrders || [],
         addPurchaseOrder: state.addPurchaseOrder,
         updatePurchaseOrder: state.updatePurchaseOrder,
@@ -28,6 +33,7 @@ const Purchasing: React.FC = () => {
 
     const [isOrderModalOpen, setOrderModalOpen] = useState(false);
     const [isReceiveModalOpen, setReceiveModalOpen] = useState(false);
+    const [isPriceComparisonModalOpen, setPriceComparisonModalOpen] = useState(false);
     const [orderToEdit, setOrderToEdit] = useState<PurchaseOrder | null>(null);
     const [orderToReceive, setOrderToReceive] = useState<PurchaseOrder | null>(null);
     const [orderToDelete, setOrderToDelete] = useState<PurchaseOrder | null>(null);
@@ -73,19 +79,17 @@ const Purchasing: React.FC = () => {
         setOrderModalOpen(false);
     };
 
-    const handleConfirmReception = (orderId: number, receivedItems: { productId: number; quantity: number }[], receivedInto: 'main' | 'branch1' | 'branch2' | 'branch3') => {
-        const newProducts = products.map(p => {
-            const receivedItem = receivedItems.find(item => item.productId === p.id);
-            if (receivedItem) {
-                const newStock = { ...p.stock };
+    const handleConfirmReception = async (orderId: number, receivedItems: { productId: number; quantity: number }[], receivedInto: 'main' | 'branch1' | 'branch2' | 'branch3') => {
+        for (const receivedItem of receivedItems) {
+            const product = products.find(p => p.id === receivedItem.productId);
+            if (product) {
+                const newStock = { ...product.stock };
                 newStock[receivedInto] += receivedItem.quantity;
-                return { ...p, stock: newStock };
+                await updateProduct(product.id, { stock: newStock });
             }
-            return p;
-        });
-        setProducts(newProducts);
+        }
 
-        updatePurchaseOrder(orderId, { status: 'مكتمل' });
+        await updatePurchaseOrder(orderId, { status: 'مكتمل' });
         setReceiveModalOpen(false);
     };
 
@@ -98,10 +102,16 @@ const Purchasing: React.FC = () => {
     return (
         <div className="animate-fade-in space-y-6">
             <SectionHeader icon="fa-shopping-cart" title="المشتريات">
-                <button onClick={handleAddOrder} className="px-4 py-2 bg-primary text-white rounded-lg flex items-center gap-2 hover:bg-primary-dark transition shadow-md">
-                    <i className="fas fa-plus"></i>
-                    إنشاء أمر شراء
-                </button>
+                <div className="flex gap-2">
+                    <button onClick={() => setPriceComparisonModalOpen(true)} className="px-4 py-2 bg-secondary text-white rounded-lg flex items-center gap-2 hover:bg-secondary-dark transition shadow-md">
+                        <i className="fas fa-balance-scale"></i>
+                        مقارنة الأسعار
+                    </button>
+                    <button onClick={handleAddOrder} className="px-4 py-2 bg-primary text-white rounded-lg flex items-center gap-2 hover:bg-primary-dark transition shadow-md">
+                        <i className="fas fa-plus"></i>
+                        إنشاء أمر شراء
+                    </button>
+                </div>
             </SectionHeader>
 
             <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-x-auto">
@@ -109,7 +119,7 @@ const Purchasing: React.FC = () => {
                     <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-300">
                         <tr>
                             <th className="px-6 py-3">رقم الأمر</th>
-                            <th className="px-6 py-3">التاريخ</th>
+                            <th className="px-6 py-3">التاريخ والوقت</th>
                             <th className="px-6 py-3">المورد</th>
                             <th className="px-6 py-3">الإجمالي</th>
                             <th className="px-6 py-3">الحالة</th>
@@ -120,7 +130,7 @@ const Purchasing: React.FC = () => {
                         {ordersWithDetails.map(po => (
                             <tr key={po.id} className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
                                 <td className="px-6 py-4 font-bold">PO-{po.id.toString().padStart(4, '0')}</td>
-                                <td className="px-6 py-4">{formatDate(po.orderDate)}</td>
+                                <td className="px-6 py-4 whitespace-nowrap" dir="ltr">{formatDateTime(po.orderDate, po.timestamp)}</td>
                                 <td className="px-6 py-4 font-medium text-gray-900 dark:text-white">{po.supplierName}</td>
                                 <td className="px-6 py-4">{formatCurrency(po.totalAmount)}</td>
                                 <td className="px-6 py-4">
@@ -155,6 +165,7 @@ const Purchasing: React.FC = () => {
                     orderToEdit={orderToEdit}
                     suppliers={suppliers}
                     products={products}
+                    addProduct={addProduct}
                 />
             )}
              {isReceiveModalOpen && orderToReceive && (
@@ -175,6 +186,16 @@ const Purchasing: React.FC = () => {
                     title="تأكيد الحذف"
                     message={`هل أنت متأكد من حذف أمر الشراء رقم "PO-${orderToDelete.id.toString().padStart(4, '0')}"؟`}
                     isLoading={isDeleting}
+                />
+            )}
+
+            {isPriceComparisonModalOpen && (
+                <PriceComparisonModal
+                    isOpen={isPriceComparisonModalOpen}
+                    onClose={() => setPriceComparisonModalOpen(false)}
+                    products={products}
+                    suppliers={suppliers}
+                    purchaseOrders={purchaseOrders}
                 />
             )}
 

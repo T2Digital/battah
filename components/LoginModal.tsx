@@ -4,7 +4,11 @@ import React, { useState } from 'react';
 // Fix: Corrected import path
 import useStore from '../lib/store';
 
-const LoginModal: React.FC = () => {
+interface LoginModalProps {
+    setViewMode?: (mode: 'store' | 'admin') => void;
+}
+
+const LoginModal: React.FC<LoginModalProps> = ({ setViewMode }) => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
@@ -78,6 +82,18 @@ const LoginModal: React.FC = () => {
                             <span>{isLoading ? 'جاري الدخول...' : 'دخول'}</span>
                         </button>
                     </div>
+                    {setViewMode && (
+                        <div className="mt-4 text-center">
+                            <button 
+                                type="button" 
+                                onClick={() => setViewMode('store')} 
+                                className="text-primary hover:text-primary-dark font-medium transition-colors flex items-center justify-center gap-2 w-full"
+                            >
+                                <i className="fas fa-store"></i>
+                                العودة للمتجر
+                            </button>
+                        </div>
+                    )}
                 </form>
             </div>
         </div>

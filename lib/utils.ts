@@ -45,6 +45,24 @@ export const formatDate = (dateString: string | undefined): string => {
     }
 };
 
+export const formatDateTime = (dateString: string | undefined, timestamp?: string): string => {
+    if (!dateString && !timestamp) return '';
+    try {
+        const date = new Date(timestamp || dateString!);
+        if (isNaN(date.getTime())) return timestamp || dateString!;
+        return date.toLocaleString('ar-EG', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true
+        });
+    } catch (error) {
+        return timestamp || dateString!;
+    }
+};
+
 export const calculateHours = (checkIn?: string, checkOut?: string): number => {
     if (!checkIn || !checkOut) return 0;
     try {

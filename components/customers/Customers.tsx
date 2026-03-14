@@ -3,7 +3,7 @@ import React, { useMemo, useState } from 'react';
 import useStore from '../../lib/store';
 import { Order, DailySale } from '../../types';
 import SectionHeader from '../shared/SectionHeader';
-import { formatCurrency, formatDate } from '../../lib/utils';
+import { formatCurrency, formatDate, formatDateTime } from '../../lib/utils';
 import Modal from '../shared/Modal';
 
 interface Customer {
@@ -19,7 +19,45 @@ interface Customer {
 }
 
 const CustomerDetailsModal: React.FC<{ customer: Customer | null; onClose: () => void }> = ({ customer, onClose }) => {
+    const { updateDailySale, addTreasuryTransaction } = useStore();
+    const [payingSaleId, setPayingSaleId] = useState<number | null>(null);
+    const [paymentAmount, setPaymentAmount] = useState<number | ''>('');
+
     if (!customer) return null;
+
+    const handlePaymentSubmit = async (sale: DailySale) => {
+        const amount = Number(paymentAmount);
+        if (amount <= 0 || amount > (sale.remainingDebt || 0)) {
+            alert('المبلغ غير صحيح');
+            return;
+        }
+
+        try {
+            const newPaid = (sale.paidAmount || 0) + amount;
+            const newRemaining = (sale.remainingDebt || 0) - amount;
+
+            await updateDailySale(sale.id, {
+                paidAmount: newPaid,
+                remainingDebt: newRemaining
+            });
+
+            await addTreasuryTransaction({
+                date: new Date().toISOString().split('T')[0],
+                type: 'إيراد مبيعات',
+                amountIn: amount,
+                amountOut: 0,
+                description: `تسديد مديونية فاتورة رقم ${sale.invoiceNumber} للعميل ${customer.name}`,
+            });
+
+            setPayingSaleId(null);
+            setPaymentAmount('');
+            alert('تم تسجيل الدفعة بنجاح');
+        } catch (error) {
+            console.error('Error processing payment:', error);
+            alert('حدث خطأ أثناء تسجيل الدفعة');
+        }
+    };
+
     return (
         <Modal isOpen={!!customer} onClose={onClose} title={`سجل طلبات: ${customer.name}`}>
             <div className="space-y-4 max-h-[60vh] overflow-y-auto custom-scrollbar pr-2">
@@ -36,7 +74,7 @@ const CustomerDetailsModal: React.FC<{ customer: Customer | null; onClose: () =>
                         {customer.orders.map(order => (
                             <div key={`order-${order.id}`} className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
                                 <div className="flex justify-between items-center font-bold">
-                                    <span>طلب رقم #{order.id} - {formatDate(order.date)}</span>
+                                    <span>طلب رقم #{order.id} - {formatDateTime(order.date, order.timestamp)}</span>
                                     <span>{formatCurrency(order.totalAmount)}</span>
                                 </div>
                                 <ul className="text-sm mt-2 list-disc pr-5">
@@ -55,12 +93,45 @@ const CustomerDetailsModal: React.FC<{ customer: Customer | null; onClose: () =>
                         {customer.sales.map(sale => (
                             <div key={`sale-${sale.id}`} className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
                                 <div className="flex justify-between items-center font-bold">
-                                    <span>فاتورة رقم #{sale.invoiceNumber} - {formatDate(sale.date)}</span>
+                                    <span>فاتورة رقم #{sale.invoiceNumber} - {formatDateTime(sale.date, sale.timestamp)}</span>
                                     <span>{formatCurrency(sale.totalAmount)}</span>
                                 </div>
                                 {sale.remainingDebt && sale.remainingDebt > 0 ? (
-                                    <div className="text-sm text-red-500 font-semibold mt-1">
-                                        متبقي (آجل): {formatCurrency(sale.remainingDebt)}
+                                    <div className="mt-2 border-t pt-2">
+                                        <div className="text-sm text-red-500 font-semibold mb-2">
+                                            متبقي (آجل): {formatCurrency(sale.remainingDebt)}
+                                        </div>
+                                        {payingSaleId === sale.id ? (
+                                            <div className="flex items-center gap-2 mt-2">
+                                                <input 
+                                                    type="number" 
+                                                    value={paymentAmount}
+                                                    onChange={e => setPaymentAmount(e.target.value ? Number(e.target.value) : '')}
+                                                    placeholder="المبلغ المدفوع"
+                                                    className="p-1 border rounded text-sm w-32 dark:bg-gray-600 dark:border-gray-500"
+                                                    max={sale.remainingDebt}
+                                                />
+                                                <button 
+                                                    onClick={() => handlePaymentSubmit(sale)}
+                                                    className="bg-green-500 text-white px-3 py-1 rounded text-sm hover:bg-green-600"
+                                                >
+                                                    تأكيد
+                                                </button>
+                                                <button 
+                                                    onClick={() => { setPayingSaleId(null); setPaymentAmount(''); }}
+                                                    className="bg-gray-300 text-gray-700 px-3 py-1 rounded text-sm hover:bg-gray-400"
+                                                >
+                                                    إلغاء
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <button 
+                                                onClick={() => { setPayingSaleId(sale.id); setPaymentAmount(sale.remainingDebt || 0); }}
+                                                className="bg-primary text-white px-3 py-1 rounded text-sm hover:bg-primary-dark transition shadow-sm"
+                                            >
+                                                تسديد دفعة
+                                            </button>
+                                        )}
                                     </div>
                                 ) : null}
                             </div>
@@ -194,7 +265,7 @@ const Customers: React.FC = () => {
                                     <td className="px-6 py-4 text-center font-bold">{customer.orderCount}</td>
                                     <td className="px-6 py-4 font-semibold text-green-600 dark:text-green-400">{formatCurrency(customer.totalSpent)}</td>
                                     <td className="px-6 py-4 font-bold text-red-500">{customer.totalDebt > 0 ? formatCurrency(customer.totalDebt) : '-'}</td>
-                                    <td className="px-6 py-4">{formatDate(customer.lastOrderDate)}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap" dir="ltr">{formatDateTime(customer.lastOrderDate)}</td>
                                     <td className="px-6 py-4">
                                         <button onClick={() => setSelectedCustomer(customer)} className="text-blue-500 hover:text-blue-700" title="عرض سجل الطلبات">
                                             <i className="fas fa-eye"></i> عرض التفاصيل

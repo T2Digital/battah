@@ -46,16 +46,6 @@ const StoreProductModal: React.FC<StoreProductModalProps> = ({ isOpen, onClose, 
                     <p className="text-gray-500 dark:text-gray-400">{product.brand}</p>
                     <p className="text-3xl font-bold text-primary-dark dark:text-primary-light my-4">{formatCurrency(product.sellingPrice)}</p>
                     <p className="text-sm leading-relaxed">{product.description}</p>
-                    
-                    <div className="mt-4 p-3 bg-gray-100 dark:bg-gray-700 rounded-lg">
-                        <h4 className="font-bold text-md mb-1">توفر المخزون</h4>
-                        <p className="text-sm text-gray-600 dark:text-gray-300">
-                            <strong>الإجمالي:</strong> {totalStock} قطعة
-                        </p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                            ({stockBreakdown})
-                        </p>
-                    </div>
 
                     <div className="mt-6">
                         {totalStock > 0 ? (

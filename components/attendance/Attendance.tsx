@@ -3,7 +3,7 @@ import * as XLSX from 'xlsx';
 import { Attendance as AttendanceType, Employee } from '../../types';
 import SectionHeader from '../shared/SectionHeader';
 import Modal from '../shared/Modal';
-import { formatDate, calculateHours } from '../../lib/utils';
+import { formatDate, formatDateTime, calculateHours } from '../../lib/utils';
 
 interface AttendanceProps {
     attendance: AttendanceType[];
@@ -21,8 +21,7 @@ const AttendanceModal: React.FC<{
     const [formData, setFormData] = useState({
         date: new Date().toISOString().split('T')[0],
         employeeId: 0,
-        checkIn: '08:00',
-        checkOut: '17:00',
+        daysAttended: 0,
         notes: ''
     });
 
@@ -31,16 +30,14 @@ const AttendanceModal: React.FC<{
             setFormData({ 
                 date: recordToEdit.date,
                 employeeId: recordToEdit.employeeId,
-                checkIn: recordToEdit.checkIn || '08:00',
-                checkOut: recordToEdit.checkOut || '17:00',
+                daysAttended: recordToEdit.daysAttended || 0,
                 notes: recordToEdit.notes || '' 
             });
         } else {
             setFormData({
                 date: new Date().toISOString().split('T')[0],
                 employeeId: employees[0]?.id || 0,
-                checkIn: '08:00',
-                checkOut: '17:00',
+                daysAttended: 0,
                 notes: ''
             });
         }
@@ -48,7 +45,10 @@ const AttendanceModal: React.FC<{
     
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: name === 'employeeId' ? Number(value) : value }));
+        setFormData(prev => ({ 
+            ...prev, 
+            [name]: name === 'employeeId' || name === 'daysAttended' ? Number(value) : value 
+        }));
     };
 
     const handleSubmit = (e: React.FormEvent) => {
@@ -66,16 +66,12 @@ const AttendanceModal: React.FC<{
                     </select>
                 </div>
                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">التاريخ *</label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">التاريخ (الشهر/الفترة) *</label>
                     <input type="date" name="date" value={formData.date} onChange={handleChange} required className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700" />
                 </div>
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">وقت الحضور *</label>
-                    <input type="time" name="checkIn" value={formData.checkIn} onChange={handleChange} required className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700" />
-                </div>
-                 <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">وقت الانصراف *</label>
-                    <input type="time" name="checkOut" value={formData.checkOut} onChange={handleChange} required className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700" />
+                <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">عدد أيام الحضور *</label>
+                    <input type="number" name="daysAttended" value={formData.daysAttended === 0 ? '' : formData.daysAttended} onChange={handleChange} required min="0" step="0.5" className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700" />
                 </div>
                 <div className="md:col-span-2">
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">ملاحظات</label>
@@ -130,15 +126,14 @@ const Attendance: React.FC<AttendanceProps> = ({ attendance, setAttendance, empl
             const ws = wb.Sheets[wsname];
             const data = XLSX.utils.sheet_to_json(ws, { header: 1 });
 
-            // Expected Format: [Employee Name, Date (YYYY-MM-DD), CheckIn (HH:mm), CheckOut (HH:mm)]
+            // Expected Format: [Employee Name, Date (YYYY-MM-DD), Days Attended]
             const newRecords: AttendanceType[] = [];
             let maxId = Math.max(0, ...attendance.map(a => a.id));
 
             data.slice(1).forEach((row: any) => {
                 const empName = row[0];
                 const dateRaw = row[1];
-                const checkInRaw = row[2];
-                const checkOutRaw = row[3];
+                const daysAttendedRaw = row[2];
 
                 const employee = employees.find(e => e.name === empName);
                 if (employee) {
@@ -149,30 +144,13 @@ const Attendance: React.FC<AttendanceProps> = ({ attendance, setAttendance, empl
                          dateStr = dateObj.toISOString().split('T')[0];
                     }
 
-                    let checkIn = checkInRaw;
-                    if (typeof checkInRaw === 'number') {
-                        const totalSeconds = Math.floor(checkInRaw * 86400);
-                        const hours = Math.floor(totalSeconds / 3600);
-                        const minutes = Math.floor((totalSeconds % 3600) / 60);
-                        checkIn = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
-                    }
-
-                    let checkOut = checkOutRaw;
-                    if (typeof checkOutRaw === 'number') {
-                        const totalSeconds = Math.floor(checkOutRaw * 86400);
-                        const hours = Math.floor(totalSeconds / 3600);
-                        const minutes = Math.floor((totalSeconds % 3600) / 60);
-                        checkOut = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
-                    }
-
                     maxId++;
                     newRecords.push({
                         id: maxId,
                         employeeId: employee.id,
                         date: dateStr,
-                        checkIn: checkIn,
-                        checkOut: checkOut,
-                        notes: 'Imported from Excel'
+                        daysAttended: Number(daysAttendedRaw) || 0,
+                        notes: 'تم الاستيراد من ملف إكسيل'
                     });
                 }
             });
@@ -191,8 +169,7 @@ const Attendance: React.FC<AttendanceProps> = ({ attendance, setAttendance, empl
     const attendanceWithDetails = useMemo(() => {
         return attendance.map(att => ({
             ...att,
-            employeeName: getEmployeeName(att.employeeId),
-            totalHours: calculateHours(att.checkIn, att.checkOut)
+            employeeName: getEmployeeName(att.employeeId)
         })).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     }, [attendance, employees]);
 
@@ -215,22 +192,20 @@ const Attendance: React.FC<AttendanceProps> = ({ attendance, setAttendance, empl
                 <table className="w-full text-sm text-right text-gray-500 dark:text-gray-400">
                     <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-300">
                         <tr>
-                            <th scope="col" className="px-6 py-3">التاريخ</th>
+                            <th scope="col" className="px-6 py-3">التاريخ (الشهر/الفترة)</th>
                             <th scope="col" className="px-6 py-3">اسم الموظف</th>
-                            <th scope="col" className="px-6 py-3">الحضور</th>
-                            <th scope="col" className="px-6 py-3">الانصراف</th>
-                            <th scope="col" className="px-6 py-3">إجمالي الساعات</th>
+                            <th scope="col" className="px-6 py-3">عدد أيام الحضور</th>
+                            <th scope="col" className="px-6 py-3">ملاحظات</th>
                             <th scope="col" className="px-6 py-3">الإجراءات</th>
                         </tr>
                     </thead>
                     <tbody>
                         {attendanceWithDetails.map(att => (
                             <tr key={att.id} className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
-                                <td className="px-6 py-4">{formatDate(att.date)}</td>
+                                <td className="px-6 py-4 whitespace-nowrap" dir="ltr">{formatDateTime(att.date, att.timestamp)}</td>
                                 <td className="px-6 py-4 font-medium text-gray-900 whitespace-nowrap dark:text-white">{att.employeeName}</td>
-                                <td className="px-6 py-4">{att.checkIn}</td>
-                                <td className="px-6 py-4">{att.checkOut}</td>
-                                <td className="px-6 py-4 font-bold">{att.totalHours.toFixed(2)}</td>
+                                <td className="px-6 py-4 font-bold">{att.daysAttended || 0}</td>
+                                <td className="px-6 py-4">{att.notes}</td>
                                 <td className="px-6 py-4 flex gap-3">
                                     <button onClick={() => handleEdit(att)} className="text-blue-500 hover:text-blue-700 text-lg"><i className="fas fa-edit"></i></button>
                                     <button onClick={() => handleDelete(att.id)} className="text-red-500 hover:text-red-700 text-lg"><i className="fas fa-trash"></i></button>

@@ -3,7 +3,7 @@ import { Advance, Employee } from '../../types';
 import SectionHeader from '../shared/SectionHeader';
 import Modal from '../shared/Modal';
 import ConfirmationModal from '../shared/ConfirmationModal';
-import { formatCurrency, formatDate } from '../../lib/utils';
+import { formatCurrency, formatDate, formatDateTime } from '../../lib/utils';
 
 interface AdvancesProps {
     advances: Advance[];
@@ -154,7 +154,7 @@ const Advances: React.FC<AdvancesProps> = ({ advances, addAdvance, updateAdvance
                 <table className="w-full text-sm text-right text-gray-500 dark:text-gray-400">
                     <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-300">
                         <tr>
-                            <th scope="col" className="px-6 py-3">التاريخ</th>
+                            <th scope="col" className="px-6 py-3">التاريخ والوقت</th>
                             <th scope="col" className="px-6 py-3">اسم الموظف</th>
                             <th scope="col" className="px-6 py-3">مبلغ السلفة</th>
                             <th scope="col" className="px-6 py-3">المبلغ المتبقي</th>
@@ -165,7 +165,7 @@ const Advances: React.FC<AdvancesProps> = ({ advances, addAdvance, updateAdvance
                     <tbody>
                         {advancesWithDetails.map(adv => (
                             <tr key={adv.id} className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 even:bg-gray-50 dark:even:bg-gray-800 dark:even:bg-opacity-50 hover:bg-gray-100 dark:hover:bg-gray-700">
-                                <td className="px-6 py-4">{formatDate(adv.date)}</td>
+                                <td className="px-6 py-4 whitespace-nowrap" dir="ltr">{formatDateTime(adv.date, adv.timestamp)}</td>
                                 <td className="px-6 py-4 font-medium text-gray-900 whitespace-nowrap dark:text-white">{adv.employeeName}</td>
                                 <td className="px-6 py-4">{formatCurrency(adv.amount)}</td>
                                 <td className={`px-6 py-4 font-bold ${adv.remaining > 0 ? 'text-amber-500' : 'text-green-500'}`}>{formatCurrency(adv.remaining)}</td>

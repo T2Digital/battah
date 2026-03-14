@@ -3,7 +3,7 @@ import { Expense } from '../../types';
 import SectionHeader from '../shared/SectionHeader';
 import Modal from '../shared/Modal';
 import ConfirmationModal from '../shared/ConfirmationModal';
-import { formatDate, formatCurrency } from '../../lib/utils';
+import { formatDate, formatCurrency, formatDateTime } from '../../lib/utils';
 import useStore from '../../lib/store';
 
 interface ExpensesProps {
@@ -16,19 +16,20 @@ interface ExpensesProps {
 const ExpenseModal: React.FC<{
     isOpen: boolean; onClose: () => void; onSave: (e: Omit<Expense, 'id'> & { id?: number }) => void; expenseToEdit: Expense | null;
 }> = ({ isOpen, onClose, onSave, expenseToEdit }) => {
-    const { storefrontSettings } = useStore(state => ({
-        storefrontSettings: state.appData?.storefrontSettings
+    const { storefrontSettings, employees } = useStore(state => ({
+        storefrontSettings: state.appData?.storefrontSettings,
+        employees: state.appData?.employees || []
     }));
-    const [formData, setFormData] = useState({ date: new Date().toISOString().split('T')[0], type: 'عامة' as Expense['type'], name: '', amount: 0, notes: '' });
+    const [formData, setFormData] = useState({ date: new Date().toISOString().split('T')[0], type: 'عامة' as Expense['type'], name: '', amount: 0, notes: '', employeeId: '' });
     const [securityPassword, setSecurityPassword] = useState('');
     const [showSecurityCheck, setShowSecurityCheck] = useState(false);
     const [securityError, setSecurityError] = useState('');
 
     React.useEffect(() => {
         if (expenseToEdit) {
-            setFormData({ ...expenseToEdit, notes: expenseToEdit.notes || '' });
+            setFormData({ ...expenseToEdit, notes: expenseToEdit.notes || '', employeeId: expenseToEdit.employeeId ? String(expenseToEdit.employeeId) : '' });
         } else {
-            setFormData({ date: new Date().toISOString().split('T')[0], type: 'عامة', name: '', amount: 0, notes: '' });
+            setFormData({ date: new Date().toISOString().split('T')[0], type: 'عامة', name: '', amount: 0, notes: '', employeeId: '' });
         }
         setShowSecurityCheck(false);
         setSecurityPassword('');
@@ -59,7 +60,17 @@ const ExpenseModal: React.FC<{
     };
 
     const handleSubmit = () => {
-        onSave(expenseToEdit ? { ...formData, id: expenseToEdit.id } : formData);
+        const finalData: Omit<Expense, 'id'> = {
+            date: formData.date,
+            type: formData.type,
+            name: formData.name,
+            amount: formData.amount,
+            notes: formData.notes
+        };
+        if (formData.type === 'موظفين' && formData.employeeId) {
+            finalData.employeeId = Number(formData.employeeId);
+        }
+        onSave(expenseToEdit ? { ...finalData, id: expenseToEdit.id } : finalData);
     };
 
     if (showSecurityCheck) {
@@ -94,6 +105,17 @@ const ExpenseModal: React.FC<{
                         <option value="موظفين">مصاريف الموظفين</option>
                     </select>
                 </div>
+                {formData.type === 'موظفين' && (
+                    <div className="md:col-span-2">
+                        <label>الموظف *</label>
+                        <select name="employeeId" value={formData.employeeId} onChange={handleChange} required className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700">
+                            <option value="">اختر الموظف...</option>
+                            {employees.map(emp => (
+                                <option key={emp.id} value={emp.id}>{emp.name}</option>
+                            ))}
+                        </select>
+                    </div>
+                )}
                 <div className="md:col-span-2"><label>اسم المصروف *</label><input type="text" name="name" value={formData.name} onChange={handleChange} required className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700" /></div>
                 <div className="md:col-span-2"><label>المبلغ (ج.م) *</label><input type="number" name="amount" value={formData.amount === 0 ? '' : formData.amount} onChange={handleChange} required min="0" className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700" /></div>
                 <div className="md:col-span-2"><label>ملاحظات</label><textarea name="notes" value={formData.notes} onChange={handleChange} rows={3} className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700"></textarea></div>
@@ -163,7 +185,7 @@ const Expenses: React.FC<ExpensesProps> = ({ expenses, addExpense, updateExpense
                  <table className="w-full text-sm text-right text-gray-500 dark:text-gray-400">
                     <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-300">
                         <tr>
-                            <th className="px-6 py-3">التاريخ</th>
+                            <th className="px-6 py-3">التاريخ والوقت</th>
                             <th className="px-6 py-3">النوع</th>
                             <th className="px-6 py-3">اسم المصروف</th>
                             <th className="px-6 py-3">المبلغ</th>
@@ -173,7 +195,7 @@ const Expenses: React.FC<ExpensesProps> = ({ expenses, addExpense, updateExpense
                     <tbody>
                         {filteredExpenses.map(exp => (
                             <tr key={exp.id} className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
-                                <td className="px-6 py-4">{formatDate(exp.date)}</td>
+                                <td className="px-6 py-4 whitespace-nowrap" dir="ltr">{formatDateTime(exp.date, exp.timestamp)}</td>
                                 <td className="px-6 py-4">{exp.type}</td>
                                 <td className="px-6 py-4 font-medium text-gray-900 dark:text-white">{exp.name}</td>
                                 <td className="px-6 py-4 font-semibold">{formatCurrency(exp.amount)}</td>

@@ -116,7 +116,7 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
                 "addressLocality": "القاهرة",
                 "addressCountry": "EG"
             },
-            "telephone": "+201000000000",
+            "telephone": "+201080444447",
             "priceRange": "$$",
             "openingHours": "Sa-Th 09:00-23:00",
             "url": "https://battah-system.vercel.app/"

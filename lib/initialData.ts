@@ -9,7 +9,7 @@ export const initialData: AppData = {
         { id: '4', username: 'accountant@battah.com', name: 'محاسب', role: Role.Accountant, branch: 'main', permissions: [Section.Treasury, Section.Expenses, Section.Suppliers, Section.Payroll] },
     ],
     employees: [
-        { id: 1, name: 'أحمد محمود', position: 'مدير عام', basicSalary: 12000, hireDate: '2022-01-15', phone: '01012345678', address: 'القاهرة' },
+        { id: 1, name: 'أحمد محمود', position: 'مدير عام', basicSalary: 12000, hireDate: '2022-01-15', phone: '01080444447', address: 'القاهرة' },
         { id: 2, name: 'محمد علي', position: 'مدير فرع', basicSalary: 8000, hireDate: '2022-05-20', phone: '01112345678', address: 'الجيزة' },
         { id: 3, name: 'سارة حسين', position: 'محاسب', basicSalary: 7500, hireDate: '2023-02-10', phone: '01212345678', address: 'القاهرة' },
         { id: 4, name: 'كريم فتحي', position: 'فني', basicSalary: 5000, hireDate: '2023-08-01', phone: '01512345678', address: 'القليوبية' },
@@ -26,7 +26,7 @@ export const initialData: AppData = {
     ],
     dailySales: [],
     suppliers: [
-        { id: 1, name: 'الشركة المتحدة للتجارة', contact: '01098765432', address: 'المنطقة الصناعية، القاهرة' },
+        { id: 1, name: 'الشركة المتحدة للتجارة', contact: '01080444447', address: 'المنطقة الصناعية، القاهرة' },
         { id: 2, name: 'موزعين بوش المعتمدين', contact: '01198765432', address: 'مدينة نصر، القاهرة' },
     ],
     purchaseOrders: [],

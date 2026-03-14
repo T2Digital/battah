@@ -177,7 +177,7 @@ const Settings: React.FC = () => {
                                 value={localSettings.electronicPaymentNumber || ''}
                                 onChange={(e) => setLocalSettings({...localSettings, electronicPaymentNumber: e.target.value})}
                                 className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700"
-                                placeholder="مثال: 01012345678"
+                                placeholder="مثال: 01080444447"
                             />
                         </div>
                     </div>

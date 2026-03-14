@@ -146,15 +146,25 @@ const AdminChatbot: React.FC = () => {
             return "أهلاً بيك يا فندم! منور السيستم. أنا المساعد الإداري بتاعك، جاهز أطلعلك أي تقرير تحتاجه (مبيعات، خزنة، نواقص، طلبات، قيمة البضاعة، الموردين، أو حتى تقرير شامل عن اليوم كله). أؤمرني؟";
         }
 
+        // 11. Company Info
+        if (/(عنوان|مكان|موقع|تليفون|رقم|تواصل|اتصال|موبايل|فرع)/.test(lowerText)) {
+            return "بيانات الشركة المسجلة:\nالعنوان: 79 شارع رمسيس ناصية التوفيقية، القاهرة.\nرقم الموبايل / الواتساب: 01080444447\nمواعيد العمل: من 9 صباحاً لـ 10 مساءً.";
+        }
+
         // Fallback (Conversational)
         return "عفواً يا فندم، أنا لسه بتعلم ومفهمتش قصدك بالظبط. بس أقدر أجمعلك (تقرير شامل) عن حركة اليوم، أو أقولك رصيد (الخزنة)، (المبيعات)، (قيمة البضاعة)، و(ديون الموردين). تحب أجهزلك التقرير الشامل؟";
     };
 
-    const handleSend = async (e: FormEvent) => {
-        e.preventDefault();
-        if (!input.trim() || isLoading) return;
+    const handleQuickReply = (text: string) => {
+        setInput(text);
+        handleSend(undefined, text);
+    };
 
-        const userMsg = input;
+    const handleSend = async (e?: FormEvent, textOverride?: string) => {
+        if (e) e.preventDefault();
+        const userMsg = textOverride || input;
+        if (!userMsg.trim() || isLoading) return;
+
         setInput('');
         setMessages(prev => [...prev, { text: userMsg, sender: 'user' }]);
         setIsLoading(true);
@@ -206,7 +216,14 @@ const AdminChatbot: React.FC = () => {
                             <div className="text-center text-gray-500 text-sm mt-10">
                                 <i className="fas fa-user-tie text-5xl mb-4 text-gray-300 dark:text-gray-600"></i>
                                 <p className="font-bold text-gray-700 dark:text-gray-300 mb-2">أهلاً يا مدير! 👋</p>
-                                <p className="leading-relaxed">أنا مساعدك الإداري، مطلع على كل بيانات السيستم. اسألني عن المبيعات، الخزنة، أو النواقص.</p>
+                                <p className="leading-relaxed mb-4">أنا مساعدك الإداري، مطلع على كل بيانات السيستم. اسألني عن المبيعات، الخزنة، أو النواقص.</p>
+                                <div className="flex flex-wrap justify-center gap-2">
+                                    <button onClick={() => handleQuickReply('تقرير شامل')} className="px-3 py-1.5 bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300 rounded-full text-xs hover:bg-gray-300 transition-colors border border-gray-300 dark:border-gray-600">تقرير شامل</button>
+                                    <button onClick={() => handleQuickReply('رصيد الخزنة')} className="px-3 py-1.5 bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300 rounded-full text-xs hover:bg-gray-300 transition-colors border border-gray-300 dark:border-gray-600">رصيد الخزنة</button>
+                                    <button onClick={() => handleQuickReply('مبيعات اليوم')} className="px-3 py-1.5 bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300 rounded-full text-xs hover:bg-gray-300 transition-colors border border-gray-300 dark:border-gray-600">مبيعات اليوم</button>
+                                    <button onClick={() => handleQuickReply('النواقص')} className="px-3 py-1.5 bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300 rounded-full text-xs hover:bg-gray-300 transition-colors border border-gray-300 dark:border-gray-600">النواقص</button>
+                                    <button onClick={() => handleQuickReply('قيمة البضاعة')} className="px-3 py-1.5 bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300 rounded-full text-xs hover:bg-gray-300 transition-colors border border-gray-300 dark:border-gray-600">قيمة البضاعة</button>
+                                </div>
                             </div>
                         )}
                         

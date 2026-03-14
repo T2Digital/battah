@@ -2,7 +2,7 @@
 import React, { useMemo } from 'react';
 import useStore from '../../lib/store';
 import { Supplier, Payment } from '../../types';
-import { formatCurrency, formatDate } from '../../lib/utils';
+import { formatCurrency, formatDate, formatDateTime } from '../../lib/utils';
 import SectionHeader from '../shared/SectionHeader';
 import { generateSuppliersReportContent } from '../../lib/reportTemplates';
 
@@ -61,7 +61,7 @@ const SuppliersReportView: React.FC<SuppliersReportViewProps> = ({ setActiveRepo
                 <table className="w-full text-sm text-right text-gray-500 dark:text-gray-400">
                     <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-300">
                         <tr>
-                            <th className="px-6 py-3">التاريخ</th>
+                            <th className="px-6 py-3">التاريخ والوقت</th>
                             <th className="px-6 py-3">اسم المورد</th>
                             <th className="px-6 py-3">مبلغ الدفعة</th>
                             <th className="px-6 py-3">إجمالي الفاتورة</th>
@@ -70,7 +70,7 @@ const SuppliersReportView: React.FC<SuppliersReportViewProps> = ({ setActiveRepo
                     <tbody>
                         {paymentsWithDetails.map(p => (
                             <tr key={p.id} className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
-                                <td className="px-6 py-4">{formatDate(p.date)}</td>
+                                <td className="px-6 py-4 whitespace-nowrap" dir="ltr">{formatDateTime(p.date, p.timestamp)}</td>
                                 <td className="px-6 py-4">{p.supplierName}</td>
                                 <td className="px-6 py-4">{formatCurrency(p.payment)}</td>
                                 <td className="px-6 py-4">{formatCurrency(p.invoiceTotal)}</td>
