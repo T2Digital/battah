@@ -72,6 +72,7 @@ export interface SaleItem {
     unitPrice: number;
     itemType: MainCategory | 'خدمة' | 'أخرى';
     serialNumbers?: string[]; // Added
+    isReturn?: boolean; // Added for Exchange direction
 }
 
 export interface DailySale {
@@ -179,6 +180,7 @@ export interface PurchaseOrder {
     orderDate: string;
     timestamp?: string;
     status: 'معلق' | 'مكتمل' | 'ملغي';
+    type?: 'شراء' | 'مرتجع'; // Added for purchase returns
     items: PurchaseOrderItem[];
     totalAmount: number;
     notes?: string;
@@ -254,7 +256,7 @@ export interface Order {
     locationLink?: string; // Added
     items: OrderItem[];
     totalAmount: number;
-    status: 'pending' | 'confirmed' | 'shipped' | 'cancelled';
+    status: 'pending' | 'confirmed' | 'shipped' | 'cancelled' | 'collected';
     paymentMethod: 'cod' | 'electronic';
     paymentProofUrl?: string;
     // New fields

@@ -9,13 +9,13 @@ import { formatDate, formatCurrency } from '../../lib/utils';
 const DailyReviewModal: React.FC<{
     isOpen: boolean; onClose: () => void; onSave: (r: Omit<DailyReviewType, 'id'> & { id?: number }) => void; reviewToEdit: DailyReviewType | null;
 }> = ({ isOpen, onClose, onSave, reviewToEdit }) => {
-    const [formData, setFormData] = useState<Omit<DailyReviewType, 'id' | 'totalSales'>>({ date: new Date().toISOString().split('T')[0], branch: 'main', salesCash: 0, salesElectronic: 0, salesParts: 0, salesAccessories: 0, drawerBalance: 0, notes: '' });
+    const [formData, setFormData] = useState<Omit<DailyReviewType, 'id' | 'totalSales'>>({ date: new Date().toISOString().split('T')[0], branch: 'branch1', salesCash: 0, salesElectronic: 0, salesParts: 0, salesAccessories: 0, drawerBalance: 0, notes: '' });
     
     React.useEffect(() => {
         if (reviewToEdit) {
             setFormData({ ...reviewToEdit, notes: reviewToEdit.notes || '' });
         } else {
-            setFormData({ date: new Date().toISOString().split('T')[0], branch: 'main', salesCash: 0, salesElectronic: 0, salesParts: 0, salesAccessories: 0, drawerBalance: 0, notes: '' });
+            setFormData({ date: new Date().toISOString().split('T')[0], branch: 'branch1', salesCash: 0, salesElectronic: 0, salesParts: 0, salesAccessories: 0, drawerBalance: 0, notes: '' });
         }
     }, [reviewToEdit, isOpen]);
     

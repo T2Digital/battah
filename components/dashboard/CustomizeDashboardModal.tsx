@@ -13,7 +13,9 @@ interface CustomizeDashboardModalProps {
 const cardLabels: { [key: string]: string } = {
     treasury: 'رصيد الخزينة',
     profit: 'صافي الربح اليومي',
-    employees: 'إجمالي الموظفين',
+    todaySalesTotal: 'إجمالي مبيعات اليوم',
+    todayBranchSales: 'مبيعات الفروع اليوم',
+    todayOnlineSales: 'مبيعات الأونلاين اليوم',
     sellerSales: 'مبيعات البائع (للبائعين فقط)',
     todayInvoices: 'عدد فواتير اليوم',
     todayExpenses: 'مصروفات اليوم',

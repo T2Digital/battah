@@ -19,7 +19,7 @@ const AccountantDashboard: React.FC<AccountantDashboardProps> = ({ appData }) =>
     const todayStr = new Date().toISOString().split('T')[0];
 
     const { currentTreasuryBalance, todayExpensesTotal, pendingPOsValue } = useMemo(() => {
-        let balance = treasury.reduce((sum, t) => sum + t.amountIn - t.amountOut, 0);
+        let balance = treasury.reduce((sum, t) => sum + (t.amountIn || 0) - (t.amountOut || 0), 0);
         const expensesToday = expenses
             .filter(e => e.date === todayStr)
             .reduce((sum, e) => sum + e.amount, 0);
@@ -59,8 +59,8 @@ const AccountantDashboard: React.FC<AccountantDashboardProps> = ({ appData }) =>
                                     <p className="font-semibold">{t.description}</p>
                                     <p className="text-xs text-gray-500">{formatDate(t.date)}</p>
                                 </div>
-                                <p className={`font-bold ${t.amountIn > 0 ? 'text-green-500' : 'text-red-500'}`}>
-                                    {formatCurrency(t.amountIn > 0 ? t.amountIn : -t.amountOut)}
+                                <p className={`font-bold ${(t.amountIn || 0) > 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                    {formatCurrency((t.amountIn || 0) > 0 ? (t.amountIn || 0) : -(t.amountOut || 0))}
                                 </p>
                             </div>
                         ))}

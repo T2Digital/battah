@@ -3,7 +3,7 @@ import useStore from '../../lib/store';
 import SectionHeader from '../shared/SectionHeader';
 
 const Settings: React.FC = () => {
-    const { appData, updateSettings, addToast } = useStore();
+    const { appData, updateSettings, updateStorefrontSettings, addToast } = useStore();
     const settings = appData?.settings || {
         enableIPRestriction: false,
         enableTimeRestriction: false,
@@ -12,6 +12,7 @@ const Settings: React.FC = () => {
     };
 
     const [localSettings, setLocalSettings] = useState(settings);
+    const [adminPassword, setAdminPassword] = useState(appData?.storefrontSettings?.adminPassword || '');
     const [currentIP, setCurrentIP] = useState<string>('');
     const [isLoadingIP, setIsLoadingIP] = useState(false);
 
@@ -24,7 +25,10 @@ const Settings: React.FC = () => {
             setLocalSettings(appData.settings);
             setTickerMessages(appData.settings.tickerMessages || []);
         }
-    }, [appData?.settings]);
+        if (appData?.storefrontSettings) {
+            setAdminPassword(appData.storefrontSettings.adminPassword || '');
+        }
+    }, [appData?.settings, appData?.storefrontSettings]);
 
     const handleAddTickerMessage = () => {
         if (newTickerMessage.trim()) {
@@ -60,6 +64,12 @@ const Settings: React.FC = () => {
         setIsSaving(true);
         try {
             await updateSettings(localSettings);
+            if (appData?.storefrontSettings) {
+                await updateStorefrontSettings({
+                    ...appData.storefrontSettings,
+                    adminPassword
+                });
+            }
             addToast("تم حفظ الإعدادات بنجاح", "success");
         } catch (error) {
             console.error("Failed to save settings:", error);
@@ -74,6 +84,29 @@ const Settings: React.FC = () => {
             <SectionHeader icon="fa-cogs" title="الإعدادات العامة" />
             
             <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 space-y-8">
+
+                {/* Admin Password Section */}
+                <div className="border-b dark:border-gray-700 pb-6">
+                    <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
+                        <i className="fas fa-shield-alt text-red-500"></i>
+                        كلمة مرور العمليات الحساسة (للمدير)
+                    </h3>
+                    <div className="flex flex-col sm:flex-row gap-4 items-end">
+                        <div className="flex-grow">
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">كلمة المرور</label>
+                            <input 
+                                type="password" 
+                                value={adminPassword}
+                                onChange={(e) => setAdminPassword(e.target.value)}
+                                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700"
+                                placeholder="اتركه فارغاً لتعطيل الخاصية"
+                            />
+                        </div>
+                    </div>
+                    <p className="text-sm text-gray-500 mt-2">
+                        تستخدم لتأكيد الحذف والتعديل والإضافة في الأقسام الحساسة (مثل تصفير الخزينة، تعديل أسعار المخزن، مسح المعاملات).
+                    </p>
+                </div>
                 
                 {/* IP Restriction Section */}
                 <div className="border-b dark:border-gray-700 pb-6">

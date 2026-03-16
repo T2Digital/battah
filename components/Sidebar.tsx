@@ -22,7 +22,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, activeSection, setActiveSecti
         { id: Section.DailySales, icon: 'fa-hand-holding-usd', label: 'مبيعات اليوم', permission: Section.DailySales },
         { id: Section.Orders, icon: 'fa-receipt', label: 'طلبات الأونلاين', permission: Section.Orders, badge: pendingOrdersCount },
         { id: Section.Customers, icon: 'fa-users-cog', label: 'العملاء', permission: Section.Customers },
-        { id: Section.StoreManagement, icon: 'fa-warehouse', label: 'إدارة المخزن', permission: Section.StoreManagement },
+        { id: Section.StoreManagement, icon: 'fa-warehouse', label: 'إدارة المخزون', permission: Section.StoreManagement },
         { id: Section.Purchasing, icon: 'fa-shopping-cart', label: 'المشتريات', permission: Section.Purchasing },
         { id: Section.Promotions, icon: 'fa-tags', label: 'العروض', permission: Section.Promotions },
         { id: Section.Employees, icon: 'fa-users', label: 'الموظفين', permission: Section.Employees },

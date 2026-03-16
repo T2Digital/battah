@@ -96,6 +96,7 @@ const Orders: React.FC = () => {
     
     // Filtering and Pagination State
     const [filterStatus, setFilterStatus] = useState<string>('all');
+    const [dateFilter, setDateFilter] = useState<'all' | 'today' | 'week' | 'month'>('all');
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 10;
 
@@ -105,6 +106,33 @@ const Orders: React.FC = () => {
         
         if (filterStatus !== 'all') {
             filtered = filtered.filter(order => order.status === filterStatus);
+        }
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        if (dateFilter === 'today') {
+            filtered = filtered.filter(o => {
+                const d = new Date(o.date);
+                d.setHours(0, 0, 0, 0);
+                return d.getTime() === today.getTime();
+            });
+        } else if (dateFilter === 'week') {
+            const lastWeek = new Date(today);
+            lastWeek.setDate(today.getDate() - 7);
+            filtered = filtered.filter(o => {
+                const d = new Date(o.date);
+                d.setHours(0, 0, 0, 0);
+                return d >= lastWeek;
+            });
+        } else if (dateFilter === 'month') {
+            const lastMonth = new Date(today);
+            lastMonth.setMonth(today.getMonth() - 1);
+            filtered = filtered.filter(o => {
+                const d = new Date(o.date);
+                d.setHours(0, 0, 0, 0);
+                return d >= lastMonth;
+            });
         }
 
         return filtered.sort((a, b) => {
@@ -124,7 +152,7 @@ const Orders: React.FC = () => {
             
             return timeB - timeA;
         });
-    }, [orders, filterStatus]);
+    }, [orders, filterStatus, dateFilter]);
 
     const paginatedOrders = useMemo(() => {
         const startIndex = (currentPage - 1) * itemsPerPage;
@@ -136,7 +164,8 @@ const Orders: React.FC = () => {
     const statusMap: Record<string, { text: string; color: string }> = {
         pending: { text: 'معلق', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300' },
         confirmed: { text: 'مؤكد', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300' },
-        shipped: { text: 'تم الشحن', color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300' },
+        shipped: { text: 'تم الشحن', color: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300' },
+        collected: { text: 'تم التحصيل', color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300' },
         cancelled: { text: 'ملغي', color: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300' },
     };
 
@@ -168,7 +197,7 @@ const Orders: React.FC = () => {
 
     const getDeleteWarningMessage = (order: Order | null): string => {
         if (!order) return '';
-        if (['confirmed', 'shipped'].includes(order.status)) {
+        if (['confirmed', 'shipped', 'collected'].includes(order.status)) {
             return 'هذا الطلب تم تأكيده بالفعل. هل أنت متأكد من حذفه؟ سيتم عكس جميع العمليات المرتبطة به (فاتورة البيع، حركة الخزينة، والمخزون).';
         }
         return 'هل أنت متأكد من حذف هذا الطلب؟';
@@ -179,20 +208,36 @@ const Orders: React.FC = () => {
             <SectionHeader icon="fa-receipt" title="إدارة الطلبات" />
             
             {/* Filter Controls */}
-            <div className="flex justify-between items-center bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm">
-                <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">تصفية حسب الحالة:</span>
-                    <select
-                        value={filterStatus}
-                        onChange={(e) => { setFilterStatus(e.target.value); setCurrentPage(1); }}
-                        className="p-2 border rounded-lg text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                    >
-                        <option value="all">الكل</option>
-                        <option value="pending">معلق</option>
-                        <option value="confirmed">مؤكد</option>
-                        <option value="shipped">تم الشحن</option>
-                        <option value="cancelled">ملغي</option>
-                    </select>
+            <div className="flex flex-col md:flex-row justify-between items-center bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm gap-4">
+                <div className="flex flex-wrap items-center gap-4">
+                    <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">تصفية حسب الحالة:</span>
+                        <select
+                            value={filterStatus}
+                            onChange={(e) => { setFilterStatus(e.target.value); setCurrentPage(1); }}
+                            className="p-2 border rounded-lg text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                        >
+                            <option value="all">الكل</option>
+                            <option value="pending">معلق</option>
+                            <option value="confirmed">مؤكد</option>
+                            <option value="shipped">تم الشحن</option>
+                            <option value="collected">تم التحصيل</option>
+                            <option value="cancelled">ملغي</option>
+                        </select>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">الفترة:</span>
+                        <select
+                            value={dateFilter}
+                            onChange={(e) => { setDateFilter(e.target.value as any); setCurrentPage(1); }}
+                            className="p-2 border rounded-lg text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                        >
+                            <option value="all">الكل</option>
+                            <option value="today">اليوم</option>
+                            <option value="week">هذا الأسبوع</option>
+                            <option value="month">هذا الشهر</option>
+                        </select>
+                    </div>
                 </div>
                 <div className="text-sm text-gray-500">
                     إجمالي الطلبات: {sortedOrders.length}
@@ -238,12 +283,13 @@ const Orders: React.FC = () => {
                                     <select 
                                         value={order.status}
                                         onChange={(e) => handleStatusChange(order.id, e.target.value as Order['status'])}
-                                        className={`p-1 rounded text-xs border-none ${statusMap[order.status].color}`}
+                                        className={`p-1 rounded text-xs border-none ${statusMap[order.status]?.color || 'bg-gray-100 text-gray-800'}`}
                                         disabled={isCorrupted}
                                     >
                                         <option value="pending">معلق</option>
                                         <option value="confirmed">مؤكد</option>
                                         <option value="shipped">تم الشحن</option>
+                                        <option value="collected">تم التحصيل</option>
                                         <option value="cancelled">ملغي</option>
                                     </select>
                                 </td>

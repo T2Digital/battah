@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import Modal from '../shared/Modal';
+import AdminPasswordModal from '../shared/AdminPasswordModal';
 import { MainCategory } from '../../types';
 import useStore from '../../lib/store';
 
@@ -9,16 +10,21 @@ interface PriceIncreaseModalProps {
 }
 
 const PriceIncreaseModal: React.FC<PriceIncreaseModalProps> = ({ isOpen, onClose }) => {
-    const { increasePrices } = useStore();
+    const { increasePrices, appData } = useStore();
     const [percentage, setPercentage] = useState<number>(5);
     const [category, setCategory] = useState<MainCategory | 'all'>('all');
     const [isProcessing, setIsProcessing] = useState(false);
     const [actionType, setActionType] = useState<'increase' | 'decrease'>('increase');
+    const [showSecurityCheck, setShowSecurityCheck] = useState(false);
     
     const percentages = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50];
 
-    const handleSave = async (e?: React.FormEvent) => {
+    const handleSaveInitiate = (e?: React.FormEvent) => {
         if (e) e.preventDefault();
+        setShowSecurityCheck(true);
+    };
+
+    const executeSave = async () => {
         setIsProcessing(true);
         try {
             const finalPercentage = actionType === 'increase' ? percentage : -percentage;
@@ -30,12 +36,14 @@ const PriceIncreaseModal: React.FC<PriceIncreaseModalProps> = ({ isOpen, onClose
             alert("فشل تعديل الأسعار");
         } finally {
             setIsProcessing(false);
+            setShowSecurityCheck(false);
         }
     };
 
     return (
-        <Modal isOpen={isOpen} onClose={onClose} title="تعديل أسعار المنتجات" onSave={handleSave} saveLabel={isProcessing ? "جاري المعالجة..." : "تأكيد التعديل"}>
-            <div className="space-y-4">
+        <>
+            <Modal isOpen={isOpen} onClose={onClose} title="تعديل أسعار المنتجات" onSave={handleSaveInitiate} saveLabel={isProcessing ? "جاري المعالجة..." : "تأكيد التعديل"}>
+                <div className="space-y-4">
                 <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">نوع التعديل</label>
                     <div className="flex gap-4">
@@ -89,7 +97,16 @@ const PriceIncreaseModal: React.FC<PriceIncreaseModalProps> = ({ isOpen, onClose
                 </div>
             </div>
         </Modal>
-    );
+        {showSecurityCheck && (
+            <AdminPasswordModal
+                isOpen={showSecurityCheck}
+                onClose={() => setShowSecurityCheck(false)}
+                onSuccess={executeSave}
+                actionDescription="تعديل أسعار المنتجات"
+            />
+        )}
+    </>
+);
 };
 
 export default PriceIncreaseModal;

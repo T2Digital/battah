@@ -77,7 +77,7 @@ const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose, onSave, existing
         [Section.Dashboard]: 'لوحة التحكم',
         [Section.Treasury]: 'الخزينة',
         [Section.DailySales]: 'المبيعات اليومية',
-        [Section.StoreManagement]: 'إدارة المخزن',
+        [Section.StoreManagement]: 'إدارة المخزون',
         [Section.Purchasing]: 'المشتريات',
         [Section.Employees]: 'الموظفين',
         [Section.Advances]: 'السلف',

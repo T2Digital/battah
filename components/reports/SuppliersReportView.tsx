@@ -13,15 +13,46 @@ interface SuppliersReportViewProps {
 const SuppliersReportView: React.FC<SuppliersReportViewProps> = ({ setActiveReport }) => {
     const appData = useStore(state => state.appData);
     const { suppliers = [], payments = [] } = appData || {};
+    const [dateFilter, setDateFilter] = React.useState<'all' | 'today' | 'week' | 'month'>('all');
+
+    const filteredPayments = useMemo(() => {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        if (dateFilter === 'today') {
+            return payments.filter(item => {
+                const d = new Date(item.date);
+                d.setHours(0, 0, 0, 0);
+                return d.getTime() === today.getTime();
+            });
+        } else if (dateFilter === 'week') {
+            const lastWeek = new Date(today);
+            lastWeek.setDate(today.getDate() - 7);
+            return payments.filter(item => {
+                const d = new Date(item.date);
+                d.setHours(0, 0, 0, 0);
+                return d >= lastWeek;
+            });
+        } else if (dateFilter === 'month') {
+            const lastMonth = new Date(today);
+            lastMonth.setMonth(today.getMonth() - 1);
+            return payments.filter(item => {
+                const d = new Date(item.date);
+                d.setHours(0, 0, 0, 0);
+                return d >= lastMonth;
+            });
+        }
+        return payments;
+    }, [payments, dateFilter]);
 
     const paymentsWithDetails = useMemo(() => {
-        return payments
+        return filteredPayments
             .map(p => ({...p, supplierName: suppliers.find(s => s.id === p.supplierId)?.name || 'غير معروف'}))
             .sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    }, [payments, suppliers]);
+    }, [filteredPayments, suppliers]);
 
-    const totalPayments = useMemo(() => payments.reduce((sum, p) => sum + p.payment, 0), [payments]);
-    const totalInvoices = useMemo(() => payments.reduce((sum, p) => sum + p.invoiceTotal, 0), [payments]);
+    const totalPayments = useMemo(() => filteredPayments.reduce((sum, p) => sum + p.payment, 0), [filteredPayments]);
+    const totalInvoices = useMemo(() => filteredPayments.reduce((sum, p) => sum + p.invoiceTotal, 0), [filteredPayments]);
 
     const handlePrint = () => {
         if (!appData) return;
@@ -36,14 +67,26 @@ const SuppliersReportView: React.FC<SuppliersReportViewProps> = ({ setActiveRepo
     return (
         <div className="animate-fade-in space-y-6">
             <SectionHeader icon="fa-truck" title="تقرير الموردين والدفعات">
-                 <button onClick={handlePrint} className="px-4 py-2 bg-green-600 text-white rounded-lg flex items-center gap-2 hover:bg-green-700 transition shadow-md">
-                    <i className="fas fa-print"></i>
-                    طباعة التقرير
-                </button>
-                <button onClick={() => setActiveReport(null)} className="px-4 py-2 bg-gray-200 text-gray-800 dark:bg-gray-600 dark:text-gray-200 rounded-lg flex items-center gap-2 hover:bg-gray-300 dark:hover:bg-gray-500 transition">
-                    <i className="fas fa-arrow-right"></i>
-                    العودة
-                </button>
+                <div className="flex items-center gap-4">
+                    <select
+                        value={dateFilter}
+                        onChange={(e) => setDateFilter(e.target.value as any)}
+                        className="p-2 border rounded-lg text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                    >
+                        <option value="all">كل الأوقات</option>
+                        <option value="today">اليوم</option>
+                        <option value="week">هذا الأسبوع</option>
+                        <option value="month">هذا الشهر</option>
+                    </select>
+                    <button onClick={handlePrint} className="px-4 py-2 bg-green-600 text-white rounded-lg flex items-center gap-2 hover:bg-green-700 transition shadow-md">
+                        <i className="fas fa-print"></i>
+                        طباعة
+                    </button>
+                    <button onClick={() => setActiveReport(null)} className="px-4 py-2 bg-gray-200 text-gray-800 dark:bg-gray-600 dark:text-gray-200 rounded-lg flex items-center gap-2 hover:bg-gray-300 dark:hover:bg-gray-500 transition">
+                        <i className="fas fa-arrow-right"></i>
+                        العودة
+                    </button>
+                </div>
             </SectionHeader>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

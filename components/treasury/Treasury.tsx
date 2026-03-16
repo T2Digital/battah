@@ -72,7 +72,8 @@ const Treasury: React.FC<TreasuryProps> = ({ treasury }) => {
     const finalCashBalance = processedTransactions.length > 0 ? processedTransactions[processedTransactions.length - 1].cashBalance : 0;
     const finalElectronicBalance = processedTransactions.length > 0 ? processedTransactions[processedTransactions.length - 1].electronicBalance : 0;
 
-    const handleSetBalance = async () => {
+    const handleSetBalance = async (e?: React.FormEvent) => {
+        if (e) e.preventDefault();
         const balanceValue = parseFloat(newBalance);
         if (isNaN(balanceValue)) {
              setError('يرجى إدخال مبلغ صحيح');
@@ -104,7 +105,7 @@ const Treasury: React.FC<TreasuryProps> = ({ treasury }) => {
     };
 
     const executeDeleteTransaction = async () => {
-        if (transactionToDelete) {
+        if (transactionToDelete !== null) {
             try {
                 await deleteTreasuryTransaction(transactionToDelete);
             } catch (e) {
@@ -116,7 +117,8 @@ const Treasury: React.FC<TreasuryProps> = ({ treasury }) => {
         }
     };
 
-    const handleClearTreasury = async () => {
+    const handleClearTreasury = async (e?: React.FormEvent) => {
+        if (e) e.preventDefault();
         setSecurityAction('clearTreasury');
         setShowSecurityCheck(true);
     };

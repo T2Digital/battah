@@ -116,7 +116,7 @@ const App: React.FC = () => {
 
                 const autoReview = {
                     date: yesterdayStr,
-                    branch: 'main' as const,
+                    branch: 'branch1' as const,
                     salesCash,
                     salesElectronic,
                     totalSales,

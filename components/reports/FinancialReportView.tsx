@@ -19,16 +19,52 @@ const FinancialReportView: React.FC<FinancialReportViewProps> = ({ setActiveRepo
     const employees = appData?.employees || [];
     const dailySales = appData?.dailySales || [];
     const [activeTab, setActiveTab] = useState<ActiveTab>('expenses');
+    const [dateFilter, setDateFilter] = useState<'all' | 'today' | 'week' | 'month'>('all');
 
     const getEmployeeName = (id: number) => employees.find(e => e.id === id)?.name || 'غير معروف';
     
-    const totalExpenses = useMemo(() => expenses.reduce((sum, e) => sum + e.amount, 0), [expenses]);
-    const totalAdvances = useMemo(() => advances.reduce((sum, a) => sum + a.amount, 0), [advances]);
-    const totalPayroll = useMemo(() => payroll.reduce((sum, p) => sum + p.disbursed, 0), [payroll]);
+    const filterByDate = <T extends { date: string }>(data: T[]) => {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        if (dateFilter === 'today') {
+            return data.filter(item => {
+                const d = new Date(item.date);
+                d.setHours(0, 0, 0, 0);
+                return d.getTime() === today.getTime();
+            });
+        } else if (dateFilter === 'week') {
+            const lastWeek = new Date(today);
+            lastWeek.setDate(today.getDate() - 7);
+            return data.filter(item => {
+                const d = new Date(item.date);
+                d.setHours(0, 0, 0, 0);
+                return d >= lastWeek;
+            });
+        } else if (dateFilter === 'month') {
+            const lastMonth = new Date(today);
+            lastMonth.setMonth(today.getMonth() - 1);
+            return data.filter(item => {
+                const d = new Date(item.date);
+                d.setHours(0, 0, 0, 0);
+                return d >= lastMonth;
+            });
+        }
+        return data;
+    };
+
+    const filteredExpenses = useMemo(() => filterByDate(expenses), [expenses, dateFilter]);
+    const filteredAdvances = useMemo(() => filterByDate(advances), [advances, dateFilter]);
+    const filteredPayroll = useMemo(() => filterByDate(payroll), [payroll, dateFilter]);
+    const filteredSales = useMemo(() => filterByDate(dailySales), [dailySales, dateFilter]);
+
+    const totalExpenses = useMemo(() => filteredExpenses.reduce((sum, e) => sum + e.amount, 0), [filteredExpenses]);
+    const totalAdvances = useMemo(() => filteredAdvances.reduce((sum, a) => sum + a.amount, 0), [filteredAdvances]);
+    const totalPayroll = useMemo(() => filteredPayroll.reduce((sum, p) => sum + p.disbursed, 0), [filteredPayroll]);
     
     const customerDebts = useMemo(() => {
         const debts = new Map<string, { name: string, phone: string, totalDebt: number, invoices: string[] }>();
-        dailySales.forEach(sale => {
+        filteredSales.forEach(sale => {
             if (sale.remainingDebt && sale.remainingDebt > 0 && sale.customerName) {
                 const key = sale.customerPhone || sale.customerName;
                 if (!debts.has(key)) {
@@ -40,17 +76,29 @@ const FinancialReportView: React.FC<FinancialReportViewProps> = ({ setActiveRepo
             }
         });
         return Array.from(debts.values());
-    }, [dailySales]);
+    }, [filteredSales]);
     
     const totalDebts = useMemo(() => customerDebts.reduce((sum, d) => sum + d.totalDebt, 0), [customerDebts]);
 
     return (
         <div className="animate-fade-in space-y-6">
             <SectionHeader icon="fa-hand-holding-usd" title="التقارير المالية">
-                <button onClick={() => setActiveReport(null)} className="px-4 py-2 bg-gray-200 text-gray-800 dark:bg-gray-600 dark:text-gray-200 rounded-lg flex items-center gap-2 hover:bg-gray-300 dark:hover:bg-gray-500 transition">
-                    <i className="fas fa-arrow-right"></i>
-                    العودة
-                </button>
+                <div className="flex items-center gap-4">
+                    <select
+                        value={dateFilter}
+                        onChange={(e) => setDateFilter(e.target.value as any)}
+                        className="p-2 border rounded-lg text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                    >
+                        <option value="all">كل الأوقات</option>
+                        <option value="today">اليوم</option>
+                        <option value="week">هذا الأسبوع</option>
+                        <option value="month">هذا الشهر</option>
+                    </select>
+                    <button onClick={() => setActiveReport(null)} className="px-4 py-2 bg-gray-200 text-gray-800 dark:bg-gray-600 dark:text-gray-200 rounded-lg flex items-center gap-2 hover:bg-gray-300 dark:hover:bg-gray-500 transition">
+                        <i className="fas fa-arrow-right"></i>
+                        العودة
+                    </button>
+                </div>
             </SectionHeader>
 
             <div className="flex border-b dark:border-gray-700">
@@ -66,7 +114,7 @@ const FinancialReportView: React.FC<FinancialReportViewProps> = ({ setActiveRepo
                         <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-300">
                             <tr><th className="px-6 py-3">التاريخ والوقت</th><th className="px-6 py-3">النوع</th><th className="px-6 py-3">الاسم</th><th className="px-6 py-3">المبلغ</th></tr>
                         </thead>
-                        <tbody>{expenses.map(e => <tr key={e.id} className="border-b dark:border-gray-700"><td className="whitespace-nowrap" dir="ltr">{formatDateTime(e.date, e.timestamp)}</td><td>{e.type}</td><td>{e.name}</td><td>{formatCurrency(e.amount)}</td></tr>).map(el => React.cloneElement(el, { className: `${el.props.className} hover:bg-gray-50 dark:hover:bg-gray-600`, children: el.props.children.map((c:any) => React.cloneElement(c, {className: 'px-6 py-4'}))}))}</tbody>
+                        <tbody>{filteredExpenses.map(e => <tr key={e.id} className="border-b dark:border-gray-700"><td className="whitespace-nowrap" dir="ltr">{formatDateTime(e.date, e.timestamp)}</td><td>{e.type}</td><td>{e.name}</td><td>{formatCurrency(e.amount)}</td></tr>).map(el => React.cloneElement(el, { className: `${el.props.className} hover:bg-gray-50 dark:hover:bg-gray-600`, children: el.props.children.map((c:any) => React.cloneElement(c, {className: 'px-6 py-4'}))}))}</tbody>
                         <tfoot><tr className="font-bold bg-gray-100 dark:bg-gray-700"><td colSpan={3} className="px-6 py-3">الإجمالي</td><td className="px-6 py-3">{formatCurrency(totalExpenses)}</td></tr></tfoot>
                     </table>
                 )}
@@ -75,7 +123,7 @@ const FinancialReportView: React.FC<FinancialReportViewProps> = ({ setActiveRepo
                         <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-300">
                             <tr><th className="px-6 py-3">التاريخ والوقت</th><th className="px-6 py-3">الموظف</th><th className="px-6 py-3">المبلغ</th><th className="px-6 py-3">المتبقي</th></tr>
                         </thead>
-                        <tbody>{advances.map(a => <tr key={a.id} className="border-b dark:border-gray-700"><td className="whitespace-nowrap" dir="ltr">{formatDateTime(a.date, a.timestamp)}</td><td>{getEmployeeName(a.employeeId)}</td><td>{formatCurrency(a.amount)}</td><td>{formatCurrency(a.amount - a.payment)}</td></tr>).map(el => React.cloneElement(el, { className: `${el.props.className} hover:bg-gray-50 dark:hover:bg-gray-600`, children: el.props.children.map((c:any) => React.cloneElement(c, {className: 'px-6 py-4'}))}))}</tbody>
+                        <tbody>{filteredAdvances.map(a => <tr key={a.id} className="border-b dark:border-gray-700"><td className="whitespace-nowrap" dir="ltr">{formatDateTime(a.date, a.timestamp)}</td><td>{getEmployeeName(a.employeeId)}</td><td>{formatCurrency(a.amount)}</td><td>{formatCurrency(a.amount - a.payment)}</td></tr>).map(el => React.cloneElement(el, { className: `${el.props.className} hover:bg-gray-50 dark:hover:bg-gray-600`, children: el.props.children.map((c:any) => React.cloneElement(c, {className: 'px-6 py-4'}))}))}</tbody>
                         <tfoot><tr className="font-bold bg-gray-100 dark:bg-gray-700"><td colSpan={2} className="px-6 py-3">الإجمالي</td><td className="px-6 py-3">{formatCurrency(totalAdvances)}</td><td></td></tr></tfoot>
                     </table>
                 )}
@@ -84,7 +132,7 @@ const FinancialReportView: React.FC<FinancialReportViewProps> = ({ setActiveRepo
                         <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-300">
                             <tr><th className="px-6 py-3">التاريخ والوقت</th><th className="px-6 py-3">الموظف</th><th className="px-6 py-3">الراتب الأساسي</th><th className="px-6 py-3">المصروف</th></tr>
                         </thead>
-                        <tbody>{payroll.map(p => <tr key={p.id} className="border-b dark:border-gray-700"><td className="whitespace-nowrap" dir="ltr">{formatDateTime(p.date, p.timestamp)}</td><td>{getEmployeeName(p.employeeId)}</td><td>{formatCurrency(p.basicSalary)}</td><td>{formatCurrency(p.disbursed)}</td></tr>).map(el => React.cloneElement(el, { className: `${el.props.className} hover:bg-gray-50 dark:hover:bg-gray-600`, children: el.props.children.map((c:any) => React.cloneElement(c, {className: 'px-6 py-4'}))}))}</tbody>
+                        <tbody>{filteredPayroll.map(p => <tr key={p.id} className="border-b dark:border-gray-700"><td className="whitespace-nowrap" dir="ltr">{formatDateTime(p.date, p.timestamp)}</td><td>{getEmployeeName(p.employeeId)}</td><td>{formatCurrency(p.basicSalary)}</td><td>{formatCurrency(p.disbursed)}</td></tr>).map(el => React.cloneElement(el, { className: `${el.props.className} hover:bg-gray-50 dark:hover:bg-gray-600`, children: el.props.children.map((c:any) => React.cloneElement(c, {className: 'px-6 py-4'}))}))}</tbody>
                         <tfoot><tr className="font-bold bg-gray-100 dark:bg-gray-700"><td colSpan={3} className="px-6 py-3">الإجمالي</td><td className="px-6 py-3">{formatCurrency(totalPayroll)}</td></tr></tfoot>
                     </table>
                 )}

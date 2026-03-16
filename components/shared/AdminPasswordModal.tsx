@@ -13,18 +13,23 @@ const AdminPasswordModal: React.FC<AdminPasswordModalProps> = ({ isOpen, onClose
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const users = useStore(state => state.appData?.users || []);
+    const storefrontSettings = useStore(state => state.appData?.storefrontSettings);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        const adminUser = users.find(u => u.role === 'admin');
+        const adminUsers = users.filter(u => u.role === 'admin');
+        const isValidAdminUser = adminUsers.some(u => u.password === password);
         
-        // In a real app, you'd verify against a hashed password on the server.
-        // Here we check against the stored password or a default if none exists.
-        if (adminUser && adminUser.password === password) {
+        // Check against admin users, then storefrontSettings.adminPassword, then 'admin123'
+        if (isValidAdminUser) {
             setError('');
             setPassword('');
             onSuccess();
-        } else if (password === 'admin123') { // Fallback for testing
+        } else if (storefrontSettings?.adminPassword && password === storefrontSettings.adminPassword) {
+            setError('');
+            setPassword('');
+            onSuccess();
+        } else if (!storefrontSettings?.adminPassword && password === 'admin123') { // Fallback for testing
             setError('');
             setPassword('');
             onSuccess();

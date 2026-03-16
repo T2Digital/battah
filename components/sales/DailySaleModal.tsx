@@ -36,7 +36,6 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
     const [electronicAmount, setElectronicAmount] = useState<number>(0);
     const [customerName, setCustomerName] = useState('');
     const [customerPhone, setCustomerPhone] = useState('');
-    const [locationLink, setLocationLink] = useState('');
     
     const [isListening, setIsListening] = useState(false);
     
@@ -82,7 +81,6 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
             setElectronicAmount(existingSale.electronicAmount || 0);
             setCustomerName(existingSale.customerName || '');
             setCustomerPhone(existingSale.customerPhone || '');
-            setLocationLink(existingSale.locationLink || '');
             
             const itemsToEdit = normalizeSaleItems(existingSale);
             const editableItems = itemsToEdit.map(item => {
@@ -152,7 +150,10 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
     }, [branchSoldFrom, products]);
 
     const totalAmount = useMemo(() => {
-        const subtotal = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+        const subtotal = items.reduce((sum, item) => {
+            const itemTotal = item.quantity * item.unitPrice;
+            return item.isReturn ? sum - itemTotal : sum + itemTotal;
+        }, 0);
         return subtotal - (subtotal * discount / 100);
     }, [items, discount]);
     
@@ -204,6 +205,7 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
             stock: product.stock[branchSoldFrom],
             hasSerialNumber: product.hasSerialNumber,
             serialNumbers: [],
+            isReturn: direction === 'مرتجع' || direction === 'تبديل', // Default to true for returns/exchanges, user can uncheck if it's a new item
         };
         setItems(prev => [...prev, newItem]);
         setProductSearch('');
@@ -218,22 +220,23 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
         setItems(newItems);
     };
 
-    const handleItemChange = (index: number, field: 'quantity' | 'unitPrice', value: number) => {
+    const handleItemChange = (index: number, field: 'quantity' | 'unitPrice' | 'isReturn', value: number | boolean) => {
         const newItems = [...items];
         newItems[index] = { ...newItems[index], [field]: value };
         
         // Adjust serial numbers array size if quantity changes
         if (field === 'quantity' && newItems[index].hasSerialNumber) {
             const currentSerials = newItems[index].serialNumbers || [];
-            if (value > currentSerials.length) {
+            const numValue = value as number;
+            if (numValue > currentSerials.length) {
                 // Add empty strings for new items
                 newItems[index].serialNumbers = [
                     ...currentSerials, 
-                    ...Array(value - currentSerials.length).fill('')
+                    ...Array(numValue - currentSerials.length).fill('')
                 ];
-            } else if (value < currentSerials.length) {
+            } else if (numValue < currentSerials.length) {
                 // Remove excess serials
-                newItems[index].serialNumbers = currentSerials.slice(0, value);
+                newItems[index].serialNumbers = currentSerials.slice(0, numValue);
             }
         }
         
@@ -303,7 +306,6 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
             electronicAmount: paymentMethod === 'إلكترونى' ? electronicAmount : (paymentMethod === 'نقدى' || paymentMethod === 'آجل' ? 0 : electronicAmount),
             customerName,
             customerPhone,
-            locationLink,
             remainingDebt: paymentMethod === 'آجل' ? totalAmount : (paymentMethod === 'نقدى' ? totalAmount - cashAmount : (paymentMethod === 'إلكترونى' ? totalAmount - electronicAmount : totalAmount - (cashAmount + electronicAmount))),
             items: items.map(({ productName, stock, ...rest }) => ({
                 ...rest,
@@ -448,6 +450,17 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
                                             <span className="truncate block font-medium">{item.productName}</span>
                                             {product && <small className="text-xs text-gray-500 dark:text-gray-400 block">{getStockBreakdown(product)}</small>}
                                             {item.hasSerialNumber && <span className="text-xs text-blue-600 dark:text-blue-400 font-bold">يتطلب سيريال</span>}
+                                            {(direction === 'مرتجع' || direction === 'تبديل') && (
+                                                <label className="flex items-center gap-1 mt-1 text-xs font-bold text-red-500">
+                                                    <input 
+                                                        type="checkbox" 
+                                                        checked={item.isReturn || false} 
+                                                        onChange={e => handleItemChange(index, 'isReturn', e.target.checked)}
+                                                        className="rounded text-red-500 focus:ring-red-500"
+                                                    />
+                                                    صنف مرتجع (يخصم من الفاتورة)
+                                                </label>
+                                            )}
                                         </div>
                                         <div className="col-span-3">
                                             <label className="block text-xs text-gray-500 mb-1">عدد</label>
@@ -527,11 +540,19 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
                             <div className="grid grid-cols-2 gap-2">
                                 <div>
                                     <label>المبلغ النقدى</label>
-                                    <input type="number" value={cashAmount === 0 ? '' : cashAmount} onChange={e => setCashAmount(Number(e.target.value))} className="w-full mt-1 p-2 border rounded dark:bg-gray-700 dark:border-gray-600" />
+                                    <input type="number" value={cashAmount === 0 ? '' : cashAmount} onChange={e => {
+                                        const val = Number(e.target.value);
+                                        setCashAmount(val);
+                                        setElectronicAmount(Math.max(0, totalAmount - val));
+                                    }} className="w-full mt-1 p-2 border rounded dark:bg-gray-700 dark:border-gray-600" />
                                 </div>
                                 <div>
                                     <label>المبلغ الإلكترونى</label>
-                                    <input type="number" value={electronicAmount === 0 ? '' : electronicAmount} onChange={e => setElectronicAmount(Number(e.target.value))} className="w-full mt-1 p-2 border rounded dark:bg-gray-700 dark:border-gray-600" />
+                                    <input type="number" value={electronicAmount === 0 ? '' : electronicAmount} onChange={e => {
+                                        const val = Number(e.target.value);
+                                        setElectronicAmount(val);
+                                        setCashAmount(Math.max(0, totalAmount - val));
+                                    }} className="w-full mt-1 p-2 border rounded dark:bg-gray-700 dark:border-gray-600" />
                                 </div>
                             </div>
                         )}
@@ -575,10 +596,6 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
                                 <div>
                                     <label>رقم هاتف العميل</label>
                                     <input type="tel" value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} className="w-full mt-1 p-2 border rounded dark:bg-gray-700 dark:border-gray-600" placeholder="رقم الهاتف" />
-                                </div>
-                                <div>
-                                    <label>رابط الموقع (Location)</label>
-                                    <input type="url" value={locationLink} onChange={e => setLocationLink(e.target.value)} className="w-full mt-1 p-2 border rounded dark:bg-gray-700 dark:border-gray-600" placeholder="رابط خرائط جوجل" />
                                 </div>
                             </>
                         )}

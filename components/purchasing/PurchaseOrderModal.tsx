@@ -14,15 +14,18 @@ interface PurchaseOrderModalProps {
     addProduct?: (product: Omit<Product, 'id'>) => Promise<Product>;
     isDirectStatement?: boolean;
     onSaveDirect?: (order: Omit<PurchaseOrder, 'id'> & { id?: number }, branch: 'main' | 'branch1' | 'branch2' | 'branch3') => void;
+    isViewOnly?: boolean;
+    isReturn?: boolean;
 }
 
 type EditablePurchaseOrderItem = Omit<PurchaseOrderItem, 'quantity' | 'purchasePrice'> & { id: number; quantity: number | ''; purchasePrice: number | '' };
 
-const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, onClose, onSave, orderToEdit, suppliers, products, addProduct, isDirectStatement, onSaveDirect }) => {
+const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, onClose, onSave, orderToEdit, suppliers, products, addProduct, isDirectStatement, onSaveDirect, isViewOnly, isReturn }) => {
     const [formData, setFormData] = useState({
         supplierId: 0,
         orderDate: new Date().toISOString().split('T')[0],
-        status: 'معلق' as PurchaseOrder['status'],
+        status: (isReturn ? 'مكتمل' : 'معلق') as PurchaseOrder['status'],
+        type: (isReturn ? 'مرتجع' : 'شراء') as PurchaseOrder['type'],
         items: [] as EditablePurchaseOrderItem[],
         notes: ''
     });
@@ -150,23 +153,23 @@ const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, onClose
     const getProductName = (id: number) => products.find(p => p.id === id)?.name || 'N/A';
 
     return (
-        <Modal isOpen={isOpen} onClose={onClose} title={isDirectStatement ? 'إضافة بيان بضاعة مباشر' : (orderToEdit ? 'تعديل أمر شراء' : 'إنشاء أمر شراء جديد')} onSave={handleSubmit}>
+        <Modal isOpen={isOpen} onClose={onClose} title={isViewOnly ? 'تفاصيل أمر الشراء' : (isReturn ? 'إضافة مردودات مشتريات' : (isDirectStatement ? 'إضافة بيان بضاعة مباشر' : (orderToEdit ? 'تعديل أمر شراء' : 'إنشاء أمر شراء جديد')))} onSave={isViewOnly ? undefined : handleSubmit}>
             <div className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label>المورد *</label>
-                        <select name="supplierId" value={formData.supplierId} onChange={handleChange} required className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700">
+                        <select name="supplierId" value={formData.supplierId} onChange={handleChange} required disabled={isViewOnly} className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700 disabled:opacity-50">
                             {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                         </select>
                     </div>
                     <div>
                         <label>التاريخ *</label>
-                        <input type="date" name="orderDate" value={formData.orderDate} onChange={handleChange} required className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700" />
+                        <input type="date" name="orderDate" value={formData.orderDate} onChange={handleChange} required disabled={isViewOnly} className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700 disabled:opacity-50" />
                     </div>
                     {isDirectStatement && (
                         <div className="md:col-span-2">
                             <label>استلام في الفرع *</label>
-                            <select value={receiveBranch} onChange={e => setReceiveBranch(e.target.value as any)} className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700">
+                            <select value={receiveBranch} onChange={e => setReceiveBranch(e.target.value as any)} disabled={isViewOnly} className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700 disabled:opacity-50">
                                 <option value="main">الرئيسي</option>
                                 <option value="branch1">فرع 1</option>
                                 <option value="branch2">فرع 2</option>
@@ -178,19 +181,21 @@ const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, onClose
 
                 <div className="border-t pt-4 mt-4">
                     <h4 className="font-bold mb-2">الأصناف</h4>
-                    <div className="relative mb-2">
-                        <input type="text" value={productSearch} onChange={e => setProductSearch(e.target.value)} onFocus={() => setShowSuggestions(true)} onBlur={() => setTimeout(() => setShowSuggestions(false), 200)} placeholder="ابحث لإضافة صنف..." className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" />
-                        {showSuggestions && (productSearch.trim() !== '' || filteredProducts.length > 0) && (
-                            <ul className="absolute z-10 w-full bg-white dark:bg-gray-600 border dark:border-gray-500 rounded-md mt-1 max-h-40 overflow-y-auto shadow-lg">
-                                {filteredProducts.map(p => <li key={p.id} onMouseDown={() => addItem(p)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-500 cursor-pointer">{p.name}</li>)}
-                                {productSearch.trim() !== '' && !filteredProducts.some(p => p.name.toLowerCase() === productSearch.trim().toLowerCase()) && addProduct && (
-                                    <li onMouseDown={handleAddNewProduct} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-500 cursor-pointer text-primary font-bold">
-                                        + إضافة "{productSearch.trim()}" كمنتج جديد
-                                    </li>
-                                )}
-                            </ul>
-                        )}
-                    </div>
+                    {!isViewOnly && (
+                        <div className="relative mb-2">
+                            <input type="text" value={productSearch} onChange={e => setProductSearch(e.target.value)} onFocus={() => setShowSuggestions(true)} onBlur={() => setTimeout(() => setShowSuggestions(false), 200)} placeholder="ابحث لإضافة صنف..." className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" />
+                            {showSuggestions && (productSearch.trim() !== '' || filteredProducts.length > 0) && (
+                                <ul className="absolute z-10 w-full bg-white dark:bg-gray-600 border dark:border-gray-500 rounded-md mt-1 max-h-40 overflow-y-auto shadow-lg">
+                                    {filteredProducts.map(p => <li key={p.id} onMouseDown={() => addItem(p)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-500 cursor-pointer">{p.name}</li>)}
+                                    {productSearch.trim() !== '' && !filteredProducts.some(p => p.name.toLowerCase() === productSearch.trim().toLowerCase()) && addProduct && (
+                                        <li onMouseDown={handleAddNewProduct} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-500 cursor-pointer text-primary font-bold">
+                                            + إضافة "{productSearch.trim()}" كمنتج جديد
+                                        </li>
+                                    )}
+                                </ul>
+                            )}
+                        </div>
+                    )}
                     <div className="space-y-2 max-h-60 overflow-y-auto">
                         {formData.items.map((item, index) => (
                             <div key={item.id} className="grid grid-cols-12 gap-2 items-center p-2 bg-gray-50 dark:bg-gray-700 dark:bg-opacity-50 rounded">
@@ -200,18 +205,22 @@ const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, onClose
                                     value={item.quantity === 0 ? '' : item.quantity} 
                                     onChange={e => handleItemChange(index, 'quantity', e.target.value)} 
                                     placeholder="الكمية" 
-                                    className="col-span-3 p-1 border rounded dark:bg-gray-600" 
+                                    className="col-span-3 p-1 border rounded dark:bg-gray-600 disabled:opacity-50" 
                                     ref={index === formData.items.length - 1 ? lastAddedItemRef : null}
+                                    disabled={isViewOnly}
                                 />
                                 <input 
                                     type="number" 
                                     value={item.purchasePrice === 0 ? '' : item.purchasePrice} 
                                     onChange={e => handleItemChange(index, 'purchasePrice', e.target.value)} 
                                     placeholder="السعر" 
-                                    className="col-span-3 p-1 border rounded dark:bg-gray-600" 
+                                    className="col-span-3 p-1 border rounded dark:bg-gray-600 disabled:opacity-50" 
                                     step="0.01"
+                                    disabled={isViewOnly}
                                 />
-                                <button type="button" onClick={() => removeItem(index)} className="col-span-1 text-red-500 hover:text-red-700"><i className="fas fa-trash"></i></button>
+                                {!isViewOnly && (
+                                    <button type="button" onClick={() => removeItem(index)} className="col-span-1 text-red-500 hover:text-red-700"><i className="fas fa-trash"></i></button>
+                                )}
                             </div>
                         ))}
                     </div>
@@ -221,7 +230,7 @@ const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, onClose
 
                 <div>
                     <label>ملاحظات</label>
-                    <textarea name="notes" value={formData.notes} onChange={handleChange} rows={2} className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700"></textarea>
+                    <textarea name="notes" value={formData.notes} onChange={handleChange} rows={2} disabled={isViewOnly} className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700 disabled:opacity-50"></textarea>
                 </div>
             </div>
         </Modal>

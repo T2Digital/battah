@@ -94,7 +94,9 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveSection }) => {
     const defaultVisibleCards = {
         treasury: true,
         profit: true,
-        employees: true,
+        todaySalesTotal: true,
+        todayBranchSales: true,
+        todayOnlineSales: true,
         sellerSales: true,
         todayInvoices: true,
         todayExpenses: true,
@@ -132,9 +134,10 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveSection }) => {
 
     const { 
         currentTreasuryBalance, dailyNetProfit, sellerTodaySales,
-        todayInvoicesCount, todayExpensesTotal, reorderPointProductsCount, pendingOrdersCount, dailySalesTotal
+        todayInvoicesCount, todayExpensesTotal, reorderPointProductsCount, pendingOrdersCount, dailySalesTotal,
+        todayBranchSales, todayOnlineSales
     } = useMemo(() => {
-        let balance = (treasury || []).reduce((sum, t) => sum + t.amountIn - t.amountOut, 0);
+        let balance = (treasury || []).reduce((sum, t) => sum + (t.amountIn || 0) - (t.amountOut || 0), 0);
 
         const salesToConsider = currentUser?.role === Role.BranchManager
             ? (dailySales || []).filter(s => (users || []).find(u => u.id === s.sellerId)?.branch === currentUser.branch)
@@ -144,6 +147,9 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveSection }) => {
         
         let profit = 0;
         let totalSalesAmount = 0;
+        let branchSales = 0;
+        let onlineSales = 0;
+
         todaySales.forEach(sale => {
             const saleRevenue = sale.totalAmount;
             const items = normalizeSaleItems(sale);
@@ -155,9 +161,19 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveSection }) => {
             if (sale.direction === 'بيع') {
                 profit += (saleRevenue - saleCost);
                 totalSalesAmount += saleRevenue;
+                if (sale.source === 'أونلاين') {
+                    onlineSales += saleRevenue;
+                } else {
+                    branchSales += saleRevenue;
+                }
             } else if (sale.direction === 'مرتجع') {
                 profit -= (saleRevenue - saleCost);
                 totalSalesAmount -= saleRevenue;
+                if (sale.source === 'أونلاين') {
+                    onlineSales -= saleRevenue;
+                } else {
+                    branchSales -= saleRevenue;
+                }
             }
         });
         
@@ -185,7 +201,9 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveSection }) => {
             todayExpensesTotal: expensesTotal,
             reorderPointProductsCount: lowStockCount,
             pendingOrdersCount: pendingCount,
-            dailySalesTotal: totalSalesAmount
+            dailySalesTotal: totalSalesAmount,
+            todayBranchSales: branchSales,
+            todayOnlineSales: onlineSales
         };
     }, [treasury, dailySales, products, expenses, orders, todayStr, currentUser, users]);
 
@@ -217,9 +235,19 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveSection }) => {
                         <StatCard icon="fa-chart-pie" title={currentUser?.role === Role.BranchManager ? `صافي ربح فرعك اليوم` : `صافي الربح اليومي`} value={dailyNetProfit} isCurrency />
                     </div>
                 )}
-                {visibleCards.employees && (
-                     <div onClick={() => setActiveSection(Section.Employees)} className="cursor-pointer">
-                        <StatCard icon="fa-users" title="إجمالي الموظفين" value={(employees || []).length.toString()} />
+                {visibleCards.todaySalesTotal && (
+                     <div onClick={() => setActiveSection(Section.DailySales)} className="cursor-pointer">
+                        <StatCard icon="fa-shopping-cart" title="إجمالي مبيعات اليوم" value={dailySalesTotal} isCurrency />
+                    </div>
+                )}
+                {visibleCards.todayBranchSales && (
+                     <div onClick={() => setActiveSection(Section.DailySales)} className="cursor-pointer">
+                        <StatCard icon="fa-store" title="مبيعات الفروع اليوم" value={todayBranchSales} isCurrency />
+                    </div>
+                )}
+                {visibleCards.todayOnlineSales && (
+                     <div onClick={() => setActiveSection(Section.DailySales)} className="cursor-pointer">
+                        <StatCard icon="fa-globe" title="مبيعات الأونلاين اليوم" value={todayOnlineSales} isCurrency />
                     </div>
                 )}
                 {visibleCards.sellerSales && sellerTodaySales !== null && (

@@ -1069,58 +1069,64 @@ const useStore = create<AppState & AppActions>((set, get) => ({
         const orderToUpdate = appData.orders.find(o => o.id === orderId);
         if (!orderToUpdate) throw new Error("Order not found!");
         
-        const isNowBeingProcessed = ['confirmed', 'shipped'].includes(status);
-        const wasAlreadyProcessed = ['confirmed', 'shipped'].includes(orderToUpdate.status);
+        const isElectronic = orderToUpdate.paymentMethod === 'electronic';
+        const isNowBeingProcessed = (isElectronic && ['confirmed', 'shipped', 'collected'].includes(status)) || (!isElectronic && status === 'collected');
+        const wasAlreadyProcessed = (isElectronic && ['confirmed', 'shipped', 'collected'].includes(orderToUpdate.status)) || (!isElectronic && orderToUpdate.status === 'collected');
         const isBeingReverted = ['pending', 'cancelled'].includes(status);
     
         const batch = writeBatch(db);
         batch.update(doc(db, "orders", String(orderId)), { status });
 
         // Add notification for customer/system
+        const statusText = status === 'confirmed' ? 'تم التأكيد' : status === 'shipped' ? 'تم الشحن' : status === 'cancelled' ? 'ملغي' : status === 'collected' ? 'تم التحصيل' : 'قيد الانتظار';
         const notificationRef = doc(collection(db, "notifications"));
         batch.set(notificationRef, {
             id: notificationRef.id,
             date: new Date().toISOString().split('T')[0],
             createdAt: Timestamp.now(),
-            message: `تم تغيير حالة الطلب #${orderId} إلى ${status === 'confirmed' ? 'تم التأكيد' : status === 'shipped' ? 'تم الشحن' : status === 'cancelled' ? 'ملغي' : 'قيد الانتظار'}`,
+            message: `تم تغيير حالة الطلب #${orderId} إلى ${statusText}`,
             read: false,
             orderId: String(orderId),
             type: 'status_change',
-            targetGroup: 'customer' // This can be filtered in the UI for customers
+            targetGroup: 'customer'
         });
     
         if (isNowBeingProcessed && !wasAlreadyProcessed) {
-            // Logic to create transactions when confirming an order
+            // Logic to create transactions when confirming an order for the first time
             const seller = appData.users.find(u => u.role === Role.Admin) || appData.users[0];
             if (!seller) throw new Error("No admin seller found.");
             
             const maxSaleId = Math.max(0, ...appData.dailySales.map(s => Number(s.id) || 0));
             const saleItems: SaleItem[] = orderToUpdate.items.map(item => {
                 const product = appData.products.find(p => p.id === item.productId);
-                if (!product) {
-                    console.warn(`Product with ID ${item.productId} not found for order ${orderId}. Skipping sale item.`);
-                    return null;
-                }
+                if (!product) return null;
                 return { productId: item.productId, quantity: item.quantity, unitPrice: item.unitPrice, itemType: product?.mainCategory || 'أخرى' };
             }).filter((item): item is SaleItem => item !== null);
     
-            if(saleItems.length !== orderToUpdate.items.length) {
-                 console.error("Some products in the order were not found. Sale record might be incomplete.");
-            }
-    
+            const isElectronic = orderToUpdate.paymentMethod === 'electronic';
+            const isCollected = status === 'collected';
+            const paymentMethodStr = isElectronic ? 'إلكترونى' : (isCollected ? 'نقدى' : 'آجل');
+
             const newSale: DailySale = {
-                id: maxSaleId + 1, date: orderToUpdate.date, timestamp: new Date().toISOString(), invoiceNumber: `ONLINE-${orderToUpdate.id}`,
+                id: maxSaleId + 1, date: new Date().toISOString().split('T')[0], timestamp: new Date().toISOString(), invoiceNumber: `ONLINE-${orderToUpdate.id}`,
                 sellerId: seller.id, sellerName: seller.name, source: 'أونلاين', branchSoldFrom: 'main', 
                 direction: 'بيع', items: saleItems, totalAmount: orderToUpdate.totalAmount,
+                paymentMethod: paymentMethodStr,
+                cashAmount: (!isElectronic && isCollected) ? orderToUpdate.totalAmount : 0,
+                electronicAmount: isElectronic ? orderToUpdate.totalAmount : 0,
+                remainingDebt: (!isElectronic && !isCollected) ? orderToUpdate.totalAmount : 0,
             };
             batch.set(doc(db, "dailySales", String(newSale.id)), newSale);
             
-            const maxTreasuryId = Math.max(0, ...appData.treasury.map(t => Number(t.id) || 0));
-            const newTransaction: TreasuryTransaction = {
-                id: maxTreasuryId + 1, date: orderToUpdate.date, timestamp: new Date().toISOString(), type: 'إيراد مبيعات',
-                description: `طلب أونلاين #${orderToUpdate.id}`, amountIn: orderToUpdate.totalAmount, amountOut: 0, relatedId: orderToUpdate.id,
-            };
-            batch.set(doc(db, "treasury", String(newTransaction.id)), newTransaction);
+            if (isElectronic || isCollected) {
+                const maxTreasuryId = Math.max(0, ...appData.treasury.map(t => Number(t.id) || 0));
+                const newTransaction: TreasuryTransaction = {
+                    id: maxTreasuryId + 1, date: new Date().toISOString().split('T')[0], timestamp: new Date().toISOString(), type: 'إيراد مبيعات',
+                    description: `طلب أونلاين #${orderToUpdate.id}`, amountIn: orderToUpdate.totalAmount, amountOut: 0, relatedId: orderToUpdate.id,
+                    paymentMethod: isElectronic ? 'electronic' : 'cash'
+                };
+                batch.set(doc(db, "treasury", String(newTransaction.id)), newTransaction);
+            }
     
             for (const item of orderToUpdate.items) {
                 const product = appData.products.find(p => p.id === item.productId);
@@ -1294,7 +1300,7 @@ const useStore = create<AppState & AppActions>((set, get) => ({
         });
     },
     resetTreasury: async (initialBalance) => {
-        const currentBalance = get().appData?.treasury.reduce((acc, t) => acc + t.amountIn - t.amountOut, 0) || 0;
+        const currentBalance = get().appData?.treasury.reduce((acc, t) => acc + (t.amountIn || 0) - (t.amountOut || 0), 0) || 0;
         const diff = initialBalance - currentBalance;
         
         if (diff === 0) return;

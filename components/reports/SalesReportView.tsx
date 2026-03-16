@@ -20,10 +20,39 @@ const SalesReportView: React.FC<SalesReportViewProps> = ({ setActiveReport }) =>
     }));
     const { dailySales = [], products = [] } = appData || {};
 
+    const [dateFilter, setDateFilter] = React.useState<'all' | 'today' | 'week' | 'month'>('all');
+
     const salesByDate = useMemo(() => {
-        const filteredSales = currentUser?.role === 'admin' 
+        let filteredSales = currentUser?.role === 'admin' 
             ? dailySales 
             : dailySales.filter(sale => sale.branchSoldFrom === currentUser?.branch);
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        if (dateFilter === 'today') {
+            filteredSales = filteredSales.filter(sale => {
+                const d = new Date(sale.date);
+                d.setHours(0, 0, 0, 0);
+                return d.getTime() === today.getTime();
+            });
+        } else if (dateFilter === 'week') {
+            const lastWeek = new Date(today);
+            lastWeek.setDate(today.getDate() - 7);
+            filteredSales = filteredSales.filter(sale => {
+                const d = new Date(sale.date);
+                d.setHours(0, 0, 0, 0);
+                return d >= lastWeek;
+            });
+        } else if (dateFilter === 'month') {
+            const lastMonth = new Date(today);
+            lastMonth.setMonth(today.getMonth() - 1);
+            filteredSales = filteredSales.filter(sale => {
+                const d = new Date(sale.date);
+                d.setHours(0, 0, 0, 0);
+                return d >= lastMonth;
+            });
+        }
 
         const data = filteredSales.reduce((acc: Record<string, { revenue: number; cost: number }>, sale) => {
             const date = sale.date;
@@ -56,7 +85,7 @@ const SalesReportView: React.FC<SalesReportViewProps> = ({ setActiveReport }) =>
                 profit: values.revenue - values.cost,
             };
         }).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    }, [dailySales, products]);
+    }, [dailySales, products, currentUser, dateFilter]);
     
     const chartData = useMemo(() => {
         return salesByDate.slice(0, 15).reverse(); // Show last 15 days
@@ -75,14 +104,26 @@ const SalesReportView: React.FC<SalesReportViewProps> = ({ setActiveReport }) =>
     return (
         <div className="animate-fade-in space-y-6">
             <SectionHeader icon="fa-dollar-sign" title="تقرير المبيعات التفصيلي">
-                 <button onClick={handlePrint} className="px-4 py-2 bg-green-600 text-white rounded-lg flex items-center gap-2 hover:bg-green-700 transition shadow-md">
-                    <i className="fas fa-print"></i>
-                    طباعة التقرير
-                </button>
-                <button onClick={() => setActiveReport(null)} className="px-4 py-2 bg-gray-200 text-gray-800 dark:bg-gray-600 dark:text-gray-200 rounded-lg flex items-center gap-2 hover:bg-gray-300 dark:hover:bg-gray-500 transition">
-                    <i className="fas fa-arrow-right"></i>
-                    العودة
-                </button>
+                <div className="flex items-center gap-4">
+                    <select
+                        value={dateFilter}
+                        onChange={(e) => setDateFilter(e.target.value as any)}
+                        className="p-2 border rounded-lg text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                    >
+                        <option value="all">كل الأوقات</option>
+                        <option value="today">اليوم</option>
+                        <option value="week">هذا الأسبوع</option>
+                        <option value="month">هذا الشهر</option>
+                    </select>
+                    <button onClick={handlePrint} className="px-4 py-2 bg-green-600 text-white rounded-lg flex items-center gap-2 hover:bg-green-700 transition shadow-md">
+                        <i className="fas fa-print"></i>
+                        طباعة
+                    </button>
+                    <button onClick={() => setActiveReport(null)} className="px-4 py-2 bg-gray-200 text-gray-800 dark:bg-gray-600 dark:text-gray-200 rounded-lg flex items-center gap-2 hover:bg-gray-300 dark:hover:bg-gray-500 transition">
+                        <i className="fas fa-arrow-right"></i>
+                        العودة
+                    </button>
+                </div>
             </SectionHeader>
 
             <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg">

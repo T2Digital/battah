@@ -3,6 +3,7 @@ import { DailySale, User } from '../../types';
 import SectionHeader from '../shared/SectionHeader';
 import DailySaleModal from './DailySaleModal';
 import ConfirmationModal from '../shared/ConfirmationModal';
+import Modal from '../shared/Modal';
 import { formatCurrency, normalizeSaleItems, formatDateTime } from '../../lib/utils';
 import { generateInvoiceContent } from '../../lib/reportTemplates';
 import useStore from '../../lib/store';
@@ -136,14 +137,32 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
         if (isEditing && originalSale) {
             const originalItems = normalizeSaleItems(originalSale);
             originalItems.forEach(item => {
-                const quantityToRevert = originalSale.direction === 'بيع' ? item.quantity : -item.quantity;
+                let quantityToRevert = 0;
+                if (originalSale.direction === 'بيع') {
+                    quantityToRevert = item.quantity;
+                } else if (originalSale.direction === 'مرتجع') {
+                    quantityToRevert = -item.quantity;
+                } else if (originalSale.direction === 'تبديل') {
+                    quantityToRevert = item.isReturn ? -item.quantity : item.quantity;
+                } else {
+                    quantityToRevert = item.quantity; // Default fallback
+                }
                 stockChanges.set(item.productId, (stockChanges.get(item.productId) || 0) + quantityToRevert);
             });
         }
         
         const finalItems = normalizeSaleItems(finalSaleData as DailySale);
         finalItems.forEach(item => {
-            const quantityToApply = finalSaleData.direction === 'بيع' ? -item.quantity : item.quantity;
+            let quantityToApply = 0;
+            if (finalSaleData.direction === 'بيع') {
+                quantityToApply = -item.quantity;
+            } else if (finalSaleData.direction === 'مرتجع') {
+                quantityToApply = item.quantity;
+            } else if (finalSaleData.direction === 'تبديل') {
+                quantityToApply = item.isReturn ? item.quantity : -item.quantity;
+            } else {
+                quantityToApply = -item.quantity; // Default fallback
+            }
             stockChanges.set(item.productId, (stockChanges.get(item.productId) || 0) + quantityToApply);
         });
 
@@ -171,25 +190,50 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
                     type: 'عامة'
                 }, true); // true to skip treasury
             } else {
-                const transactionType = newSale.direction === 'بيع' ? 'إيراد مبيعات' : 'مرتجع مبيعات';
-                
+                let transactionType: 'إيراد مبيعات' | 'مرتجع مبيعات' = 'إيراد مبيعات';
+                let amountIn = 0;
+                let amountOut = 0;
+
+                if (newSale.direction === 'بيع') {
+                    transactionType = 'إيراد مبيعات';
+                    amountIn = newSale.totalAmount;
+                } else if (newSale.direction === 'مرتجع') {
+                    transactionType = 'مرتجع مبيعات';
+                    amountOut = newSale.totalAmount;
+                } else if (newSale.direction === 'تبديل') {
+                    if (newSale.totalAmount >= 0) {
+                        transactionType = 'إيراد مبيعات';
+                        amountIn = newSale.totalAmount;
+                    } else {
+                        transactionType = 'مرتجع مبيعات';
+                        amountOut = Math.abs(newSale.totalAmount);
+                    }
+                }
+
                 if (newSale.paymentMethod === 'مختلط' && newSale.cashAmount && newSale.electronicAmount) {
+                    // For mixed payments, we assume it's a positive total amount (customer pays us)
+                    // If it's negative, it's unlikely they use mixed payment for a refund, but we handle it just in case
+                    const cashIn = amountIn > 0 ? newSale.cashAmount : 0;
+                    const cashOut = amountOut > 0 ? newSale.cashAmount : 0;
+                    const elecIn = amountIn > 0 ? newSale.electronicAmount : 0;
+                    const elecOut = amountOut > 0 ? newSale.electronicAmount : 0;
+
                     await addTreasuryTransaction({
                         date: newSale.date, type: transactionType, description: `${newSale.direction} فاتورة #${newSale.invoiceNumber} (نقدي)`,
-                        amountIn: newSale.direction === 'بيع' ? newSale.cashAmount : 0,
-                        amountOut: newSale.direction !== 'بيع' ? newSale.cashAmount : 0, relatedId: newSale.id, paymentMethod: 'cash'
+                        amountIn: cashIn,
+                        amountOut: cashOut, relatedId: newSale.id, paymentMethod: 'cash'
                     });
                     await addTreasuryTransaction({
                         date: newSale.date, type: transactionType, description: `${newSale.direction} فاتورة #${newSale.invoiceNumber} (إلكتروني)`,
-                        amountIn: newSale.direction === 'بيع' ? newSale.electronicAmount : 0,
-                        amountOut: newSale.direction !== 'بيع' ? newSale.electronicAmount : 0, relatedId: newSale.id, paymentMethod: 'electronic'
+                        amountIn: elecIn,
+                        amountOut: elecOut, relatedId: newSale.id, paymentMethod: 'electronic'
                     });
                 } else {
                     const method = newSale.paymentMethod === 'إلكترونى' ? 'electronic' : 'cash';
                     await addTreasuryTransaction({
                         date: newSale.date, type: transactionType, description: `${newSale.direction} فاتورة #${newSale.invoiceNumber}`,
-                        amountIn: newSale.direction === 'بيع' ? newSale.totalAmount : 0,
-                        amountOut: newSale.direction !== 'بيع' ? newSale.totalAmount : 0, relatedId: newSale.id, paymentMethod: method
+                        amountIn: amountIn,
+                        amountOut: amountOut, relatedId: newSale.id, paymentMethod: method
                     });
                 }
             }
@@ -207,24 +251,10 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
         }
     };
 
-    const handleShareWhatsApp = (sale: DailySale) => {
-        const items = normalizeSaleItems(sale);
-        const itemsList = items.map(item => {
-            const product = products.find(p => p.id === item.productId);
-            return `- ${product?.name || 'صنف'} (${item.quantity}) ${formatCurrency(item.unitPrice)}`;
-        }).join('%0a');
+    const [saleToView, setSaleToView] = useState<DailySale | null>(null);
 
-        const locationText = sale.locationLink ? `*رابط الموقع:* ${sale.locationLink}%0a` : '';
-        const message = `*فاتورة رقم: ${sale.invoiceNumber}*%0a` +
-            `*التاريخ:* ${sale.date}%0a` +
-            `*الإجمالي:* ${formatCurrency(sale.totalAmount)}%0a` +
-            locationText +
-            `------------------%0a` +
-            `*الأصناف:*%0a${itemsList}%0a` +
-            `------------------%0a` +
-            `شكراً لتعاملكم مع بطاح الأصلي!`;
-
-        window.open(`https://wa.me/?text=${message}`, '_blank');
+    const handleViewInvoice = (sale: DailySale) => {
+        setSaleToView(sale);
     };
 
     const handlePrintFilteredSales = () => {
@@ -365,6 +395,7 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
                             <th scope="col" className="px-6 py-3">التاريخ والوقت</th>
                             <th scope="col" className="px-6 py-3">عدد الأصناف</th>
                             <th scope="col" className="px-6 py-3">الإجمالي</th>
+                            <th scope="col" className="px-6 py-3">طريقة الدفع</th>
                             <th scope="col" className="px-6 py-3">التوجيه</th>
                             <th scope="col" className="px-6 py-3">البائع</th>
                             <th scope="col" className="px-6 py-3">الإجراءات</th>
@@ -373,7 +404,7 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
                     <tbody>
                         {todaySales.length === 0 ? (
                             <tr>
-                                <td colSpan={7} className="text-center py-8 text-gray-500">لا توجد فواتير مسجلة اليوم.</td>
+                                <td colSpan={8} className="text-center py-8 text-gray-500">لا توجد فواتير مسجلة اليوم.</td>
                             </tr>
                         ) : (
                             todaySales.map(sale => {
@@ -384,11 +415,12 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
                                     <td className="px-6 py-4 whitespace-nowrap" dir="ltr">{formatDateTime(sale.date, sale.timestamp)}</td>
                                     <td className="px-6 py-4">{items.length}</td>
                                     <td className="px-6 py-4 font-semibold">{formatCurrency(sale.totalAmount)}</td>
+                                    <td className="px-6 py-4">{sale.paymentMethod === 'electronic' ? 'إلكتروني' : sale.paymentMethod === 'آجل' ? 'آجل' : 'نقدي'}</td>
                                     <td className="px-6 py-4">{sale.direction}</td>
                                     <td className="px-6 py-4">{sale.sellerName}</td>
                                     <td className="px-6 py-4 flex gap-3">
                                         <button onClick={() => handlePrintInvoice(sale)} className="text-green-500 hover:text-green-700 text-lg" aria-label={`طباعة فاتورة ${sale.invoiceNumber}`}><i className="fas fa-print"></i></button>
-                                        <button onClick={() => handleShareWhatsApp(sale)} className="text-green-600 hover:text-green-800 text-lg" aria-label={`إرسال واتساب ${sale.invoiceNumber}`}><i className="fab fa-whatsapp"></i></button>
+                                        <button onClick={() => handleViewInvoice(sale)} className="text-blue-600 hover:text-blue-800 text-lg" aria-label={`عرض تفاصيل فاتورة ${sale.invoiceNumber}`}><i className="fas fa-eye"></i></button>
                                         <button onClick={() => handleEditSale(sale)} className="text-blue-500 hover:text-blue-700 text-lg" aria-label={`تعديل فاتورة ${sale.invoiceNumber}`}><i className="fas fa-edit"></i></button>
                                         <button onClick={() => setSaleToDelete(sale)} className="text-red-500 hover:text-red-700 text-lg w-6 text-center" aria-label={`حذف فاتورة ${sale.invoiceNumber}`}>
                                             <i className="fas fa-trash"></i>
@@ -423,6 +455,83 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
                     isLoading={isDeleting}
                     requireSecurityCheck={true}
                 />
+            )}
+            {saleToView && (
+                <Modal isOpen={!!saleToView} onClose={() => setSaleToView(null)} title={`تفاصيل الفاتورة #${saleToView.invoiceNumber}`}>
+                    <div className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4 text-sm">
+                            <div><strong>التاريخ:</strong> {formatDateTime(saleToView.date, saleToView.timestamp)}</div>
+                            <div><strong>البائع:</strong> {saleToView.sellerName}</div>
+                            {saleToView.customerName && <div><strong>العميل:</strong> {saleToView.customerName}</div>}
+                            {saleToView.customerPhone && <div><strong>هاتف العميل:</strong> {saleToView.customerPhone}</div>}
+                            <div><strong>التوجيه:</strong> {saleToView.direction}</div>
+                            <div><strong>طريقة الدفع:</strong> {saleToView.paymentMethod || 'نقدى'}</div>
+                        </div>
+                        <div className="border-t pt-4">
+                            <h4 className="font-bold mb-2">الأصناف</h4>
+                            <table className="w-full text-sm text-right">
+                                <thead className="bg-gray-50 dark:bg-gray-700">
+                                    <tr>
+                                        <th className="p-2">الصنف</th>
+                                        <th className="p-2">الكمية</th>
+                                        <th className="p-2">السعر</th>
+                                        <th className="p-2">الإجمالي</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {normalizeSaleItems(saleToView).map((item, idx) => (
+                                        <tr key={idx} className="border-b dark:border-gray-600">
+                                            <td className="p-2">
+                                                {products.find(p => p.id === item.productId)?.name || 'صنف غير معروف'}
+                                                {item.serialNumbers && item.serialNumbers.length > 0 && (
+                                                    <div className="text-xs text-gray-500 mt-1">S/N: {item.serialNumbers.join(', ')}</div>
+                                                )}
+                                            </td>
+                                            <td className="p-2">{item.quantity}</td>
+                                            <td className="p-2">{formatCurrency(item.unitPrice)}</td>
+                                            <td className="p-2">{formatCurrency(item.quantity * item.unitPrice)}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                        <div className="border-t pt-4 space-y-2 text-sm">
+                            <div className="flex justify-between font-bold">
+                                <span>الإجمالي:</span>
+                                <span>{formatCurrency(saleToView.totalAmount)}</span>
+                            </div>
+                            {saleToView.discount ? (
+                                <div className="flex justify-between text-red-500">
+                                    <span>خصم ({saleToView.discount}%):</span>
+                                    <span>-{formatCurrency((saleToView.totalAmount / (1 - (saleToView.discount/100))) * (saleToView.discount/100))}</span>
+                                </div>
+                            ) : null}
+                            {saleToView.cashAmount ? (
+                                <div className="flex justify-between">
+                                    <span>المدفوع نقداً:</span>
+                                    <span>{formatCurrency(saleToView.cashAmount)}</span>
+                                </div>
+                            ) : null}
+                            {saleToView.electronicAmount ? (
+                                <div className="flex justify-between">
+                                    <span>المدفوع إلكترونياً:</span>
+                                    <span>{formatCurrency(saleToView.electronicAmount)}</span>
+                                </div>
+                            ) : null}
+                            {saleToView.remainingDebt ? (
+                                <div className="flex justify-between font-bold text-red-600">
+                                    <span>المتبقي (آجل):</span>
+                                    <span>{formatCurrency(saleToView.remainingDebt)}</span>
+                                </div>
+                            ) : null}
+                        </div>
+                        {saleToView.notes && (
+                            <div className="border-t pt-4 text-sm">
+                                <strong>ملاحظات:</strong> {saleToView.notes}
+                            </div>
+                        )}
+                    </div>
+                </Modal>
             )}
         </div>
     );

@@ -220,6 +220,123 @@ const PaymentModal: React.FC<{
 };
 
 
+const SupplierDetails: React.FC<{
+    supplier: Supplier;
+    onBack: () => void;
+    purchaseOrders: PurchaseOrder[];
+    payments: Payment[];
+}> = ({ supplier, onBack, purchaseOrders, payments }) => {
+    const supplierOrders = useMemo(() => purchaseOrders.filter(po => po.supplierId === supplier.id), [purchaseOrders, supplier.id]);
+    const supplierPayments = useMemo(() => payments.filter(p => p.supplierId === supplier.id), [payments, supplier.id]);
+
+    const totalInvoices = useMemo(() => supplierOrders.reduce((sum, po) => sum + (po.type === 'مرتجع' ? -po.totalAmount : po.totalAmount), 0), [supplierOrders]);
+    const totalPaid = useMemo(() => supplierPayments.reduce((sum, p) => sum + p.payment, 0), [supplierPayments]);
+    const remainingBalance = totalInvoices - totalPaid;
+
+    return (
+        <div className="animate-fade-in space-y-6">
+            <div className="flex justify-between items-center mb-6">
+                <button onClick={onBack} className="text-gray-500 hover:text-gray-700 flex items-center gap-2">
+                    <i className="fas fa-arrow-right"></i> عودة للموردين
+                </button>
+                <h2 className="text-2xl font-bold text-gray-800 dark:text-white">تفاصيل المورد: {supplier.name}</h2>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+                    <div className="text-gray-500 dark:text-gray-400 text-sm mb-1">إجمالي الفواتير</div>
+                    <div className="text-2xl font-bold text-gray-900 dark:text-white">{formatCurrency(totalInvoices)}</div>
+                </div>
+                <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+                    <div className="text-gray-500 dark:text-gray-400 text-sm mb-1">إجمالي المدفوع</div>
+                    <div className="text-2xl font-bold text-green-600">{formatCurrency(totalPaid)}</div>
+                </div>
+                <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+                    <div className="text-gray-500 dark:text-gray-400 text-sm mb-1">الرصيد المتبقي</div>
+                    <div className={`text-2xl font-bold ${remainingBalance > 0 ? 'text-red-600' : 'text-gray-900 dark:text-white'}`}>
+                        {formatCurrency(remainingBalance)}
+                    </div>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-hidden">
+                    <div className="p-4 border-b dark:border-gray-700 font-bold bg-gray-50 dark:bg-gray-700">الفواتير (أوامر الشراء)</div>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm text-right text-gray-500 dark:text-gray-400">
+                            <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-300">
+                                <tr>
+                                    <th className="px-4 py-3">رقم الأمر</th>
+                                    <th className="px-4 py-3">التاريخ</th>
+                                    <th className="px-4 py-3">الإجمالي</th>
+                                    <th className="px-4 py-3">الحالة</th>
+                                    <th className="px-4 py-3">الإجراءات</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {supplierOrders.length === 0 ? (
+                                    <tr><td colSpan={5} className="px-4 py-4 text-center">لا توجد فواتير</td></tr>
+                                ) : (
+                                    supplierOrders.map(po => (
+                                        <tr key={po.id} className="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
+                                            <td className="px-4 py-3">PO-{po.id.toString().padStart(4, '0')}</td>
+                                            <td className="px-4 py-3">{formatDate(po.orderDate)}</td>
+                                            <td className="px-4 py-3">{formatCurrency(po.totalAmount)}</td>
+                                            <td className="px-4 py-3">
+                                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                                    po.status === 'مكتمل' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300' :
+                                                    po.status === 'ملغي' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300' :
+                                                    'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300'
+                                                }`}>
+                                                    {po.status}
+                                                </span>
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                <button onClick={() => setOrderToView(po)} className="text-blue-500 hover:text-blue-700 text-sm flex items-center gap-1">
+                                                    <i className="fas fa-eye"></i>
+                                                    التفاصيل
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-hidden">
+                    <div className="p-4 border-b dark:border-gray-700 font-bold bg-gray-50 dark:bg-gray-700">المدفوعات</div>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm text-right text-gray-500 dark:text-gray-400">
+                            <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-300">
+                                <tr>
+                                    <th className="px-4 py-3">التاريخ</th>
+                                    <th className="px-4 py-3">المبلغ</th>
+                                    <th className="px-4 py-3">ملاحظات</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {supplierPayments.length === 0 ? (
+                                    <tr><td colSpan={3} className="px-4 py-4 text-center">لا توجد مدفوعات</td></tr>
+                                ) : (
+                                    supplierPayments.map(p => (
+                                        <tr key={p.id} className="border-b dark:border-gray-700">
+                                            <td className="px-4 py-3">{formatDate(p.date)}</td>
+                                            <td className="px-4 py-3 text-green-600 font-bold">{formatCurrency(p.payment)}</td>
+                                            <td className="px-4 py-3">{p.notes || '-'}</td>
+                                        </tr>
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const Suppliers: React.FC<SuppliersProps> = ({ suppliers, payments, addPayment, updatePayment, deletePayment, purchaseOrders }) => {
     const { addSupplier, updateSupplier, deleteSupplier, products, addProduct, addPurchaseOrder, updateProduct } = useStore(state => ({
         addSupplier: state.addSupplier,
@@ -241,8 +358,12 @@ const Suppliers: React.FC<SuppliersProps> = ({ suppliers, payments, addPayment, 
     const [paymentToDelete, setPaymentToDelete] = useState<Payment | null>(null);
     
     const [isDirectStatementModalOpen, setDirectStatementModalOpen] = useState(false);
+    const [isReturnModalOpen, setReturnModalOpen] = useState(false);
+    const [orderToView, setOrderToView] = useState<PurchaseOrder | null>(null);
 
     const [isDeleting, setIsDeleting] = useState(false);
+    
+    const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
 
     const handleSaveSupplier = (supplier: Omit<Supplier, 'id'> & { id?: number }) => {
         if (supplier.id) {
@@ -312,11 +433,52 @@ const Suppliers: React.FC<SuppliersProps> = ({ suppliers, payments, addPayment, 
         }
     };
 
+    const handleSaveReturn = async (order: Omit<PurchaseOrder, 'id'> & { id?: number }, branch: 'main' | 'branch1' | 'branch2' | 'branch3') => {
+        try {
+            await addPurchaseOrder({ ...order, type: 'مرتجع', status: 'مكتمل' });
+            
+            for (const item of order.items) {
+                const product = products.find(p => p.id === item.productId);
+                if (product) {
+                    const newStock = { ...product.stock };
+                    newStock[branch] -= item.quantity;
+                    await updateProduct(product.id, { stock: newStock });
+                }
+            }
+            setReturnModalOpen(false);
+            alert('تم إضافة مردود المشتريات وتحديث المخزون بنجاح.');
+        } catch (error) {
+            console.error("Failed to save return:", error);
+            alert('حدث خطأ أثناء حفظ مردود المشتريات.');
+        }
+    };
+
+    const suppliersWithBalance = useMemo(() => {
+        return suppliers.map(s => {
+            const supplierOrders = purchaseOrders.filter(po => po.supplierId === s.id);
+            const supplierPayments = payments.filter(p => p.supplierId === s.id);
+            const totalInvoices = supplierOrders.reduce((sum, po) => sum + (po.type === 'مرتجع' ? -po.totalAmount : po.totalAmount), 0);
+            const totalPaid = supplierPayments.reduce((sum, p) => sum + p.payment, 0);
+            return { ...s, remainingBalance: totalInvoices - totalPaid };
+        });
+    }, [suppliers, purchaseOrders, payments]);
+
     const paymentsWithDetails = useMemo(() => {
         return payments
             .map(p => ({...p, supplierName: suppliers.find(s => s.id === p.supplierId)?.name || 'غير معروف'}))
             .sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     }, [payments, suppliers]);
+
+    if (selectedSupplier) {
+        return (
+            <SupplierDetails
+                supplier={selectedSupplier}
+                onBack={() => setSelectedSupplier(null)}
+                purchaseOrders={purchaseOrders}
+                payments={payments}
+            />
+        );
+    }
 
     return (
         <div className="animate-fade-in space-y-6">
@@ -330,11 +492,31 @@ const Suppliers: React.FC<SuppliersProps> = ({ suppliers, payments, addPayment, 
                 <button onClick={() => setDirectStatementModalOpen(true)} className="px-4 py-2 bg-green-600 text-white rounded-lg flex items-center gap-2 hover:bg-green-700 transition shadow-md">
                     <i className="fas fa-file-invoice"></i> بيان بضاعة مباشر
                 </button>
+                <button onClick={() => setReturnModalOpen(true)} className="px-4 py-2 bg-red-600 text-white rounded-lg flex items-center gap-2 hover:bg-red-700 transition shadow-md">
+                    <i className="fas fa-undo"></i> مردودات مشتريات
+                </button>
             </SectionHeader>
             
-            <div className="flex border-b dark:border-gray-700">
-                <button onClick={() => setActiveTab('suppliers')} className={`px-6 py-3 font-semibold ${activeTab === 'suppliers' ? 'border-b-2 border-primary text-primary' : 'text-gray-500'}`}>الموردين</button>
-                <button onClick={() => setActiveTab('payments')} className={`px-6 py-3 font-semibold ${activeTab === 'payments' ? 'border-b-2 border-primary text-primary' : 'text-gray-500'}`}>الدفعات</button>
+            <div className="flex flex-col sm:flex-row justify-between items-center border-b dark:border-gray-700 pb-4 gap-4">
+                <div className="flex">
+                    <button onClick={() => setActiveTab('suppliers')} className={`px-6 py-3 font-semibold ${activeTab === 'suppliers' ? 'border-b-2 border-primary text-primary' : 'text-gray-500'}`}>الموردين</button>
+                    <button onClick={() => setActiveTab('payments')} className={`px-6 py-3 font-semibold ${activeTab === 'payments' ? 'border-b-2 border-primary text-primary' : 'text-gray-500'}`}>الدفعات</button>
+                </div>
+                <div className="w-full sm:w-64">
+                    <select 
+                        className="w-full p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 text-sm"
+                        onChange={(e) => {
+                            const supplier = suppliers.find(s => s.id === Number(e.target.value));
+                            if (supplier) setSelectedSupplier(supplier);
+                        }}
+                        value=""
+                    >
+                        <option value="" disabled>بحث عن مورد وعرض تفاصيله...</option>
+                        {suppliers.map(s => (
+                            <option key={s.id} value={s.id}>{s.name}</option>
+                        ))}
+                    </select>
+                </div>
             </div>
 
             {activeTab === 'suppliers' && (
@@ -345,18 +527,23 @@ const Suppliers: React.FC<SuppliersProps> = ({ suppliers, payments, addPayment, 
                                 <th className="px-6 py-3">اسم المورد</th>
                                 <th className="px-6 py-3">رقم الاتصال</th>
                                 <th className="px-6 py-3">العنوان</th>
+                                <th className="px-6 py-3">الرصيد المتبقي</th>
                                 <th className="px-6 py-3">الإجراءات</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {suppliers.map(s => (
+                            {suppliersWithBalance.map(s => (
                                 <tr key={s.id} className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
                                     <td className="px-6 py-4 font-medium text-gray-900 whitespace-nowrap dark:text-white">{s.name}</td>
                                     <td className="px-6 py-4">{s.contact}</td>
                                     <td className="px-6 py-4">{s.address}</td>
+                                    <td className={`px-6 py-4 font-bold ${s.remainingBalance > 0 ? 'text-red-600' : 'text-gray-900 dark:text-white'}`}>
+                                        {formatCurrency(s.remainingBalance)}
+                                    </td>
                                     <td className="px-6 py-4 flex gap-3">
-                                        <button onClick={() => { setSupplierToEdit(s); setSupplierModalOpen(true); }} className="text-blue-500"><i className="fas fa-edit"></i></button>
-                                        <button onClick={() => setSupplierToDelete(s)} className="text-red-500 w-6 text-center">
+                                        <button onClick={() => setSelectedSupplier(s)} className="text-green-600 hover:text-green-800" title="عرض التفاصيل"><i className="fas fa-eye"></i></button>
+                                        <button onClick={() => { setSupplierToEdit(s); setSupplierModalOpen(true); }} className="text-blue-500" title="تعديل"><i className="fas fa-edit"></i></button>
+                                        <button onClick={() => setSupplierToDelete(s)} className="text-red-500 w-6 text-center" title="حذف">
                                             <i className="fas fa-trash"></i>
                                         </button>
                                     </td>
@@ -413,6 +600,33 @@ const Suppliers: React.FC<SuppliersProps> = ({ suppliers, payments, addPayment, 
                     addProduct={addProduct}
                     isDirectStatement={true}
                     onSaveDirect={handleSaveDirectStatement}
+                />
+            )}
+
+            {isReturnModalOpen && (
+                <PurchaseOrderModal
+                    isOpen={isReturnModalOpen}
+                    onClose={() => setReturnModalOpen(false)}
+                    onSave={() => {}} // Not used for direct statement
+                    orderToEdit={null}
+                    suppliers={suppliers}
+                    products={products}
+                    addProduct={addProduct}
+                    isDirectStatement={true}
+                    onSaveDirect={handleSaveReturn}
+                    isReturn={true}
+                />
+            )}
+
+            {orderToView && (
+                <PurchaseOrderModal
+                    isOpen={!!orderToView}
+                    onClose={() => setOrderToView(null)}
+                    onSave={() => {}} // View only
+                    orderToEdit={orderToView}
+                    suppliers={suppliers}
+                    products={products}
+                    isViewOnly={true}
                 />
             )}
 
