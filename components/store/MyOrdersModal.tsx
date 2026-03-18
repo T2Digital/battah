@@ -2,8 +2,7 @@
 
 import React, { useState } from 'react';
 import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
-import { signInAnonymously } from 'firebase/auth';
-import { db, auth } from '../../lib/firebase';
+import { db, auth, handleFirestoreError, OperationType } from '../../lib/firebase';
 import { Order } from '../../types';
 import Modal from '../shared/Modal';
 import { formatCurrency, formatDate } from '../../lib/utils';
@@ -18,6 +17,7 @@ const statusMap: Record<Order['status'], { text: string; color: string }> = {
     confirmed: { text: 'مؤكد', color: 'text-blue-500' },
     shipped: { text: 'تم الشحن', color: 'text-green-500' },
     cancelled: { text: 'ملغي', color: 'text-red-500' },
+    collected: { text: 'تم الاستلام', color: 'text-purple-500' },
 };
 
 const MyOrdersModal: React.FC<MyOrdersModalProps> = ({ isOpen, onClose }) => {
@@ -36,12 +36,6 @@ const MyOrdersModal: React.FC<MyOrdersModalProps> = ({ isOpen, onClose }) => {
         setHasSearched(true);
         setOrders([]);
         try {
-            // Ensure user is authenticated to perform the query.
-            // Sign in anonymously only if there is no current user.
-            if (!auth.currentUser) {
-                await signInAnonymously(auth);
-            }
-
             // Query for orders associated with the phone number
             const q = query(
                 collection(db, "orders"), 
@@ -65,6 +59,9 @@ const MyOrdersModal: React.FC<MyOrdersModalProps> = ({ isOpen, onClose }) => {
 
             setOrders(foundOrders);
         } catch (error: any) {
+            if (error.message?.includes('Missing or insufficient permissions')) {
+                handleFirestoreError(error, OperationType.LIST, 'orders');
+            }
             console.error("Error searching for orders:", error);
             alert(`حدث خطأ أثناء البحث عن طلباتك: ${error.message || 'تأكد من تفعيل الدخول المجهول (Anonymous Auth) في Firebase أو تحقق من صلاحيات Firestore.'}`);
         } finally {

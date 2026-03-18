@@ -12,11 +12,24 @@ interface EmployeesReportViewProps {
 }
 
 const EmployeesReportView: React.FC<EmployeesReportViewProps> = ({ setActiveReport }) => {
-    const appData = useStore(state => state.appData);
+    const { appData, fetchDataByDateRange } = useStore(state => ({
+        appData: state.appData,
+        fetchDataByDateRange: state.fetchDataByDateRange
+    }));
     const { employees = [] } = appData || {};
     const [searchTerm, setSearchTerm] = useState('');
     const [positionFilter, setPositionFilter] = useState('');
-    const [dateFilter, setDateFilter] = useState<'all' | 'today' | 'week' | 'month'>('all');
+    const [dateFilter, setDateFilter] = useState<'all' | 'today' | 'week' | 'month' | 'custom'>('all');
+    const [customStartDate, setCustomStartDate] = useState('');
+    const [customEndDate, setCustomEndDate] = useState('');
+    const [isLoadingData, setIsLoadingData] = useState(false);
+
+    const handleFetchCustomData = async () => {
+        if (!customStartDate || !customEndDate) return;
+        setIsLoadingData(true);
+        await fetchDataByDateRange('employees', customStartDate, customEndDate);
+        setIsLoadingData(false);
+    };
 
     const filteredEmployees = useMemo(() => {
         const today = new Date();
@@ -40,12 +53,14 @@ const EmployeesReportView: React.FC<EmployeesReportViewProps> = ({ setActiveRepo
                     const lastMonth = new Date(today);
                     lastMonth.setMonth(today.getMonth() - 1);
                     matchesDate = d >= lastMonth;
+                } else if (dateFilter === 'custom' && customStartDate && customEndDate) {
+                    matchesDate = emp.hireDate >= customStartDate && emp.hireDate <= customEndDate;
                 }
             }
 
             return matchesSearch && matchesPosition && matchesDate;
         });
-    }, [employees, searchTerm, positionFilter, dateFilter]);
+    }, [employees, searchTerm, positionFilter, dateFilter, customStartDate, customEndDate]);
 
     const totalSalaries = useMemo(() => 
         filteredEmployees.reduce((sum, emp) => sum + emp.basicSalary, 0),
@@ -64,7 +79,7 @@ const EmployeesReportView: React.FC<EmployeesReportViewProps> = ({ setActiveRepo
     return (
         <div className="animate-fade-in space-y-6">
             <SectionHeader icon="fa-users" title="تقرير الموظفين">
-                <div className="flex items-center gap-4">
+                <div className="flex flex-wrap items-center gap-4">
                     <select
                         value={dateFilter}
                         onChange={(e) => setDateFilter(e.target.value as any)}
@@ -74,7 +89,34 @@ const EmployeesReportView: React.FC<EmployeesReportViewProps> = ({ setActiveRepo
                         <option value="today">اليوم</option>
                         <option value="week">هذا الأسبوع</option>
                         <option value="month">هذا الشهر</option>
+                        <option value="custom">مخصص</option>
                     </select>
+                    
+                    {dateFilter === 'custom' && (
+                        <div className="flex items-center gap-2">
+                            <input 
+                                type="date" 
+                                value={customStartDate} 
+                                onChange={e => setCustomStartDate(e.target.value)}
+                                className="p-2 border rounded-lg text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                            />
+                            <span>إلى</span>
+                            <input 
+                                type="date" 
+                                value={customEndDate} 
+                                onChange={e => setCustomEndDate(e.target.value)}
+                                className="p-2 border rounded-lg text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                            />
+                            <button 
+                                onClick={handleFetchCustomData}
+                                disabled={isLoadingData || !customStartDate || !customEndDate}
+                                className="px-3 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark disabled:opacity-50"
+                            >
+                                {isLoadingData ? 'جاري الجلب...' : 'جلب البيانات'}
+                            </button>
+                        </div>
+                    )}
+
                     <button onClick={handlePrint} className="px-4 py-2 bg-green-600 text-white rounded-lg flex items-center gap-2 hover:bg-green-700 transition shadow-md">
                         <i className="fas fa-print"></i>
                         طباعة

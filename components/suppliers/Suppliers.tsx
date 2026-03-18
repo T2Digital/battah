@@ -108,7 +108,7 @@ const PaymentModal: React.FC<{
     const { storefrontSettings } = useStore(state => ({
         storefrontSettings: state.appData?.storefrontSettings
     }));
-    const [formData, setFormData] = useState({ date: new Date().toISOString().split('T')[0], supplierId: 0, payment: 0, invoiceTotal: 0, returnedItems: '', notes: '', purchaseOrderId: undefined as number | undefined });
+    const [formData, setFormData] = useState({ date: new Date().toISOString().split('T')[0], supplierId: 0, payment: 0, invoiceTotal: '' as number | '', returnedItems: '', notes: '', purchaseOrderId: undefined as number | undefined });
     const [securityPassword, setSecurityPassword] = useState('');
     const [showSecurityCheck, setShowSecurityCheck] = useState(false);
     const [securityError, setSecurityError] = useState('');
@@ -119,14 +119,14 @@ const PaymentModal: React.FC<{
                 date: paymentToEdit.date,
                 supplierId: paymentToEdit.supplierId,
                 payment: paymentToEdit.payment,
-                invoiceTotal: paymentToEdit.invoiceTotal,
+                invoiceTotal: paymentToEdit.invoiceTotal || '',
                 returnedItems: paymentToEdit.returnedItems || '',
                 notes: paymentToEdit.notes || '',
                 purchaseOrderId: paymentToEdit.purchaseOrderId,
             });
         } else {
             const initialSupplierId = suppliers[0]?.id || 0;
-            setFormData({ date: new Date().toISOString().split('T')[0], supplierId: initialSupplierId, payment: 0, invoiceTotal: 0, returnedItems: '', notes: '', purchaseOrderId: undefined });
+            setFormData({ date: new Date().toISOString().split('T')[0], supplierId: initialSupplierId, payment: 0, invoiceTotal: '', returnedItems: '', notes: '', purchaseOrderId: undefined });
         }
         setShowSecurityCheck(false);
         setSecurityPassword('');
@@ -136,8 +136,10 @@ const PaymentModal: React.FC<{
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
         let finalValue: string | number | undefined = value;
-        if (['supplierId', 'payment', 'invoiceTotal'].includes(name)) {
+        if (['supplierId', 'payment'].includes(name)) {
             finalValue = Number(value);
+        } else if (name === 'invoiceTotal') {
+            finalValue = value === '' ? '' : Number(value);
         }
         if (name === 'purchaseOrderId') {
             finalValue = value ? Number(value) : undefined;
@@ -164,7 +166,11 @@ const PaymentModal: React.FC<{
     };
 
     const handleSubmit = () => {
-        onSave(paymentToEdit ? { ...formData, id: paymentToEdit.id } : formData);
+        const finalData = {
+            ...formData,
+            invoiceTotal: formData.invoiceTotal === '' ? undefined : Number(formData.invoiceTotal)
+        };
+        onSave(paymentToEdit ? { ...finalData, id: paymentToEdit.id } : finalData);
     };
 
     const relevantPurchaseOrders = useMemo(() => {
@@ -202,7 +208,7 @@ const PaymentModal: React.FC<{
                 </div>
                 <div><label>التاريخ *</label><input type="date" name="date" value={formData.date} onChange={handleChange} required className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700" /></div>
                 <div><label>مبلغ الدفعة *</label><input type="number" name="payment" value={formData.payment === 0 ? '' : formData.payment} onChange={handleChange} required className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700" /></div>
-                <div><label>إجمالي الفاتورة *</label><input type="number" name="invoiceTotal" value={formData.invoiceTotal === 0 ? '' : formData.invoiceTotal} onChange={handleChange} required className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700" /></div>
+                <div><label>إجمالي الفاتورة (اختياري)</label><input type="number" name="invoiceTotal" value={formData.invoiceTotal} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700" /></div>
                 
                 <div>
                     <label>ربط بأمر شراء (اختياري)</label>
@@ -225,7 +231,8 @@ const SupplierDetails: React.FC<{
     onBack: () => void;
     purchaseOrders: PurchaseOrder[];
     payments: Payment[];
-}> = ({ supplier, onBack, purchaseOrders, payments }) => {
+    onViewOrder: (order: PurchaseOrder) => void;
+}> = ({ supplier, onBack, purchaseOrders, payments, onViewOrder }) => {
     const supplierOrders = useMemo(() => purchaseOrders.filter(po => po.supplierId === supplier.id), [purchaseOrders, supplier.id]);
     const supplierPayments = useMemo(() => payments.filter(p => p.supplierId === supplier.id), [payments, supplier.id]);
 
@@ -267,6 +274,7 @@ const SupplierDetails: React.FC<{
                             <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-300">
                                 <tr>
                                     <th className="px-4 py-3">رقم الأمر</th>
+                                    <th className="px-4 py-3">النوع</th>
                                     <th className="px-4 py-3">التاريخ</th>
                                     <th className="px-4 py-3">الإجمالي</th>
                                     <th className="px-4 py-3">الحالة</th>
@@ -275,11 +283,18 @@ const SupplierDetails: React.FC<{
                             </thead>
                             <tbody>
                                 {supplierOrders.length === 0 ? (
-                                    <tr><td colSpan={5} className="px-4 py-4 text-center">لا توجد فواتير</td></tr>
+                                    <tr><td colSpan={6} className="px-4 py-4 text-center">لا توجد فواتير</td></tr>
                                 ) : (
                                     supplierOrders.map(po => (
                                         <tr key={po.id} className="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
                                             <td className="px-4 py-3">PO-{po.id.toString().padStart(4, '0')}</td>
+                                            <td className="px-4 py-3">
+                                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                                    po.type === 'مرتجع' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300' : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300'
+                                                }`}>
+                                                    {po.type || 'شراء'}
+                                                </span>
+                                            </td>
                                             <td className="px-4 py-3">{formatDate(po.orderDate)}</td>
                                             <td className="px-4 py-3">{formatCurrency(po.totalAmount)}</td>
                                             <td className="px-4 py-3">
@@ -292,7 +307,7 @@ const SupplierDetails: React.FC<{
                                                 </span>
                                             </td>
                                             <td className="px-4 py-3">
-                                                <button onClick={() => setOrderToView(po)} className="text-blue-500 hover:text-blue-700 text-sm flex items-center gap-1">
+                                                <button onClick={() => onViewOrder(po)} className="text-blue-500 hover:text-blue-700 text-sm flex items-center gap-1">
                                                     <i className="fas fa-eye"></i>
                                                     التفاصيل
                                                 </button>
@@ -338,14 +353,14 @@ const SupplierDetails: React.FC<{
 };
 
 const Suppliers: React.FC<SuppliersProps> = ({ suppliers, payments, addPayment, updatePayment, deletePayment, purchaseOrders }) => {
-    const { addSupplier, updateSupplier, deleteSupplier, products, addProduct, addPurchaseOrder, updateProduct } = useStore(state => ({
+    const { addSupplier, updateSupplier, deleteSupplier, products, addProduct, addPurchaseOrder, updateProductStock } = useStore(state => ({
         addSupplier: state.addSupplier,
         updateSupplier: state.updateSupplier,
         deleteSupplier: state.deleteSupplier,
         products: state.appData?.products || [],
         addProduct: state.addProduct,
         addPurchaseOrder: state.addPurchaseOrder,
-        updateProduct: state.updateProduct
+        updateProductStock: state.updateProductStock
     }));
     const [activeTab, setActiveTab] = useState<'suppliers' | 'payments'>('suppliers');
     
@@ -418,12 +433,7 @@ const Suppliers: React.FC<SuppliersProps> = ({ suppliers, payments, addPayment, 
             
             // 2. Update the stock for each item
             for (const item of order.items) {
-                const product = products.find(p => p.id === item.productId);
-                if (product) {
-                    const newStock = { ...product.stock };
-                    newStock[branch] += item.quantity;
-                    await updateProduct(product.id, { stock: newStock });
-                }
+                await updateProductStock(item.productId, branch, item.quantity);
             }
             setDirectStatementModalOpen(false);
             alert('تم إضافة بيان البضاعة وتحديث المخزون بنجاح.');
@@ -438,12 +448,7 @@ const Suppliers: React.FC<SuppliersProps> = ({ suppliers, payments, addPayment, 
             await addPurchaseOrder({ ...order, type: 'مرتجع', status: 'مكتمل' });
             
             for (const item of order.items) {
-                const product = products.find(p => p.id === item.productId);
-                if (product) {
-                    const newStock = { ...product.stock };
-                    newStock[branch] -= item.quantity;
-                    await updateProduct(product.id, { stock: newStock });
-                }
+                await updateProductStock(item.productId, branch, -item.quantity);
             }
             setReturnModalOpen(false);
             alert('تم إضافة مردود المشتريات وتحديث المخزون بنجاح.');
@@ -471,12 +476,26 @@ const Suppliers: React.FC<SuppliersProps> = ({ suppliers, payments, addPayment, 
 
     if (selectedSupplier) {
         return (
-            <SupplierDetails
-                supplier={selectedSupplier}
-                onBack={() => setSelectedSupplier(null)}
-                purchaseOrders={purchaseOrders}
-                payments={payments}
-            />
+            <>
+                <SupplierDetails
+                    supplier={selectedSupplier}
+                    onBack={() => setSelectedSupplier(null)}
+                    purchaseOrders={purchaseOrders}
+                    payments={payments}
+                    onViewOrder={setOrderToView}
+                />
+                {orderToView && (
+                    <PurchaseOrderModal
+                        isOpen={!!orderToView}
+                        onClose={() => setOrderToView(null)}
+                        onSave={() => {}} // View only
+                        orderToEdit={orderToView}
+                        suppliers={suppliers}
+                        products={products}
+                        isViewOnly={true}
+                    />
+                )}
+            </>
         );
     }
 

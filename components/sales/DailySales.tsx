@@ -8,6 +8,8 @@ import { formatCurrency, normalizeSaleItems, formatDateTime } from '../../lib/ut
 import { generateInvoiceContent } from '../../lib/reportTemplates';
 import useStore from '../../lib/store';
 
+import ProductName from '../shared/ProductName';
+
 const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
     const { 
         dailySales, 
@@ -18,7 +20,9 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
         addTreasuryTransaction, 
         setProducts,
         updateProduct,
-        addExpense
+        updateProductStock,
+        addExpense,
+        fetchDataByDateRange
     } = useStore(state => ({
         dailySales: state.appData?.dailySales || [],
         products: state.appData?.products || [],
@@ -28,7 +32,9 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
         addTreasuryTransaction: state.addTreasuryTransaction,
         setProducts: state.setProducts,
         updateProduct: state.updateProduct,
-        addExpense: state.addExpense
+        updateProductStock: state.updateProductStock,
+        addExpense: state.addExpense,
+        fetchDataByDateRange: state.fetchDataByDateRange
     }));
     
     const [filterDate, setFilterDate] = useState(new Date().toISOString().split('T')[0]);
@@ -168,11 +174,7 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
 
         // Update only the products that changed
         for (const [productId, change] of stockChanges.entries()) {
-            const product = products.find(p => p.id === productId);
-            if (product) {
-                const newStock = { ...product.stock, [finalSaleData.branchSoldFrom]: (product.stock[finalSaleData.branchSoldFrom] || 0) + change };
-                await updateProduct(productId, { stock: newStock });
-            }
+            await updateProductStock(productId, finalSaleData.branchSoldFrom, change);
         }
 
         if (isEditing && saleData.id) {
@@ -313,12 +315,44 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
                 </div>
                 <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">التاريخ المرجعي</label>
-                    <input 
-                        type="date" 
-                        value={filterDate} 
-                        onChange={(e) => setFilterDate(e.target.value)} 
-                        className="p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600"
-                    />
+                    <div className="flex gap-2">
+                        <input 
+                            type="date" 
+                            value={filterDate} 
+                            onChange={(e) => setFilterDate(e.target.value)} 
+                            className="p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600"
+                        />
+                        <button 
+                            onClick={() => {
+                                let startDate = filterDate;
+                                let endDate = filterDate;
+                                const filterD = new Date(filterDate);
+                                if (filterPeriod === 'weekly') {
+                                    const startOfWeek = new Date(filterD);
+                                    startOfWeek.setDate(filterD.getDate() - filterD.getDay());
+                                    const endOfWeek = new Date(startOfWeek);
+                                    endOfWeek.setDate(startOfWeek.getDate() + 6);
+                                    startDate = startOfWeek.toISOString().split('T')[0];
+                                    endDate = endOfWeek.toISOString().split('T')[0];
+                                } else if (filterPeriod === 'monthly') {
+                                    const startOfMonth = new Date(filterD.getFullYear(), filterD.getMonth(), 1);
+                                    const endOfMonth = new Date(filterD.getFullYear(), filterD.getMonth() + 1, 0);
+                                    startDate = startOfMonth.toISOString().split('T')[0];
+                                    endDate = endOfMonth.toISOString().split('T')[0];
+                                } else if (filterPeriod === 'yearly') {
+                                    const startOfYear = new Date(filterD.getFullYear(), 0, 1);
+                                    const endOfYear = new Date(filterD.getFullYear(), 11, 31);
+                                    startDate = startOfYear.toISOString().split('T')[0];
+                                    endDate = endOfYear.toISOString().split('T')[0];
+                                }
+                                fetchDataByDateRange('dailySales', startDate, endDate);
+                            }}
+                            className="px-3 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition"
+                            title="جلب بيانات من الخادم"
+                        >
+                            <i className="fas fa-cloud-download-alt"></i>
+                        </button>
+                    </div>
                 </div>
                 
                 {currentUser.role !== 'seller' && (
@@ -415,7 +449,7 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
                                     <td className="px-6 py-4 whitespace-nowrap" dir="ltr">{formatDateTime(sale.date, sale.timestamp)}</td>
                                     <td className="px-6 py-4">{items.length}</td>
                                     <td className="px-6 py-4 font-semibold">{formatCurrency(sale.totalAmount)}</td>
-                                    <td className="px-6 py-4">{sale.paymentMethod === 'electronic' ? 'إلكتروني' : sale.paymentMethod === 'آجل' ? 'آجل' : 'نقدي'}</td>
+                                    <td className="px-6 py-4">{sale.paymentMethod === 'إلكترونى' ? 'إلكتروني' : sale.paymentMethod === 'آجل' ? 'آجل' : 'نقدي'}</td>
                                     <td className="px-6 py-4">{sale.direction}</td>
                                     <td className="px-6 py-4">{sale.sellerName}</td>
                                     <td className="px-6 py-4 flex gap-3">
@@ -482,7 +516,7 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
                                     {normalizeSaleItems(saleToView).map((item, idx) => (
                                         <tr key={idx} className="border-b dark:border-gray-600">
                                             <td className="p-2">
-                                                {products.find(p => p.id === item.productId)?.name || 'صنف غير معروف'}
+                                                <ProductName productId={item.productId} fallbackName={item.productName} />
                                                 {item.serialNumbers && item.serialNumbers.length > 0 && (
                                                     <div className="text-xs text-gray-500 mt-1">S/N: {item.serialNumbers.join(', ')}</div>
                                                 )}

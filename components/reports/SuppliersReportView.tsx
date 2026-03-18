@@ -11,9 +11,22 @@ interface SuppliersReportViewProps {
 }
 
 const SuppliersReportView: React.FC<SuppliersReportViewProps> = ({ setActiveReport }) => {
-    const appData = useStore(state => state.appData);
+    const { appData, fetchDataByDateRange } = useStore(state => ({
+        appData: state.appData,
+        fetchDataByDateRange: state.fetchDataByDateRange
+    }));
     const { suppliers = [], payments = [] } = appData || {};
-    const [dateFilter, setDateFilter] = React.useState<'all' | 'today' | 'week' | 'month'>('all');
+    const [dateFilter, setDateFilter] = React.useState<'all' | 'today' | 'week' | 'month' | 'custom'>('all');
+    const [customStartDate, setCustomStartDate] = React.useState('');
+    const [customEndDate, setCustomEndDate] = React.useState('');
+    const [isLoadingData, setIsLoadingData] = React.useState(false);
+
+    const handleFetchCustomData = async () => {
+        if (!customStartDate || !customEndDate) return;
+        setIsLoadingData(true);
+        await fetchDataByDateRange('payments', customStartDate, customEndDate);
+        setIsLoadingData(false);
+    };
 
     const filteredPayments = useMemo(() => {
         const today = new Date();
@@ -41,9 +54,13 @@ const SuppliersReportView: React.FC<SuppliersReportViewProps> = ({ setActiveRepo
                 d.setHours(0, 0, 0, 0);
                 return d >= lastMonth;
             });
+        } else if (dateFilter === 'custom' && customStartDate && customEndDate) {
+            return payments.filter(item => {
+                return item.date >= customStartDate && item.date <= customEndDate;
+            });
         }
         return payments;
-    }, [payments, dateFilter]);
+    }, [payments, dateFilter, customStartDate, customEndDate]);
 
     const paymentsWithDetails = useMemo(() => {
         return filteredPayments
@@ -67,7 +84,7 @@ const SuppliersReportView: React.FC<SuppliersReportViewProps> = ({ setActiveRepo
     return (
         <div className="animate-fade-in space-y-6">
             <SectionHeader icon="fa-truck" title="تقرير الموردين والدفعات">
-                <div className="flex items-center gap-4">
+                <div className="flex flex-wrap items-center gap-4">
                     <select
                         value={dateFilter}
                         onChange={(e) => setDateFilter(e.target.value as any)}
@@ -77,7 +94,34 @@ const SuppliersReportView: React.FC<SuppliersReportViewProps> = ({ setActiveRepo
                         <option value="today">اليوم</option>
                         <option value="week">هذا الأسبوع</option>
                         <option value="month">هذا الشهر</option>
+                        <option value="custom">مخصص</option>
                     </select>
+                    
+                    {dateFilter === 'custom' && (
+                        <div className="flex items-center gap-2">
+                            <input 
+                                type="date" 
+                                value={customStartDate} 
+                                onChange={e => setCustomStartDate(e.target.value)}
+                                className="p-2 border rounded-lg text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                            />
+                            <span>إلى</span>
+                            <input 
+                                type="date" 
+                                value={customEndDate} 
+                                onChange={e => setCustomEndDate(e.target.value)}
+                                className="p-2 border rounded-lg text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                            />
+                            <button 
+                                onClick={handleFetchCustomData}
+                                disabled={isLoadingData || !customStartDate || !customEndDate}
+                                className="px-3 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark disabled:opacity-50"
+                            >
+                                {isLoadingData ? 'جاري الجلب...' : 'جلب البيانات'}
+                            </button>
+                        </div>
+                    )}
+
                     <button onClick={handlePrint} className="px-4 py-2 bg-green-600 text-white rounded-lg flex items-center gap-2 hover:bg-green-700 transition shadow-md">
                         <i className="fas fa-print"></i>
                         طباعة

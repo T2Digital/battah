@@ -21,6 +21,8 @@ const cardLabels: { [key: string]: string } = {
     todayExpenses: 'مصروفات اليوم',
     reorderPoint: 'منتجات وصلت لحد الطلب',
     pendingOrders: 'طلبات أونلاين المعلقة',
+    suppliersDebt: 'مديونية الموردين',
+    customersDebt: 'مديونية العملاء',
 };
 
 const CustomizeDashboardModal: React.FC<CustomizeDashboardModalProps> = ({ isOpen, onClose, visibleCards, setVisibleCards }) => {

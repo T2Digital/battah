@@ -68,6 +68,7 @@ export interface Product {
 
 export interface SaleItem {
     productId: number;
+    productName?: string;
     quantity: number;
     unitPrice: number;
     itemType: MainCategory | 'خدمة' | 'أخرى';
@@ -192,7 +193,7 @@ export interface Payment {
     timestamp?: string;
     supplierId: number;
     payment: number;
-    invoiceTotal: number;
+    invoiceTotal?: number;
     purchaseOrderId?: number;
     returnedItems?: string;
     notes?: string;
@@ -256,13 +257,16 @@ export interface Order {
     locationLink?: string; // Added
     items: OrderItem[];
     totalAmount: number;
-    status: 'pending' | 'confirmed' | 'shipped' | 'cancelled' | 'collected';
+    status: 'pending' | 'confirmed' | 'shipped' | 'cancelled' | 'collected' | 'returned';
     paymentMethod: 'cod' | 'electronic';
     paymentProofUrl?: string;
     // New fields
     customerId?: string; // For future use with customer accounts
     discountCode?: string;
     discountAmount?: number;
+    shippingCompany?: string; // Added for shipping tracking
+    trackingNumber?: string; // Added for shipping tracking
+    shippingNotes?: string; // Added for shipping tracking
 }
 
 export interface Notification {

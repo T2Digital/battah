@@ -12,17 +12,35 @@ interface FinancialReportViewProps {
 type ActiveTab = 'expenses' | 'advances' | 'payroll' | 'debts';
 
 const FinancialReportView: React.FC<FinancialReportViewProps> = ({ setActiveReport }) => {
-    const appData = useStore(state => state.appData);
+    const { appData, fetchDataByDateRange } = useStore(state => ({
+        appData: state.appData,
+        fetchDataByDateRange: state.fetchDataByDateRange
+    }));
     const expenses = appData?.expenses || [];
     const advances = appData?.advances || [];
     const payroll = appData?.payroll || [];
     const employees = appData?.employees || [];
     const dailySales = appData?.dailySales || [];
     const [activeTab, setActiveTab] = useState<ActiveTab>('expenses');
-    const [dateFilter, setDateFilter] = useState<'all' | 'today' | 'week' | 'month'>('all');
+    const [dateFilter, setDateFilter] = useState<'all' | 'today' | 'week' | 'month' | 'custom'>('all');
+    const [customStartDate, setCustomStartDate] = useState('');
+    const [customEndDate, setCustomEndDate] = useState('');
+    const [isLoadingData, setIsLoadingData] = useState(false);
 
     const getEmployeeName = (id: number) => employees.find(e => e.id === id)?.name || 'غير معروف';
     
+    const handleFetchCustomData = async () => {
+        if (!customStartDate || !customEndDate) return;
+        setIsLoadingData(true);
+        await Promise.all([
+            fetchDataByDateRange('expenses', customStartDate, customEndDate),
+            fetchDataByDateRange('advances', customStartDate, customEndDate),
+            fetchDataByDateRange('payroll', customStartDate, customEndDate),
+            fetchDataByDateRange('dailySales', customStartDate, customEndDate)
+        ]);
+        setIsLoadingData(false);
+    };
+
     const filterByDate = <T extends { date: string }>(data: T[]) => {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
@@ -48,6 +66,10 @@ const FinancialReportView: React.FC<FinancialReportViewProps> = ({ setActiveRepo
                 const d = new Date(item.date);
                 d.setHours(0, 0, 0, 0);
                 return d >= lastMonth;
+            });
+        } else if (dateFilter === 'custom' && customStartDate && customEndDate) {
+            return data.filter(item => {
+                return item.date >= customStartDate && item.date <= customEndDate;
             });
         }
         return data;
@@ -83,7 +105,7 @@ const FinancialReportView: React.FC<FinancialReportViewProps> = ({ setActiveRepo
     return (
         <div className="animate-fade-in space-y-6">
             <SectionHeader icon="fa-hand-holding-usd" title="التقارير المالية">
-                <div className="flex items-center gap-4">
+                <div className="flex flex-wrap items-center gap-4">
                     <select
                         value={dateFilter}
                         onChange={(e) => setDateFilter(e.target.value as any)}
@@ -93,7 +115,34 @@ const FinancialReportView: React.FC<FinancialReportViewProps> = ({ setActiveRepo
                         <option value="today">اليوم</option>
                         <option value="week">هذا الأسبوع</option>
                         <option value="month">هذا الشهر</option>
+                        <option value="custom">مخصص</option>
                     </select>
+                    
+                    {dateFilter === 'custom' && (
+                        <div className="flex items-center gap-2">
+                            <input 
+                                type="date" 
+                                value={customStartDate} 
+                                onChange={e => setCustomStartDate(e.target.value)}
+                                className="p-2 border rounded-lg text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                            />
+                            <span>إلى</span>
+                            <input 
+                                type="date" 
+                                value={customEndDate} 
+                                onChange={e => setCustomEndDate(e.target.value)}
+                                className="p-2 border rounded-lg text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                            />
+                            <button 
+                                onClick={handleFetchCustomData}
+                                disabled={isLoadingData || !customStartDate || !customEndDate}
+                                className="px-3 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark disabled:opacity-50"
+                            >
+                                {isLoadingData ? 'جاري الجلب...' : 'جلب البيانات'}
+                            </button>
+                        </div>
+                    )}
+
                     <button onClick={() => setActiveReport(null)} className="px-4 py-2 bg-gray-200 text-gray-800 dark:bg-gray-600 dark:text-gray-200 rounded-lg flex items-center gap-2 hover:bg-gray-300 dark:hover:bg-gray-500 transition">
                         <i className="fas fa-arrow-right"></i>
                         العودة

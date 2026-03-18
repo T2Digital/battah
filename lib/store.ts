@@ -6,7 +6,6 @@ import {
     createUserWithEmailAndPassword,
     signOut,
     getAuth,
-    signInAnonymously,
 } from 'firebase/auth';
 import {
     collection,
@@ -25,9 +24,10 @@ import {
     orderBy,
     limit,
     startAfter,
-    runTransaction
+    runTransaction,
+    increment
 } from 'firebase/firestore';
-import { auth, db, firebaseConfig } from './firebase';
+import { auth, db, firebaseConfig, handleFirestoreError, OperationType } from './firebase';
 import { 
     AppData, 
     User, 
@@ -93,6 +93,7 @@ type AppActions = {
     setProducts: (products: Product[]) => Promise<void>;
     addProduct: (product: Omit<Product, 'id'>) => Promise<Product>;
     updateProduct: (productId: number, updates: Partial<Product>) => Promise<void>;
+    updateProductStock: (productId: number, branch: Branch, change: number) => Promise<void>;
     deleteProduct: (productId: number) => Promise<void>;
     increasePrices: (percentage: number, category?: MainCategory) => Promise<void>;
     
@@ -100,6 +101,7 @@ type AppActions = {
     fetchProducts: (lastDoc?: any, limitCount?: number, filter?: { category?: string }) => Promise<{ products: Product[], lastDoc: any }>;
     fetchProductsByIds: (ids: number[]) => Promise<Product[]>;
     searchProducts: (searchQuery: string) => Promise<Product[]>;
+    fetchDataByDateRange: (collectionName: keyof AppData, startDate: string, endDate: string) => Promise<void>;
 
     // Employee Actions (Atomic)
     addEmployee: (employee: Omit<Employee, 'id'>) => Promise<void>;
@@ -145,7 +147,7 @@ type AppActions = {
 
     // Storefront Actions
     createOrder: (customerDetails: { name: string; phone: string; address: string }, items: OrderItem[], totalAmount: number, paymentMethod: Order['paymentMethod'], paymentProof?: File, discountCode?: string, locationLink?: string) => Promise<string | undefined>;
-    updateOrderStatus: (orderId: number | string, status: Order['status']) => Promise<void>;
+    updateOrderStatus: (orderId: number | string, status: Order['status'], shippingDetails?: { shippingCompany?: string, trackingNumber?: string, shippingNotes?: string }) => Promise<void>;
     deleteOrder: (orderId: number | string) => Promise<void>;
     updateStorefrontSettings: (settings: StorefrontSettings) => Promise<void>;
     uploadImage: (file: File, path: string) => Promise<string>;
@@ -206,65 +208,6 @@ const useStore = create<AppState & AppActions>((set, get) => ({
         set({ isLoading: true });
     
         try {
-            // Ensure anonymous authentication for public access
-            if (!auth.currentUser) {
-                try {
-                    const userCredential = await signInAnonymously(auth);
-                    console.log("Signed in anonymously for public access");
-                    const user = userCredential.user;
-                    
-                    // Track potential customer
-                    const customerRef = doc(db, "customers", user.uid);
-                    const customerDoc = await getDoc(customerRef);
-                    
-                    if (!customerDoc.exists()) {
-                        await setDoc(customerRef, {
-                            id: user.uid,
-                            createdAt: new Date().toISOString(),
-                            lastActive: new Date().toISOString(),
-                            type: 'visitor',
-                            ordersCount: 0,
-                            totalSpent: 0
-                        });
-                    } else {
-                        await updateDoc(customerRef, {
-                            lastActive: new Date().toISOString()
-                        });
-                    }
-                } catch (authError) {
-                    console.error("Anonymous sign-in failed:", authError);
-                    // Continue anyway, maybe rules allow unauthenticated read
-                }
-            } else {
-                // User is already signed in (maybe anonymously from previous session)
-                const user = auth.currentUser;
-                try {
-                    const customerRef = doc(db, "customers", user.uid);
-                    // Only update lastActive if it's a customer/visitor doc (not an employee)
-                    // We can check if the doc exists in 'customers' collection
-                    const customerDoc = await getDoc(customerRef);
-                    if (customerDoc.exists()) {
-                         await updateDoc(customerRef, {
-                            lastActive: new Date().toISOString()
-                        });
-                    } else {
-                        // If signed in but no customer doc (and not an employee ideally, but we can just create it if it's anonymous)
-                        if (user.isAnonymous) {
-                             await setDoc(customerRef, {
-                                id: user.uid,
-                                createdAt: new Date().toISOString(),
-                                lastActive: new Date().toISOString(),
-                                type: 'visitor',
-                                ordersCount: 0,
-                                totalSpent: 0
-                            });
-                        }
-                    }
-                } catch (e) {
-                    console.warn("Failed to update customer activity:", e);
-                }
-            }
-
             publicUnsubscribers.forEach(unsub => unsub());
             publicUnsubscribers = [];
         
@@ -283,8 +226,10 @@ const useStore = create<AppState & AppActions>((set, get) => ({
                         appData: { ...(state.appData as AppData), [name]: data }
                     }));
                 }, (error) => {
+                    if (error.message.includes('Missing or insufficient permissions')) {
+                        handleFirestoreError(error, OperationType.LIST, name as string);
+                    }
                     console.warn(`Error listening to ${name}:`, error.message);
-                    // Don't crash, just log. This handles permission denied for public users if rules are strict.
                 });
                 publicUnsubscribers.push(unsub);
             });
@@ -295,6 +240,9 @@ const useStore = create<AppState & AppActions>((set, get) => ({
                     appData: { ...(state.appData as AppData), storefrontSettings }
                 }));
             }, (error) => {
+                if (error.message.includes('Missing or insufficient permissions')) {
+                    handleFirestoreError(error, OperationType.GET, 'settings/storefront');
+                }
                 console.warn("Error listening to storefront settings:", error.message);
             });
             publicUnsubscribers.push(settingsUnsub);
@@ -310,6 +258,9 @@ const useStore = create<AppState & AppActions>((set, get) => ({
                     appData: { ...(state.appData as AppData), settings }
                 }));
             }, (error) => {
+                if (error.message.includes('Missing or insufficient permissions')) {
+                    handleFirestoreError(error, OperationType.GET, 'settings/general');
+                }
                 console.warn("Error listening to general settings:", error.message);
             });
             publicUnsubscribers.push(generalSettingsUnsub);
@@ -374,13 +325,25 @@ const useStore = create<AppState & AppActions>((set, get) => ({
             adminUnsubscribers.push(settingsUnsub);
 
             const collectionsToListen: (keyof AppData)[] = [
-                'users', 'products', 'dailySales', 'employees', 'advances', 'attendance', 'payroll', 'suppliers', 
+                'users', 'dailySales', 'employees', 'advances', 'attendance', 'payroll', 'suppliers', 
                 'purchaseOrders', 'payments', 'expenses', 'treasury', 'dailyReview', 
                 'notifications', 'stockTransfers', 'orders', 'broadcasts'
             ];
+            
+            const largeCollections = ['dailySales', 'expenses', 'treasury', 'purchaseOrders', 'payments', 'attendance', 'payroll', 'stockTransfers', 'dailyReview', 'orders'];
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+            const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0];
     
             collectionsToListen.forEach(name => {
-                const unsub = onSnapshot(collection(db, name as string), (snapshot) => {
+                let collectionQuery = query(collection(db, name as string));
+                
+                if (largeCollections.includes(name)) {
+                    const dateField = name === 'purchaseOrders' ? 'orderDate' : 'date';
+                    collectionQuery = query(collection(db, name as string), where(dateField, ">=", thirtyDaysAgoStr));
+                }
+
+                const unsub = onSnapshot(collectionQuery, (snapshot) => {
                     const data = snapshot.docs.map(d => {
                         const docData = d.data();
                         const id = docData.id ?? d.id; // Prefer self-managed ID, fallback to Firestore's doc ID
@@ -397,7 +360,10 @@ const useStore = create<AppState & AppActions>((set, get) => ({
                     }
                     
                     set(state => ({ appData: { ...(state.appData as AppData), [name]: data } }));
-                }, (error) => {
+                }, (error: any) => {
+                    if (error.message?.includes('Missing or insufficient permissions')) {
+                        handleFirestoreError(error, OperationType.LIST, name as string);
+                    }
                     console.error(`Error listening to ${name}:`, error);
                     if (error.code === 'permission-denied') {
                         // Suppress broadcast permission errors as they are expected for non-admin users if rules are strict
@@ -482,22 +448,84 @@ const useStore = create<AppState & AppActions>((set, get) => ({
         await batch.commit();
     },
     addProduct: async (product) => {
-        // Generate ID based on max ID or timestamp. Using timestamp for simplicity and uniqueness distributed.
-        // Or better, use max ID from existing products if available, but we might not have all products loaded.
-        // Timestamp is safer for distributed creation without a counter document.
-        const newId = Date.now(); 
+        // Generate ID based on timestamp and a random number to prevent collisions during bulk uploads
+        const newId = Date.now() + Math.floor(Math.random() * 100000); 
         const newProduct = { ...product, id: newId };
         await setDoc(doc(db, "products", String(newId)), newProduct);
+        
+        // Update local state
+        set(state => {
+            const currentProducts = state.appData?.products || [];
+            return {
+                appData: {
+                    ...(state.appData as AppData),
+                    products: [...currentProducts, newProduct as Product]
+                }
+            };
+        });
+        
         get().addToast('تم إضافة المنتج بنجاح', 'success');
         return newProduct as Product;
     },
     updateProduct: async (productId, updates) => {
         await updateDoc(doc(db, "products", String(productId)), updates);
+        
+        // Update local state
+        set(state => {
+            const currentProducts = state.appData?.products || [];
+            return {
+                appData: {
+                    ...(state.appData as AppData),
+                    products: currentProducts.map(p => p.id === productId ? { ...p, ...updates } : p)
+                }
+            };
+        });
+        
         get().addToast('تم تحديث المنتج بنجاح', 'success');
+    },
+    updateProductStock: async (productId: number, branch: Branch, change: number) => {
+        const docRef = doc(db, "products", String(productId));
+        await updateDoc(docRef, {
+            [`stock.${branch}`]: increment(change)
+        });
+        
+        // Update local state
+        set(state => {
+            const currentProducts = state.appData?.products || [];
+            return {
+                appData: {
+                    ...(state.appData as AppData),
+                    products: currentProducts.map(p => {
+                        if (p.id === productId) {
+                            return {
+                                ...p,
+                                stock: {
+                                    ...p.stock,
+                                    [branch]: (p.stock[branch] || 0) + change
+                                }
+                            };
+                        }
+                        return p;
+                    })
+                }
+            };
+        });
     },
     deleteProduct: async (productId: number) => {
         try {
             await deleteDoc(doc(db, "products", String(productId)));
+            
+            // Update local state
+            set(state => {
+                const currentProducts = state.appData?.products || [];
+                return {
+                    appData: {
+                        ...(state.appData as AppData),
+                        products: currentProducts.filter(p => p.id !== productId)
+                    }
+                };
+            });
+            
             get().addToast('تم حذف المنتج بنجاح', 'success');
         } catch (error) {
             console.error("Error deleting product:", error);
@@ -523,8 +551,19 @@ const useStore = create<AppState & AppActions>((set, get) => ({
                 const batch = writeBatch(db);
                 chunk.forEach(docSnap => {
                     const data = docSnap.data() as Product;
-                    const newPrice = Math.round(data.sellingPrice * (1 + percentage / 100));
-                    batch.update(docSnap.ref, { sellingPrice: newPrice });
+                    const updates: any = {};
+                    
+                    if (data.sellingPrice !== undefined) {
+                        updates.sellingPrice = Math.round(data.sellingPrice * (1 + percentage / 100));
+                    }
+                    if (data.wholesalePrice !== undefined) {
+                        updates.wholesalePrice = Math.round(data.wholesalePrice * (1 + percentage / 100));
+                    }
+                    if (data.retailPrice !== undefined) {
+                        updates.retailPrice = Math.round(data.retailPrice * (1 + percentage / 100));
+                    }
+                    
+                    batch.update(docSnap.ref, updates);
                 });
                 await batch.commit();
             }
@@ -534,7 +573,12 @@ const useStore = create<AppState & AppActions>((set, get) => ({
                 if (!state.appData) return state;
                 const updatedProducts = state.appData.products.map(p => {
                     if (!category || (category as string) === 'all' || p.mainCategory === category) {
-                        return { ...p, sellingPrice: Math.round(p.sellingPrice * (1 + percentage / 100)) };
+                        return { 
+                            ...p, 
+                            sellingPrice: Math.round(p.sellingPrice * (1 + percentage / 100)),
+                            wholesalePrice: p.wholesalePrice !== undefined ? Math.round(p.wholesalePrice * (1 + percentage / 100)) : undefined,
+                            retailPrice: p.retailPrice !== undefined ? Math.round(p.retailPrice * (1 + percentage / 100)) : undefined,
+                        };
                     }
                     return p;
                 });
@@ -579,8 +623,7 @@ const useStore = create<AppState & AppActions>((set, get) => ({
                 if (product) {
                     const productRef = doc(db, "products", String(item.productId));
                     const quantityToRestore = saleToDelete.direction === 'بيع' ? item.quantity : -item.quantity;
-                    const newStock = { ...product.stock, [saleToDelete.branchSoldFrom]: (product.stock[saleToDelete.branchSoldFrom] || 0) + quantityToRestore };
-                    batch.update(productRef, { stock: newStock });
+                    batch.update(productRef, { [`stock.${saleToDelete.branchSoldFrom}`]: increment(quantityToRestore) });
                 }
             }
             await batch.commit();
@@ -588,6 +631,45 @@ const useStore = create<AppState & AppActions>((set, get) => ({
         } catch (error) {
             console.error("Error deleting daily sale:", error);
             throw error;
+        }
+    },
+    
+    fetchDataByDateRange: async (collectionName, startDate, endDate) => {
+        try {
+            const dateField = collectionName === 'purchaseOrders' ? 'orderDate' : 'date';
+            const q = query(
+                collection(db, collectionName as string),
+                where(dateField, ">=", startDate),
+                where(dateField, "<=", endDate)
+            );
+            const snapshot = await getDocs(q);
+            const data = snapshot.docs.map(d => {
+                const docData = d.data();
+                const id = docData.id ?? d.id;
+                return { ...docData, id };
+            });
+            
+            if (collectionName === 'notifications') {
+                (data as any[]).sort((a, b) => {
+                    const dateA = a.createdAt ? (a.createdAt.seconds ? a.createdAt.seconds * 1000 : a.createdAt) : new Date(a.date).getTime();
+                    const dateB = b.createdAt ? (b.createdAt.seconds ? b.createdAt.seconds * 1000 : b.createdAt) : new Date(b.date).getTime();
+                    return dateB - dateA;
+                });
+            }
+            
+            set(state => {
+                const currentData = (state.appData as any)[collectionName] || [];
+                const newDataMap = new Map(currentData.map((item: any) => [item.id, item]));
+                data.forEach((item: any) => newDataMap.set(item.id, item));
+                return { appData: { ...(state.appData as AppData), [collectionName]: Array.from(newDataMap.values()) } };
+            });
+            get().addToast(`تم جلب بيانات ${collectionName} بنجاح.`, 'success');
+        } catch (error: any) {
+            if (error.message?.includes('Missing or insufficient permissions')) {
+                handleFirestoreError(error, OperationType.LIST, collectionName as string);
+            }
+            console.error(`Error fetching ${collectionName} by date range:`, error);
+            get().addToast(`فشل جلب بيانات ${collectionName}.`, 'error');
         }
     },
     
@@ -611,7 +693,10 @@ const useStore = create<AppState & AppActions>((set, get) => ({
             const snapshot = await getDocs(q);
             const products = snapshot.docs.map(d => ({ ...(d.data() as Product), id: d.data().id ?? d.id }));
             return { products, lastDoc: snapshot.docs[snapshot.docs.length - 1] };
-        } catch (error) {
+        } catch (error: any) {
+            if (error.message?.includes('Missing or insufficient permissions')) {
+                handleFirestoreError(error, OperationType.LIST, 'products');
+            }
             console.error("Error fetching products:", error);
             // Fallback for missing index error
             return { products: [], lastDoc: null };
@@ -620,25 +705,41 @@ const useStore = create<AppState & AppActions>((set, get) => ({
     fetchProductsByIds: async (ids: number[]) => {
         if (!ids || ids.length === 0) return [];
         try {
-            // Firestore 'in' query supports up to 10 items.
-            // If more, we need to batch or just fetch individually.
-            // For simplicity, we'll fetch individually or use 'in' batches.
-            // But 'id' is a number field we manage, not the document ID.
-            // So we must query where('id', 'in', ids).
+            const state = get();
+            const existingProducts = state.appData?.products || [];
+            const missingIds = ids.filter(id => !existingProducts.some(p => p.id === id));
             
+            if (missingIds.length === 0) {
+                return ids.map(id => existingProducts.find(p => p.id === id)).filter(Boolean) as Product[];
+            }
+
             const chunks = [];
-            for (let i = 0; i < ids.length; i += 10) {
-                chunks.push(ids.slice(i, i + 10));
+            for (let i = 0; i < missingIds.length; i += 10) {
+                chunks.push(missingIds.slice(i, i + 10));
             }
             
-            const results: Product[] = [];
+            const fetchedProducts: Product[] = [];
             for (const chunk of chunks) {
                 const q = query(collection(db, 'products'), where('id', 'in', chunk));
                 const snapshot = await getDocs(q);
-                results.push(...snapshot.docs.map(d => ({ ...(d.data() as Product), id: d.data().id ?? d.id })));
+                fetchedProducts.push(...snapshot.docs.map(d => ({ ...(d.data() as Product), id: d.data().id ?? d.id })));
             }
-            return results;
-        } catch (error) {
+
+            if (fetchedProducts.length > 0) {
+                set(state => ({
+                    appData: {
+                        ...(state.appData as AppData),
+                        products: [...(state.appData?.products || []), ...fetchedProducts]
+                    }
+                }));
+            }
+
+            const allProducts = [...existingProducts, ...fetchedProducts];
+            return ids.map(id => allProducts.find(p => p.id === id)).filter(Boolean) as Product[];
+        } catch (error: any) {
+            if (error.message?.includes('Missing or insufficient permissions')) {
+                handleFirestoreError(error, OperationType.LIST, 'products');
+            }
             console.error("Error fetching products by IDs:", error);
             return [];
         }
@@ -656,8 +757,31 @@ const useStore = create<AppState & AppActions>((set, get) => ({
                 limit(50)
             );
             const snapshot = await getDocs(q);
-            return snapshot.docs.map(d => ({ ...(d.data() as Product), id: d.data().id ?? d.id }));
-        } catch (error) {
+            const fetchedProducts = snapshot.docs.map(d => ({ ...(d.data() as Product), id: d.data().id ?? d.id }));
+            
+            if (fetchedProducts.length > 0) {
+                set(state => {
+                    const existingProducts = state.appData?.products || [];
+                    const updatedProducts = existingProducts.map(ep => {
+                        const fetched = fetchedProducts.find(fp => fp.id === ep.id);
+                        return fetched ? fetched : ep;
+                    });
+                    const newProducts = fetchedProducts.filter(fp => !existingProducts.some(ep => ep.id === fp.id));
+                    
+                    return {
+                        appData: {
+                            ...(state.appData as AppData),
+                            products: [...updatedProducts, ...newProducts]
+                        }
+                    };
+                });
+            }
+            
+            return fetchedProducts;
+        } catch (error: any) {
+            if (error.message?.includes('Missing or insufficient permissions')) {
+                handleFirestoreError(error, OperationType.LIST, 'products');
+            }
             console.error("Error searching products:", error);
             return [];
         }
@@ -861,12 +985,10 @@ const useStore = create<AppState & AppActions>((set, get) => ({
         const batch = writeBatch(db);
         
         const productRef = doc(db, "products", String(transfer.productId));
-        const newStock = {
-            ...product.stock,
-            [transfer.fromBranch]: product.stock[transfer.fromBranch] - transfer.quantity,
-            [transfer.toBranch]: product.stock[transfer.toBranch] + transfer.quantity,
-        };
-        batch.update(productRef, { stock: newStock });
+        batch.update(productRef, { 
+            [`stock.${transfer.fromBranch}`]: increment(-transfer.quantity),
+            [`stock.${transfer.toBranch}`]: increment(transfer.quantity)
+        });
 
         const maxId = Math.max(0, ...(appData?.stockTransfers.map(t => Number(t.id) || 0) || []));
         const newTransfer: StockTransfer = { 
@@ -1061,7 +1183,7 @@ const useStore = create<AppState & AppActions>((set, get) => ({
         }
     },
     
-    updateOrderStatus: async (orderId, status) => {
+    updateOrderStatus: async (orderId, status, shippingDetails?: { shippingCompany?: string, trackingNumber?: string, shippingNotes?: string }) => {
         const state = get();
         const { appData } = state;
         if (!appData) throw new Error("App data not loaded!");
@@ -1069,16 +1191,19 @@ const useStore = create<AppState & AppActions>((set, get) => ({
         const orderToUpdate = appData.orders.find(o => o.id === orderId);
         if (!orderToUpdate) throw new Error("Order not found!");
         
-        const isElectronic = orderToUpdate.paymentMethod === 'electronic';
-        const isNowBeingProcessed = (isElectronic && ['confirmed', 'shipped', 'collected'].includes(status)) || (!isElectronic && status === 'collected');
-        const wasAlreadyProcessed = (isElectronic && ['confirmed', 'shipped', 'collected'].includes(orderToUpdate.status)) || (!isElectronic && orderToUpdate.status === 'collected');
-        const isBeingReverted = ['pending', 'cancelled'].includes(status);
-    
         const batch = writeBatch(db);
-        batch.update(doc(db, "orders", String(orderId)), { status });
+        
+        const updateData: any = { status };
+        if (shippingDetails) {
+            if (shippingDetails.shippingCompany !== undefined) updateData.shippingCompany = shippingDetails.shippingCompany;
+            if (shippingDetails.trackingNumber !== undefined) updateData.trackingNumber = shippingDetails.trackingNumber;
+            if (shippingDetails.shippingNotes !== undefined) updateData.shippingNotes = shippingDetails.shippingNotes;
+        }
+        
+        batch.update(doc(db, "orders", String(orderId)), updateData);
 
         // Add notification for customer/system
-        const statusText = status === 'confirmed' ? 'تم التأكيد' : status === 'shipped' ? 'تم الشحن' : status === 'cancelled' ? 'ملغي' : status === 'collected' ? 'تم التحصيل' : 'قيد الانتظار';
+        const statusText = status === 'confirmed' ? 'تم التأكيد' : status === 'shipped' ? 'تم الشحن' : status === 'cancelled' ? 'ملغي' : status === 'collected' ? 'تم التحصيل' : status === 'returned' ? 'مرتجع' : 'قيد الانتظار';
         const notificationRef = doc(collection(db, "notifications"));
         batch.set(notificationRef, {
             id: notificationRef.id,
@@ -1091,8 +1216,19 @@ const useStore = create<AppState & AppActions>((set, get) => ({
             targetGroup: 'customer'
         });
     
+        // Check if sale already exists
+        const salesQuery = query(collection(db, "dailySales"), where("invoiceNumber", "==", `ONLINE-${orderId}`));
+        const salesSnapshot = await getDocs(salesQuery);
+        const wasAlreadyProcessed = !salesSnapshot.empty;
+        const existingSaleDoc = wasAlreadyProcessed ? salesSnapshot.docs[0] : null;
+        const existingSale = existingSaleDoc ? existingSaleDoc.data() as DailySale : null;
+
+        const isElectronic = orderToUpdate.paymentMethod === 'electronic';
+        const isNowBeingProcessed = ['shipped', 'collected'].includes(status);
+        const isBeingReverted = ['pending', 'confirmed', 'cancelled', 'returned'].includes(status);
+
         if (isNowBeingProcessed && !wasAlreadyProcessed) {
-            // Logic to create transactions when confirming an order for the first time
+            // Logic to create transactions when shipping/collecting an order for the first time
             const seller = appData.users.find(u => u.role === Role.Admin) || appData.users[0];
             if (!seller) throw new Error("No admin seller found.");
             
@@ -1103,7 +1239,6 @@ const useStore = create<AppState & AppActions>((set, get) => ({
                 return { productId: item.productId, quantity: item.quantity, unitPrice: item.unitPrice, itemType: product?.mainCategory || 'أخرى' };
             }).filter((item): item is SaleItem => item !== null);
     
-            const isElectronic = orderToUpdate.paymentMethod === 'electronic';
             const isCollected = status === 'collected';
             const paymentMethodStr = isElectronic ? 'إلكترونى' : (isCollected ? 'نقدى' : 'آجل');
 
@@ -1131,16 +1266,30 @@ const useStore = create<AppState & AppActions>((set, get) => ({
             for (const item of orderToUpdate.items) {
                 const product = appData.products.find(p => p.id === item.productId);
                 if (product) {
-                    const newStock = { ...product.stock, main: product.stock.main - item.quantity };
-                    batch.update(doc(db, "products", String(item.productId)), { stock: newStock });
+                    batch.update(doc(db, "products", String(item.productId)), { "stock.main": increment(-item.quantity) });
                 }
             }
+        } else if (isNowBeingProcessed && wasAlreadyProcessed && status === 'collected' && existingSale && existingSale.paymentMethod === 'آجل') {
+            // Order was shipped (آجل), now collected (نقدى)
+            batch.update(existingSaleDoc!.ref, {
+                paymentMethod: 'نقدى',
+                cashAmount: orderToUpdate.totalAmount,
+                remainingDebt: 0
+            });
+
+            // Add to treasury
+            const maxTreasuryId = Math.max(0, ...appData.treasury.map(t => Number(t.id) || 0));
+            const newTransaction: TreasuryTransaction = {
+                id: maxTreasuryId + 1, date: new Date().toISOString().split('T')[0], timestamp: new Date().toISOString(), type: 'إيراد مبيعات',
+                description: `تحصيل طلب أونلاين #${orderToUpdate.id}`, amountIn: orderToUpdate.totalAmount, amountOut: 0, relatedId: orderToUpdate.id,
+                paymentMethod: 'cash'
+            };
+            batch.set(doc(db, "treasury", String(newTransaction.id)), newTransaction);
+
         } else if (isBeingReverted && wasAlreadyProcessed) {
             // Logic to reverse transactions
-            const salesQuery = query(collection(db, "dailySales"), where("invoiceNumber", "==", `ONLINE-${orderId}`));
-            const salesSnapshot = await getDocs(salesQuery);
-            if (!salesSnapshot.empty) {
-                salesSnapshot.forEach(doc => batch.delete(doc.ref));
+            if (existingSaleDoc) {
+                batch.delete(existingSaleDoc.ref);
             }
     
             const treasuryQuery = query(collection(db, "treasury"), where("relatedId", "==", orderId), where("type", "==", "إيراد مبيعات"));
@@ -1152,8 +1301,7 @@ const useStore = create<AppState & AppActions>((set, get) => ({
             for (const item of orderToUpdate.items) {
                 const product = appData.products.find(p => p.id === item.productId);
                 if (product) {
-                    const newStock = { ...product.stock, main: product.stock.main + item.quantity };
-                    batch.update(doc(db, "products", String(item.productId)), { stock: newStock });
+                    batch.update(doc(db, "products", String(item.productId)), { "stock.main": increment(item.quantity) });
                 }
             }
         }
@@ -1198,8 +1346,7 @@ const useStore = create<AppState & AppActions>((set, get) => ({
                     const product = state.appData?.products.find(p => String(p.id) === String(item.productId));
                     if (product) {
                         const productRef = doc(db, "products", String(item.productId));
-                        const newStock = { ...product.stock, main: (product.stock.main || 0) + item.quantity };
-                        batch.update(productRef, { stock: newStock });
+                        batch.update(productRef, { "stock.main": increment(item.quantity) });
                     }
                 }
             }

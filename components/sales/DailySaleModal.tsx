@@ -157,12 +157,24 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
         return subtotal - (subtotal * discount / 100);
     }, [items, discount]);
     
-    const filteredProducts = useMemo(() => {
-        if (!productSearch) return [];
-        return products
-            .filter(p => p.name.toLowerCase().includes(productSearch.toLowerCase()) || p.sku.toLowerCase().includes(productSearch.toLowerCase()))
-            .slice(0, 5);
-    }, [productSearch, products]);
+    const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
+    const { searchProducts } = useStore(state => ({
+        searchProducts: state.searchProducts
+    }));
+
+    useEffect(() => {
+        const fetchSuggestions = async () => {
+            if (!productSearch.trim()) {
+                setFilteredProducts([]);
+                return;
+            }
+            const results = await searchProducts(productSearch);
+            setFilteredProducts(results.slice(0, 5));
+        };
+        
+        const timeoutId = setTimeout(fetchSuggestions, 300);
+        return () => clearTimeout(timeoutId);
+    }, [productSearch, searchProducts]);
 
     const startVoiceSearch = () => {
         const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -307,7 +319,7 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
             customerName,
             customerPhone,
             remainingDebt: paymentMethod === 'آجل' ? totalAmount : (paymentMethod === 'نقدى' ? totalAmount - cashAmount : (paymentMethod === 'إلكترونى' ? totalAmount - electronicAmount : totalAmount - (cashAmount + electronicAmount))),
-            items: items.map(({ productName, stock, ...rest }) => ({
+            items: items.map(({ stock, ...rest }) => ({
                 ...rest,
                 hasSerialNumber: rest.hasSerialNumber || false, // Ensure boolean
                 serialNumbers: rest.serialNumbers || [], // Ensure array

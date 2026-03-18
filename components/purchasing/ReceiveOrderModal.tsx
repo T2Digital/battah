@@ -12,6 +12,8 @@ interface ReceiveOrderModalProps {
     products: Product[];
 }
 
+import ProductName from '../shared/ProductName';
+
 const ReceiveOrderModal: React.FC<ReceiveOrderModalProps> = ({ isOpen, onClose, onConfirm, order, products }) => {
     const [receivedItems, setReceivedItems] = useState(order.items);
     const [receivedInto, setReceivedInto] = useState<'main' | 'branch1' | 'branch2' | 'branch3'>('main');
@@ -47,7 +49,7 @@ const ReceiveOrderModal: React.FC<ReceiveOrderModalProps> = ({ isOpen, onClose, 
                     <div className="space-y-2 max-h-80 overflow-y-auto">
                         {receivedItems.map((item, index) => (
                             <div key={index} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-700/50 rounded">
-                                <span>{getProductName(item.productId)}</span>
+                                <span><ProductName productId={item.productId} /></span>
                                 <div className="flex items-center gap-2">
                                     <label>الكمية:</label>
                                     <input

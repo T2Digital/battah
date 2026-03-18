@@ -14,13 +14,24 @@ interface SalesReportViewProps {
 }
 
 const SalesReportView: React.FC<SalesReportViewProps> = ({ setActiveReport }) => {
-    const { appData, currentUser } = useStore(state => ({
+    const { appData, currentUser, fetchDataByDateRange } = useStore(state => ({
         appData: state.appData,
-        currentUser: state.currentUser
+        currentUser: state.currentUser,
+        fetchDataByDateRange: state.fetchDataByDateRange
     }));
     const { dailySales = [], products = [] } = appData || {};
 
-    const [dateFilter, setDateFilter] = React.useState<'all' | 'today' | 'week' | 'month'>('all');
+    const [dateFilter, setDateFilter] = React.useState<'all' | 'today' | 'week' | 'month' | 'custom'>('all');
+    const [customStartDate, setCustomStartDate] = React.useState('');
+    const [customEndDate, setCustomEndDate] = React.useState('');
+    const [isLoadingData, setIsLoadingData] = React.useState(false);
+
+    const handleFetchCustomData = async () => {
+        if (!customStartDate || !customEndDate) return;
+        setIsLoadingData(true);
+        await fetchDataByDateRange('dailySales', customStartDate, customEndDate);
+        setIsLoadingData(false);
+    };
 
     const salesByDate = useMemo(() => {
         let filteredSales = currentUser?.role === 'admin' 
@@ -51,6 +62,10 @@ const SalesReportView: React.FC<SalesReportViewProps> = ({ setActiveReport }) =>
                 const d = new Date(sale.date);
                 d.setHours(0, 0, 0, 0);
                 return d >= lastMonth;
+            });
+        } else if (dateFilter === 'custom' && customStartDate && customEndDate) {
+            filteredSales = filteredSales.filter(sale => {
+                return sale.date >= customStartDate && sale.date <= customEndDate;
             });
         }
 
@@ -104,7 +119,7 @@ const SalesReportView: React.FC<SalesReportViewProps> = ({ setActiveReport }) =>
     return (
         <div className="animate-fade-in space-y-6">
             <SectionHeader icon="fa-dollar-sign" title="تقرير المبيعات التفصيلي">
-                <div className="flex items-center gap-4">
+                <div className="flex flex-wrap items-center gap-4">
                     <select
                         value={dateFilter}
                         onChange={(e) => setDateFilter(e.target.value as any)}
@@ -114,7 +129,34 @@ const SalesReportView: React.FC<SalesReportViewProps> = ({ setActiveReport }) =>
                         <option value="today">اليوم</option>
                         <option value="week">هذا الأسبوع</option>
                         <option value="month">هذا الشهر</option>
+                        <option value="custom">مخصص</option>
                     </select>
+                    
+                    {dateFilter === 'custom' && (
+                        <div className="flex items-center gap-2">
+                            <input 
+                                type="date" 
+                                value={customStartDate} 
+                                onChange={e => setCustomStartDate(e.target.value)}
+                                className="p-2 border rounded-lg text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                            />
+                            <span>إلى</span>
+                            <input 
+                                type="date" 
+                                value={customEndDate} 
+                                onChange={e => setCustomEndDate(e.target.value)}
+                                className="p-2 border rounded-lg text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                            />
+                            <button 
+                                onClick={handleFetchCustomData}
+                                disabled={isLoadingData || !customStartDate || !customEndDate}
+                                className="px-3 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark disabled:opacity-50"
+                            >
+                                {isLoadingData ? 'جاري الجلب...' : 'جلب البيانات'}
+                            </button>
+                        </div>
+                    )}
+
                     <button onClick={handlePrint} className="px-4 py-2 bg-green-600 text-white rounded-lg flex items-center gap-2 hover:bg-green-700 transition shadow-md">
                         <i className="fas fa-print"></i>
                         طباعة

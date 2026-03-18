@@ -85,18 +85,25 @@ const OrderDetailsModal: React.FC<{
 
 
 const Orders: React.FC = () => {
-    const { orders, updateOrderStatus, deleteOrder } = useStore(state => ({
+    const { orders, updateOrderStatus, deleteOrder, fetchDataByDateRange } = useStore(state => ({
         orders: state.appData?.orders || [],
         updateOrderStatus: state.updateOrderStatus,
         deleteOrder: state.deleteOrder,
+        fetchDataByDateRange: state.fetchDataByDateRange
     }));
     const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
     const [orderToDelete, setOrderToDelete] = useState<Order | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
     
+    const [activeTab, setActiveTab] = useState<'orders' | 'shipping'>('orders');
+    const [orderToShip, setOrderToShip] = useState<Order | null>(null);
+    const [shippingDetails, setShippingDetails] = useState({ company: '', tracking: '', notes: '' });
+    
     // Filtering and Pagination State
     const [filterStatus, setFilterStatus] = useState<string>('all');
-    const [dateFilter, setDateFilter] = useState<'all' | 'today' | 'week' | 'month'>('all');
+    const [dateFilter, setDateFilter] = useState<'all' | 'today' | 'week' | 'month' | 'custom'>('all');
+    const [customDateFrom, setCustomDateFrom] = useState('');
+    const [customDateTo, setCustomDateTo] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 10;
 
@@ -133,6 +140,15 @@ const Orders: React.FC = () => {
                 d.setHours(0, 0, 0, 0);
                 return d >= lastMonth;
             });
+        } else if (dateFilter === 'custom' && customDateFrom && customDateTo) {
+            const from = new Date(customDateFrom);
+            from.setHours(0, 0, 0, 0);
+            const to = new Date(customDateTo);
+            to.setHours(23, 59, 59, 999);
+            filtered = filtered.filter(o => {
+                const d = new Date(o.date);
+                return d >= from && d <= to;
+            });
         }
 
         return filtered.sort((a, b) => {
@@ -166,11 +182,31 @@ const Orders: React.FC = () => {
         confirmed: { text: 'مؤكد', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300' },
         shipped: { text: 'تم الشحن', color: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300' },
         collected: { text: 'تم التحصيل', color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300' },
+        returned: { text: 'مرتجع', color: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300' },
         cancelled: { text: 'ملغي', color: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300' },
     };
 
-    const handleStatusChange = async (orderId: number | string, newStatus: Order['status']) => {
-        await updateOrderStatus(orderId, newStatus);
+    const handleStatusChange = async (order: Order, newStatus: Order['status']) => {
+        if (newStatus === 'shipped') {
+            setOrderToShip(order);
+            setShippingDetails({
+                company: order.shippingCompany || '',
+                tracking: order.trackingNumber || '',
+                notes: order.shippingNotes || ''
+            });
+        } else {
+            await updateOrderStatus(order.id, newStatus);
+        }
+    };
+
+    const handleShippingSubmit = async () => {
+        if (!orderToShip) return;
+        await updateOrderStatus(orderToShip.id, 'shipped', {
+            shippingCompany: shippingDetails.company,
+            trackingNumber: shippingDetails.tracking,
+            shippingNotes: shippingDetails.notes
+        });
+        setOrderToShip(null);
     };
 
     const handleDeleteClick = (order: Order) => {
@@ -207,6 +243,23 @@ const Orders: React.FC = () => {
         <div className="animate-fade-in space-y-6">
             <SectionHeader icon="fa-receipt" title="إدارة الطلبات" />
             
+            <div className="flex border-b dark:border-gray-700 mb-4">
+                <button
+                    className={`px-4 py-2 font-medium ${activeTab === 'orders' ? 'text-blue-600 border-b-2 border-blue-600 dark:text-blue-400 dark:border-blue-400' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'}`}
+                    onClick={() => setActiveTab('orders')}
+                >
+                    الطلبات
+                </button>
+                <button
+                    className={`px-4 py-2 font-medium ${activeTab === 'shipping' ? 'text-blue-600 border-b-2 border-blue-600 dark:text-blue-400 dark:border-blue-400' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'}`}
+                    onClick={() => setActiveTab('shipping')}
+                >
+                    متابعة الشحن
+                </button>
+            </div>
+
+            {activeTab === 'orders' ? (
+                <>
             {/* Filter Controls */}
             <div className="flex flex-col md:flex-row justify-between items-center bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm gap-4">
                 <div className="flex flex-wrap items-center gap-4">
@@ -236,8 +289,27 @@ const Orders: React.FC = () => {
                             <option value="today">اليوم</option>
                             <option value="week">هذا الأسبوع</option>
                             <option value="month">هذا الشهر</option>
+                            <option value="custom">مخصص</option>
                         </select>
                     </div>
+                    {dateFilter === 'custom' && (
+                        <div className="flex items-center gap-2">
+                            <input type="date" value={customDateFrom} onChange={e => { setCustomDateFrom(e.target.value); setCurrentPage(1); }} className="p-2 border rounded-lg text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
+                            <span className="text-gray-500">-</span>
+                            <input type="date" value={customDateTo} onChange={e => { setCustomDateTo(e.target.value); setCurrentPage(1); }} className="p-2 border rounded-lg text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
+                            <button 
+                                onClick={() => {
+                                    if (customDateFrom && customDateTo) {
+                                        fetchDataByDateRange('orders', customDateFrom, customDateTo);
+                                    }
+                                }}
+                                className="px-3 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition"
+                                title="جلب بيانات من الخادم"
+                            >
+                                <i className="fas fa-cloud-download-alt"></i>
+                            </button>
+                        </div>
+                    )}
                 </div>
                 <div className="text-sm text-gray-500">
                     إجمالي الطلبات: {sortedOrders.length}
@@ -282,7 +354,7 @@ const Orders: React.FC = () => {
                                 <td className="px-6 py-4">
                                     <select 
                                         value={order.status}
-                                        onChange={(e) => handleStatusChange(order.id, e.target.value as Order['status'])}
+                                        onChange={(e) => handleStatusChange(order, e.target.value as Order['status'])}
                                         className={`p-1 rounded text-xs border-none ${statusMap[order.status]?.color || 'bg-gray-100 text-gray-800'}`}
                                         disabled={isCorrupted}
                                     >
@@ -290,6 +362,7 @@ const Orders: React.FC = () => {
                                         <option value="confirmed">مؤكد</option>
                                         <option value="shipped">تم الشحن</option>
                                         <option value="collected">تم التحصيل</option>
+                                        <option value="returned">مرتجع</option>
                                         <option value="cancelled">ملغي</option>
                                     </select>
                                 </td>
@@ -343,6 +416,69 @@ const Orders: React.FC = () => {
                     </button>
                 </div>
             )}
+            </>
+            ) : (
+                <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-x-auto">
+                    <table className="w-full text-sm text-right text-gray-500 dark:text-gray-400">
+                        <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-300">
+                            <tr>
+                                <th className="px-6 py-3">رقم الطلب</th>
+                                <th className="px-6 py-3">العميل</th>
+                                <th className="px-6 py-3">شركة الشحن</th>
+                                <th className="px-6 py-3">رقم التتبع</th>
+                                <th className="px-6 py-3">ملاحظات</th>
+                                <th className="px-6 py-3">الحالة</th>
+                                <th className="px-6 py-3">تحديث</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {orders.filter(o => ['shipped', 'returned', 'collected'].includes(o.status)).map((order) => (
+                                <tr key={order.id} className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
+                                    <td className="px-6 py-4 font-bold">#{order.id}</td>
+                                    <td className="px-6 py-4">{order.customerName}</td>
+                                    <td className="px-6 py-4">{order.shippingCompany || '-'}</td>
+                                    <td className="px-6 py-4">{order.trackingNumber || '-'}</td>
+                                    <td className="px-6 py-4">{order.shippingNotes || '-'}</td>
+                                    <td className="px-6 py-4">
+                                        <select 
+                                            value={order.status}
+                                            onChange={(e) => handleStatusChange(order, e.target.value as Order['status'])}
+                                            className={`p-1 rounded text-xs border-none ${statusMap[order.status]?.color || 'bg-gray-100 text-gray-800'}`}
+                                        >
+                                            <option value="shipped">تم الشحن</option>
+                                            <option value="collected">تم التحصيل</option>
+                                            <option value="returned">مرتجع</option>
+                                        </select>
+                                    </td>
+                                    <td className="px-6 py-4">
+                                        <button 
+                                            onClick={() => {
+                                                setOrderToShip(order);
+                                                setShippingDetails({
+                                                    company: order.shippingCompany || '',
+                                                    tracking: order.trackingNumber || '',
+                                                    notes: order.shippingNotes || ''
+                                                });
+                                            }}
+                                            className="text-blue-500 hover:text-blue-700"
+                                            title="تحديث بيانات الشحن"
+                                        >
+                                            <i className="fas fa-edit"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))}
+                            {orders.filter(o => ['shipped', 'returned', 'collected'].includes(o.status)).length === 0 && (
+                                <tr>
+                                    <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
+                                        لا توجد طلبات في مرحلة الشحن
+                                    </td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            )}
 
             <OrderDetailsModal
                 isOpen={!!selectedOrder}
@@ -360,6 +496,55 @@ const Orders: React.FC = () => {
                     isLoading={isDeleting}
                 />
             )}
+
+            <Modal isOpen={!!orderToShip} onClose={() => setOrderToShip(null)} title="بيانات الشحن">
+                <div className="space-y-4">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">شركة الشحن</label>
+                        <input 
+                            type="text"
+                            value={shippingDetails.company}
+                            onChange={(e) => setShippingDetails({...shippingDetails, company: e.target.value})}
+                            className="w-full p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                            placeholder="مثال: أرامكس، بوسطة..."
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">رقم التتبع (بوليصة الشحن)</label>
+                        <input 
+                            type="text"
+                            value={shippingDetails.tracking}
+                            onChange={(e) => setShippingDetails({...shippingDetails, tracking: e.target.value})}
+                            className="w-full p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                            placeholder="رقم التتبع"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">ملاحظات الشحن</label>
+                        <textarea 
+                            value={shippingDetails.notes}
+                            onChange={(e) => setShippingDetails({...shippingDetails, notes: e.target.value})}
+                            className="w-full p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                            placeholder="أي ملاحظات إضافية لشركة الشحن..."
+                            rows={3}
+                        />
+                    </div>
+                    <div className="flex justify-end gap-2 mt-4">
+                        <button 
+                            onClick={() => setOrderToShip(null)}
+                            className="px-4 py-2 text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
+                        >
+                            إلغاء
+                        </button>
+                        <button 
+                            onClick={handleShippingSubmit}
+                            className="px-4 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700"
+                        >
+                            حفظ وتحديث الحالة
+                        </button>
+                    </div>
+                </div>
+            </Modal>
         </div>
     );
 };

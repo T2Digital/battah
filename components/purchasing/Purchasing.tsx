@@ -14,21 +14,25 @@ const Purchasing: React.FC = () => {
         setProducts,
         addProduct,
         updateProduct,
+        updateProductStock,
         purchaseOrders,
         addPurchaseOrder,
         updatePurchaseOrder,
         deletePurchaseOrder,
-        suppliers
+        suppliers,
+        fetchDataByDateRange
     } = useStore(state => ({
         products: state.appData?.products || [],
         setProducts: state.setProducts,
         addProduct: state.addProduct,
         updateProduct: state.updateProduct,
+        updateProductStock: state.updateProductStock,
         purchaseOrders: state.appData?.purchaseOrders || [],
         addPurchaseOrder: state.addPurchaseOrder,
         updatePurchaseOrder: state.updatePurchaseOrder,
         deletePurchaseOrder: state.deletePurchaseOrder,
         suppliers: state.appData?.suppliers || [],
+        fetchDataByDateRange: state.fetchDataByDateRange
     }));
 
     const [isOrderModalOpen, setOrderModalOpen] = useState(false);
@@ -38,6 +42,8 @@ const Purchasing: React.FC = () => {
     const [orderToReceive, setOrderToReceive] = useState<PurchaseOrder | null>(null);
     const [orderToDelete, setOrderToDelete] = useState<PurchaseOrder | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
+    const [filters, setFilters] = useState({ dateFrom: '', dateTo: '' });
+    const [filterPeriod, setFilterPeriod] = useState<'daily' | 'monthly' | 'yearly'>('daily');
 
     const getSupplierName = (id: number) => suppliers.find(s => s.id === id)?.name || 'غير معروف';
 
@@ -81,12 +87,7 @@ const Purchasing: React.FC = () => {
 
     const handleConfirmReception = async (orderId: number, receivedItems: { productId: number; quantity: number }[], receivedInto: 'main' | 'branch1' | 'branch2' | 'branch3') => {
         for (const receivedItem of receivedItems) {
-            const product = products.find(p => p.id === receivedItem.productId);
-            if (product) {
-                const newStock = { ...product.stock };
-                newStock[receivedInto] += receivedItem.quantity;
-                await updateProduct(product.id, { stock: newStock });
-            }
+            await updateProductStock(receivedItem.productId, receivedInto, receivedItem.quantity);
         }
 
         await updatePurchaseOrder(orderId, { status: 'مكتمل' });
@@ -95,9 +96,22 @@ const Purchasing: React.FC = () => {
 
     const ordersWithDetails = useMemo(() => {
         return purchaseOrders
+            .filter(po => {
+                let dateMatch = true;
+                if (filters.dateFrom && filters.dateTo) {
+                    const poDate = new Date(po.orderDate);
+                    poDate.setHours(0, 0, 0, 0);
+                    const from = new Date(filters.dateFrom);
+                    from.setHours(0, 0, 0, 0);
+                    const to = new Date(filters.dateTo);
+                    to.setHours(0, 0, 0, 0);
+                    dateMatch = poDate >= from && poDate <= to;
+                }
+                return dateMatch;
+            })
             .map(po => ({ ...po, supplierName: getSupplierName(po.supplierId) }))
             .sort((a,b) => new Date(b.orderDate).getTime() - new Date(a.orderDate).getTime());
-    }, [purchaseOrders, suppliers]);
+    }, [purchaseOrders, suppliers, filters]);
 
     return (
         <div className="animate-fade-in space-y-6">
@@ -113,6 +127,48 @@ const Purchasing: React.FC = () => {
                     </button>
                 </div>
             </SectionHeader>
+
+            <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-lg flex flex-col md:flex-row gap-4 flex-wrap">
+                <select value={filterPeriod} onChange={e => {
+                    setFilterPeriod(e.target.value as any);
+                    if (e.target.value === 'daily') {
+                        setFilters(f => ({ ...f, dateFrom: new Date().toISOString().split('T')[0], dateTo: new Date().toISOString().split('T')[0] }));
+                    } else if (e.target.value === 'monthly') {
+                        const now = new Date();
+                        const start = new Date(now.getFullYear(), now.getMonth(), 1);
+                        const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+                        setFilters(f => ({ ...f, dateFrom: start.toISOString().split('T')[0], dateTo: end.toISOString().split('T')[0] }));
+                    } else if (e.target.value === 'yearly') {
+                        const now = new Date();
+                        const start = new Date(now.getFullYear(), 0, 1);
+                        const end = new Date(now.getFullYear(), 11, 31);
+                        setFilters(f => ({ ...f, dateFrom: start.toISOString().split('T')[0], dateTo: end.toISOString().split('T')[0] }));
+                    }
+                }} className="p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600">
+                    <option value="daily">يومي</option>
+                    <option value="monthly">شهري</option>
+                    <option value="yearly">سنوي</option>
+                </select>
+                <div className="flex gap-2 items-center">
+                    <span className="text-sm text-gray-500">من:</span>
+                    <input type="date" value={filters.dateFrom} onChange={e => setFilters(f => ({ ...f, dateFrom: e.target.value }))} className="p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600" />
+                </div>
+                <div className="flex gap-2 items-center">
+                    <span className="text-sm text-gray-500">إلى:</span>
+                    <input type="date" value={filters.dateTo} onChange={e => setFilters(f => ({ ...f, dateTo: e.target.value }))} className="p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600" />
+                </div>
+                <button 
+                    onClick={() => {
+                        if (filters.dateFrom && filters.dateTo) {
+                            fetchDataByDateRange('purchaseOrders', filters.dateFrom, filters.dateTo);
+                        }
+                    }}
+                    className="px-3 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition"
+                    title="جلب بيانات من الخادم"
+                >
+                    <i className="fas fa-cloud-download-alt"></i>
+                </button>
+            </div>
 
             <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-x-auto">
                 <table className="w-full text-sm text-right text-gray-500 dark:text-gray-400">

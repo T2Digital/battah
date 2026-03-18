@@ -41,6 +41,8 @@ const PayrollModal: React.FC<{
         notes: ''
     });
 
+    const [autoNotes, setAutoNotes] = useState('');
+
     React.useEffect(() => {
         if (recordToEdit) {
             setFormData({ 
@@ -52,6 +54,7 @@ const PayrollModal: React.FC<{
                 periodEnd: recordToEdit.periodEnd || '',
                 notes: recordToEdit.notes || '' 
             });
+            setAutoNotes('');
         } else {
             const firstEmployee = employees[0];
             const today = new Date();
@@ -70,37 +73,23 @@ const PayrollModal: React.FC<{
                 disbursed: 0,
                 notes: ''
             });
+            setAutoNotes('');
         }
     }, [recordToEdit, isOpen, employees]);
-    
-    const handleEmployeeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-        const employeeId = Number(e.target.value);
-        const selectedEmployee = employees.find(emp => emp.id === employeeId);
-        setFormData(prev => ({
-            ...prev,
-            employeeId: employeeId,
-            basicSalary: selectedEmployee?.basicSalary || 0
-        }));
-    };
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-        const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: ['disbursed', 'incentives', 'deductions', 'daysAttended'].includes(name) ? Number(value) : value }));
-    };
+    // Auto-calculate deductions and days attended when employee or period changes
+    React.useEffect(() => {
+        if (recordToEdit) return; // Don't auto-calculate if editing an existing record
 
-    const calculateDaysAndDeductions = () => {
         const empId = formData.employeeId;
         const pStart = formData.periodStart;
         const pEnd = formData.periodEnd;
         
-        if (!empId || !pStart || !pEnd) {
-            alert('يرجى تحديد الموظف وفترة الحساب أولاً');
-            return;
-        }
+        if (!empId || !pStart || !pEnd) return;
 
         const start = new Date(pStart);
         const end = new Date(pEnd);
-        end.setHours(23, 59, 59, 999); // Include the end date fully
+        end.setHours(23, 59, 59, 999);
 
         // Calculate Days Attended
         const employeeAttendance = attendance.filter(a => {
@@ -126,18 +115,53 @@ const PayrollModal: React.FC<{
 
         const totalTakenAdvances = employeeAdvances.reduce((sum, a) => sum + a.amount, 0);
         const totalExpenses = employeeExpenses.reduce((sum, e) => sum + e.amount, 0);
+        const totalDeductions = totalTakenAdvances + totalExpenses;
+
+        const notes = `أيام الحضور: ${totalDays} يوم.\nالخصومات: سلف (${totalTakenAdvances}) + مصاريف (${totalExpenses})`;
+        setAutoNotes(notes);
 
         setFormData(prev => ({
             ...prev,
             daysAttended: totalDays,
-            deductions: totalTakenAdvances + totalExpenses,
-            notes: `تم حساب أيام الحضور: ${totalDays} يوم.\nالخصومات: سلف (${totalTakenAdvances}) + مصاريف (${totalExpenses})`
+            deductions: totalDeductions
         }));
+    }, [formData.employeeId, formData.periodStart, formData.periodEnd, attendance, advances, expenses, recordToEdit]);
+
+    // Auto-calculate disbursed amount when salary, incentives, or deductions change
+    React.useEffect(() => {
+        if (recordToEdit) return; // Don't auto-calculate if editing an existing record
+        
+        const expectedNet = (formData.basicSalary || 0) + (formData.incentives || 0) - (formData.deductions || 0);
+        setFormData(prev => ({
+            ...prev,
+            disbursed: expectedNet > 0 ? expectedNet : 0
+        }));
+    }, [formData.basicSalary, formData.incentives, formData.deductions, recordToEdit]);
+
+    const handleEmployeeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        const employeeId = Number(e.target.value);
+        const selectedEmployee = employees.find(emp => emp.id === employeeId);
+        setFormData(prev => ({
+            ...prev,
+            employeeId: employeeId,
+            basicSalary: selectedEmployee?.basicSalary || 0
+        }));
+    };
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+        const { name, value } = e.target;
+        setFormData(prev => ({ ...prev, [name]: ['disbursed', 'incentives', 'deductions', 'daysAttended'].includes(name) ? Number(value) : value }));
     };
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        onSave(recordToEdit ? { ...formData, id: recordToEdit.id } : formData);
+        const finalData = { ...formData };
+        if (!recordToEdit && autoNotes && !finalData.notes) {
+            finalData.notes = autoNotes;
+        } else if (!recordToEdit && autoNotes && finalData.notes) {
+            finalData.notes = `${autoNotes}\n${finalData.notes}`;
+        }
+        onSave(recordToEdit ? { ...finalData, id: recordToEdit.id } : finalData);
     };
 
     return (
@@ -157,14 +181,10 @@ const PayrollModal: React.FC<{
                 <div className="md:col-span-2 grid grid-cols-2 gap-4 border p-3 rounded-lg bg-gray-50 dark:bg-gray-700/30">
                     <div className="col-span-2 flex justify-between items-center">
                         <span className="text-sm font-bold text-gray-700 dark:text-gray-300">فترة الحساب</span>
-                        <button 
-                            type="button" 
-                            onClick={calculateDaysAndDeductions}
-                            className="bg-secondary text-white px-3 py-1 rounded text-sm hover:bg-secondary-dark transition shadow-sm flex items-center gap-2"
-                        >
-                            <i className="fas fa-calculator"></i>
-                            حساب أيام الحضور والخصومات
-                        </button>
+                        <span className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
+                            <i className="fas fa-magic"></i>
+                            يتم حساب الخصومات تلقائياً
+                        </span>
                     </div>
                     <div>
                         <label className="block text-xs text-gray-500">من</label>
@@ -207,10 +227,13 @@ const PayrollModal: React.FC<{
 };
 
 const Payroll: React.FC<PayrollProps> = ({ payroll, addPayroll, updatePayroll, deletePayroll, employees }) => {
+    const { fetchDataByDateRange } = useStore();
     const [isModalOpen, setModalOpen] = useState(false);
     const [recordToEdit, setRecordToEdit] = useState<PayrollType | null>(null);
     const [recordToDelete, setRecordToDelete] = useState<PayrollType | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
+    const [filters, setFilters] = useState({ dateFrom: '', dateTo: '' });
+    const [filterPeriod, setFilterPeriod] = useState<'daily' | 'monthly' | 'yearly'>('daily');
 
     const getEmployeeName = (id: number) => employees.find(e => e.id === id)?.name || 'غير معروف';
 
@@ -248,12 +271,26 @@ const Payroll: React.FC<PayrollProps> = ({ payroll, addPayroll, updatePayroll, d
     };
 
     const payrollWithDetails = useMemo(() => {
-        return payroll.map(p => ({
-            ...p,
-            employeeName: getEmployeeName(p.employeeId),
-            remaining: (p.basicSalary + (p.incentives || 0) - (p.deductions || 0)) - p.disbursed
-        })).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    }, [payroll, employees]);
+        return payroll
+            .filter(p => {
+                let dateMatch = true;
+                if (filters.dateFrom && filters.dateTo) {
+                    const pDate = new Date(p.date);
+                    pDate.setHours(0, 0, 0, 0);
+                    const from = new Date(filters.dateFrom);
+                    from.setHours(0, 0, 0, 0);
+                    const to = new Date(filters.dateTo);
+                    to.setHours(0, 0, 0, 0);
+                    dateMatch = pDate >= from && pDate <= to;
+                }
+                return dateMatch;
+            })
+            .map(p => ({
+                ...p,
+                employeeName: getEmployeeName(p.employeeId),
+                remaining: (p.basicSalary + (p.incentives || 0) - (p.deductions || 0)) - p.disbursed
+            })).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    }, [payroll, employees, filters]);
 
     return (
         <div className="animate-fade-in space-y-6">
@@ -263,6 +300,48 @@ const Payroll: React.FC<PayrollProps> = ({ payroll, addPayroll, updatePayroll, d
                     إضافة دفع راتب
                 </button>
             </SectionHeader>
+
+            <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-lg flex flex-col md:flex-row gap-4 flex-wrap">
+                <select value={filterPeriod} onChange={e => {
+                    setFilterPeriod(e.target.value as any);
+                    if (e.target.value === 'daily') {
+                        setFilters(f => ({ ...f, dateFrom: new Date().toISOString().split('T')[0], dateTo: new Date().toISOString().split('T')[0] }));
+                    } else if (e.target.value === 'monthly') {
+                        const now = new Date();
+                        const start = new Date(now.getFullYear(), now.getMonth(), 1);
+                        const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+                        setFilters(f => ({ ...f, dateFrom: start.toISOString().split('T')[0], dateTo: end.toISOString().split('T')[0] }));
+                    } else if (e.target.value === 'yearly') {
+                        const now = new Date();
+                        const start = new Date(now.getFullYear(), 0, 1);
+                        const end = new Date(now.getFullYear(), 11, 31);
+                        setFilters(f => ({ ...f, dateFrom: start.toISOString().split('T')[0], dateTo: end.toISOString().split('T')[0] }));
+                    }
+                }} className="p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600">
+                    <option value="daily">يومي</option>
+                    <option value="monthly">شهري</option>
+                    <option value="yearly">سنوي</option>
+                </select>
+                <div className="flex gap-2 items-center">
+                    <span className="text-sm text-gray-500">من:</span>
+                    <input type="date" value={filters.dateFrom} onChange={e => setFilters(f => ({ ...f, dateFrom: e.target.value }))} className="p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600" />
+                </div>
+                <div className="flex gap-2 items-center">
+                    <span className="text-sm text-gray-500">إلى:</span>
+                    <input type="date" value={filters.dateTo} onChange={e => setFilters(f => ({ ...f, dateTo: e.target.value }))} className="p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600" />
+                </div>
+                <button 
+                    onClick={() => {
+                        if (filters.dateFrom && filters.dateTo) {
+                            fetchDataByDateRange('payroll', filters.dateFrom, filters.dateTo);
+                        }
+                    }}
+                    className="px-3 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition"
+                    title="جلب بيانات من الخادم"
+                >
+                    <i className="fas fa-cloud-download-alt"></i>
+                </button>
+            </div>
             <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-x-auto">
                 <table className="w-full text-sm text-right text-gray-500 dark:text-gray-400">
                     <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-300">

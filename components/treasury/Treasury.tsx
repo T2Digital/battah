@@ -12,8 +12,9 @@ interface TreasuryProps {
 }
 
 const Treasury: React.FC<TreasuryProps> = ({ treasury }) => {
-    const { resetTreasury, clearTreasury, deleteTreasuryTransaction, appData } = useStore();
+    const { resetTreasury, clearTreasury, deleteTreasuryTransaction, appData, fetchDataByDateRange } = useStore();
     const [filters, setFilters] = useState({ dateFrom: '', dateTo: '', type: '' });
+    const [filterPeriod, setFilterPeriod] = useState<'daily' | 'monthly' | 'yearly'>('daily');
     
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isClearModalOpen, setIsClearModalOpen] = useState(false);
@@ -189,10 +190,47 @@ const Treasury: React.FC<TreasuryProps> = ({ treasury }) => {
                 </div>
             </div>
 
-            <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-lg flex flex-col md:flex-row gap-4">
-                <input type="date" value={filters.dateFrom} onChange={e => setFilters(f => ({ ...f, dateFrom: e.target.value }))} className="p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600" />
-                <input type="date" value={filters.dateTo} onChange={e => setFilters(f => ({ ...f, dateTo: e.target.value }))} className="p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600" />
-                <select value={filters.type} onChange={e => setFilters(f => ({ ...f, type: e.target.value }))} className="p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600">
+            <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-lg flex flex-col md:flex-row gap-4 flex-wrap">
+                <select value={filterPeriod} onChange={e => {
+                    setFilterPeriod(e.target.value as any);
+                    if (e.target.value === 'daily') {
+                        setFilters(f => ({ ...f, dateFrom: new Date().toISOString().split('T')[0], dateTo: new Date().toISOString().split('T')[0] }));
+                    } else if (e.target.value === 'monthly') {
+                        const now = new Date();
+                        const start = new Date(now.getFullYear(), now.getMonth(), 1);
+                        const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+                        setFilters(f => ({ ...f, dateFrom: start.toISOString().split('T')[0], dateTo: end.toISOString().split('T')[0] }));
+                    } else if (e.target.value === 'yearly') {
+                        const now = new Date();
+                        const start = new Date(now.getFullYear(), 0, 1);
+                        const end = new Date(now.getFullYear(), 11, 31);
+                        setFilters(f => ({ ...f, dateFrom: start.toISOString().split('T')[0], dateTo: end.toISOString().split('T')[0] }));
+                    }
+                }} className="p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600">
+                    <option value="daily">يومي</option>
+                    <option value="monthly">شهري</option>
+                    <option value="yearly">سنوي</option>
+                </select>
+                <div className="flex gap-2 items-center">
+                    <span className="text-sm text-gray-500">من:</span>
+                    <input type="date" value={filters.dateFrom} onChange={e => setFilters(f => ({ ...f, dateFrom: e.target.value }))} className="p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600" />
+                </div>
+                <div className="flex gap-2 items-center">
+                    <span className="text-sm text-gray-500">إلى:</span>
+                    <input type="date" value={filters.dateTo} onChange={e => setFilters(f => ({ ...f, dateTo: e.target.value }))} className="p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600" />
+                </div>
+                <button 
+                    onClick={() => {
+                        if (filters.dateFrom && filters.dateTo) {
+                            fetchDataByDateRange('treasury', filters.dateFrom, filters.dateTo);
+                        }
+                    }}
+                    className="px-3 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition"
+                    title="جلب بيانات من الخادم"
+                >
+                    <i className="fas fa-cloud-download-alt"></i>
+                </button>
+                <select value={filters.type} onChange={e => setFilters(f => ({ ...f, type: e.target.value }))} className="p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 flex-grow">
                     <option value="">كل الأنواع</option>
                     <option value="إيراد مبيعات">إيراد مبيعات</option>
                     <option value="مرتجع مبيعات">مرتجع مبيعات</option>

@@ -3,6 +3,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { PurchaseOrder, Supplier, Product, PurchaseOrderItem } from '../../types';
 import Modal from '../shared/Modal';
 import { formatCurrency } from '../../lib/utils';
+import useStore from '../../lib/store';
 
 interface PurchaseOrderModalProps {
     isOpen: boolean;
@@ -19,6 +20,8 @@ interface PurchaseOrderModalProps {
 }
 
 type EditablePurchaseOrderItem = Omit<PurchaseOrderItem, 'quantity' | 'purchasePrice'> & { id: number; quantity: number | ''; purchasePrice: number | '' };
+
+import ProductName from '../shared/ProductName';
 
 const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, onClose, onSave, orderToEdit, suppliers, products, addProduct, isDirectStatement, onSaveDirect, isViewOnly, isReturn }) => {
     const [formData, setFormData] = useState({
@@ -37,17 +40,23 @@ const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, onClose
 
     useEffect(() => {
         if (orderToEdit) {
-            setFormData({ ...orderToEdit, items: orderToEdit.items.map(item => ({...item, id: item.productId})), notes: orderToEdit.notes || '' });
+            setFormData({ 
+                ...orderToEdit, 
+                items: orderToEdit.items?.map(item => ({...item, id: item.productId})) || [], 
+                notes: orderToEdit.notes || '',
+                type: orderToEdit.type || (isReturn ? 'مرتجع' : 'شراء')
+            });
         } else {
             setFormData({
                 supplierId: suppliers[0]?.id || 0,
                 orderDate: new Date().toISOString().split('T')[0],
-                status: 'معلق',
+                status: isReturn ? 'مكتمل' : 'معلق',
+                type: isReturn ? 'مرتجع' : 'شراء',
                 items: [],
                 notes: ''
             });
         }
-    }, [orderToEdit, isOpen, suppliers]);
+    }, [orderToEdit, isOpen, suppliers, isReturn]);
 
     useEffect(() => {
         if (lastAddedItemRef.current) {
@@ -65,10 +74,24 @@ const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, onClose
         }, 0);
     }, [formData.items]);
     
-    const filteredProducts = useMemo(() => {
-        if (!productSearch) return [];
-        return products.filter(p => p.name.toLowerCase().includes(productSearch.toLowerCase()) || p.sku.toLowerCase().includes(productSearch.toLowerCase())).slice(0, 5);
-    }, [productSearch, products]);
+    const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
+    const { searchProducts } = useStore(state => ({
+        searchProducts: state.searchProducts
+    }));
+
+    useEffect(() => {
+        const fetchSuggestions = async () => {
+            if (!productSearch.trim()) {
+                setFilteredProducts([]);
+                return;
+            }
+            const results = await searchProducts(productSearch);
+            setFilteredProducts(results.slice(0, 5));
+        };
+        
+        const timeoutId = setTimeout(fetchSuggestions, 300);
+        return () => clearTimeout(timeoutId);
+    }, [productSearch, searchProducts]);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
@@ -199,7 +222,7 @@ const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, onClose
                     <div className="space-y-2 max-h-60 overflow-y-auto">
                         {formData.items.map((item, index) => (
                             <div key={item.id} className="grid grid-cols-12 gap-2 items-center p-2 bg-gray-50 dark:bg-gray-700 dark:bg-opacity-50 rounded">
-                                <span className="col-span-5 truncate">{getProductName(item.productId)}</span>
+                                <span className="col-span-5 truncate"><ProductName productId={item.productId} /></span>
                                 <input 
                                     type="number" 
                                     value={item.quantity === 0 ? '' : item.quantity} 

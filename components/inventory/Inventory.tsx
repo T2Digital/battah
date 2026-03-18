@@ -165,6 +165,7 @@ const Inventory: React.FC = () => {
             }
 
             alert(`تم رفع ${newProducts.length} منتج بنجاح`);
+            loadProducts(true); // Reload products to show the newly uploaded ones
         } catch (error) {
             console.error("Error uploading products:", error);
             alert("حدث خطأ أثناء رفع المنتجات. تأكد من صحة ملف الإكسيل.");
@@ -182,25 +183,24 @@ const Inventory: React.FC = () => {
         stockStatus: 'all',
     });
 
-    // Initial fetch - Sync with global products if available, otherwise fetch
+    // Initial fetch
     React.useEffect(() => {
-        if (globalProducts.length > 0) {
-            setLocalProducts(globalProducts);
-            setHasMore(false); // Since we have all products
-        } else {
-            loadProducts();
-        }
-    }, [globalProducts]); // React to changes in global products
+        loadProducts(true);
+    }, []);
 
     const loadProducts = async (reset = false) => {
-        if (loading || (globalProducts.length > 0 && !reset)) return; // Don't load if we have global products
+        if (loading) return;
         setLoading(true);
         try {
             const result = await fetchProducts(reset ? null : lastDoc);
             if (reset) {
                 setLocalProducts(result.products);
             } else {
-                setLocalProducts(prev => [...prev, ...result.products]);
+                setLocalProducts(prev => {
+                    // Prevent duplicates
+                    const newProducts = result.products.filter(p => !prev.some(existing => existing.id === p.id));
+                    return [...prev, ...newProducts];
+                });
             }
             setLastDoc(result.lastDoc);
             setHasMore(result.products.length === 20); 
@@ -213,15 +213,7 @@ const Inventory: React.FC = () => {
 
     const handleSearch = async (e: React.FormEvent) => {
         e.preventDefault();
-        // Search is now handled by client-side filtering on `products` state
-        // which is synced with `globalProducts`.
-        // We just need to ensure `products` contains everything.
-        if (globalProducts.length > 0) {
-             // Already have all products, filtering happens in `filteredProducts`
-             return;
-        }
-
-        // Fallback to server search if global products are empty (shouldn't happen for admin)
+        
         if (!filters.search.trim()) {
             setIsSearching(false);
             loadProducts(true);

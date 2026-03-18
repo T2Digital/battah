@@ -102,6 +102,8 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveSection }) => {
         todayExpenses: true,
         reorderPoint: true,
         pendingOrders: true,
+        suppliersDebt: true,
+        customersDebt: true,
     };
 
     const [visibleCards, setVisibleCards] = useState(() => {
@@ -127,7 +129,9 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveSection }) => {
         dailySales = [], 
         products = [], 
         users = [],
-        orders = []
+        orders = [],
+        purchaseOrders = [],
+        payments = []
     } = appData || {};
 
     const todayStr = new Date().toISOString().split('T')[0];
@@ -135,7 +139,7 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveSection }) => {
     const { 
         currentTreasuryBalance, dailyNetProfit, sellerTodaySales,
         todayInvoicesCount, todayExpensesTotal, reorderPointProductsCount, pendingOrdersCount, dailySalesTotal,
-        todayBranchSales, todayOnlineSales
+        todayBranchSales, todayOnlineSales, suppliersDebt, customersDebt
     } = useMemo(() => {
         let balance = (treasury || []).reduce((sum, t) => sum + (t.amountIn || 0) - (t.amountOut || 0), 0);
 
@@ -192,6 +196,8 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveSection }) => {
         }).length;
         const pendingCount = (orders || []).filter(o => o.status === 'pending').length;
 
+        const sDebt = (purchaseOrders || []).reduce((sum, po) => sum + (po.type === 'مرتجع' ? -po.totalAmount : po.totalAmount), 0) - (payments || []).reduce((sum, p) => sum + p.payment, 0);
+        const cDebt = (dailySales || []).reduce((sum, sale) => sum + (sale.remainingDebt || 0), 0);
 
         return { 
             currentTreasuryBalance: balance, 
@@ -203,9 +209,11 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveSection }) => {
             pendingOrdersCount: pendingCount,
             dailySalesTotal: totalSalesAmount,
             todayBranchSales: branchSales,
-            todayOnlineSales: onlineSales
+            todayOnlineSales: onlineSales,
+            suppliersDebt: sDebt,
+            customersDebt: cDebt
         };
-    }, [treasury, dailySales, products, expenses, orders, todayStr, currentUser, users]);
+    }, [treasury, dailySales, products, expenses, orders, todayStr, currentUser, users, purchaseOrders, payments]);
 
     const lowStockProducts = useMemo(() => {
         return (products || []).filter(p => {
@@ -248,6 +256,16 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveSection }) => {
                 {visibleCards.todayOnlineSales && (
                      <div onClick={() => setActiveSection(Section.DailySales)} className="cursor-pointer">
                         <StatCard icon="fa-globe" title="مبيعات الأونلاين اليوم" value={todayOnlineSales} isCurrency />
+                    </div>
+                )}
+                {visibleCards.suppliersDebt && (
+                    <div onClick={() => setActiveSection(Section.Suppliers)} className="cursor-pointer">
+                        <StatCard icon="fa-truck" title="مديونية الموردين" value={suppliersDebt} isCurrency />
+                    </div>
+                )}
+                {visibleCards.customersDebt && (
+                    <div onClick={() => setActiveSection(Section.DailySales)} className="cursor-pointer">
+                        <StatCard icon="fa-users" title="مديونية العملاء" value={customersDebt} isCurrency />
                     </div>
                 )}
                 {visibleCards.sellerSales && sellerTodaySales !== null && (

@@ -10,9 +10,9 @@ interface InventoryCheckViewProps {
 }
 
 const InventoryCheckView: React.FC<InventoryCheckViewProps> = ({ onBack }) => {
-    const { products, updateProduct } = useStore(state => ({
+    const { products, updateProductStock } = useStore(state => ({
         products: state.appData?.products || [],
-        updateProduct: state.updateProduct
+        updateProductStock: state.updateProductStock
     }));
     
     const [selectedBranch, setSelectedBranch] = useState<Branch>('main');
@@ -23,8 +23,7 @@ const InventoryCheckView: React.FC<InventoryCheckViewProps> = ({ onBack }) => {
     const filteredProducts = useMemo(() => {
         return products.filter(p => 
             p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-            p.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            (p.barcode && p.barcode.includes(searchQuery))
+            p.sku.toLowerCase().includes(searchQuery.toLowerCase())
         );
     }, [products, searchQuery]);
 
@@ -49,8 +48,11 @@ const InventoryCheckView: React.FC<InventoryCheckViewProps> = ({ onBack }) => {
                 const productId = Number(productIdStr);
                 const product = products.find(p => p.id === productId);
                 if (product) {
-                    const newStock = { ...product.stock, [selectedBranch]: actualCount as number };
-                    await updateProduct(productId, { stock: newStock });
+                    const systemCount = product.stock[selectedBranch] || 0;
+                    const diff = (actualCount as number) - systemCount;
+                    if (diff !== 0) {
+                        await updateProductStock(productId, selectedBranch, diff);
+                    }
                 }
             }
             alert("تم حفظ الجرد وتحديث المخزون بنجاح.");

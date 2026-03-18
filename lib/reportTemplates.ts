@@ -170,7 +170,7 @@ const generateReportHTML = (title: string, themeColor: string, content: string, 
 </html>`;
 
 export const generateInvoiceContent = (sale: DailySale, products: Product[]) => {
-    const getProductName = (productId: number) => products.find(p => p.id === productId)?.name || 'صنف غير معروف';
+    const getProductName = (item: any) => item.productName || products.find(p => p.id === item.productId)?.name || 'صنف غير معروف';
     const items = normalizeSaleItems(sale);
 
     const itemsRows = items.map(item => {
@@ -180,7 +180,7 @@ export const generateInvoiceContent = (sale: DailySale, products: Product[]) => 
         return `
         <tr class="item">
             <td>
-                ${getProductName(item.productId)}
+                ${getProductName(item)}
                 ${serialsHtml}
             </td>
             <td style="text-align:center;">${item.quantity}</td>

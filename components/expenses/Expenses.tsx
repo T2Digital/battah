@@ -125,11 +125,13 @@ const ExpenseModal: React.FC<{
 };
 
 const Expenses: React.FC<ExpensesProps> = ({ expenses, addExpense, updateExpense, deleteExpense }) => {
+    const { fetchDataByDateRange } = useStore(state => ({ fetchDataByDateRange: state.fetchDataByDateRange }));
     const [isModalOpen, setModalOpen] = useState(false);
     const [expenseToEdit, setExpenseToEdit] = useState<Expense | null>(null);
     const [expenseToDelete, setExpenseToDelete] = useState<Expense | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
     const [filters, setFilters] = useState({ search: '', type: '', date: '' });
+    const [filterPeriod, setFilterPeriod] = useState<'daily' | 'monthly' | 'yearly'>('daily');
     
     const handleSave = (expense: Omit<Expense, 'id'> & { id?: number }) => {
         if (expense.id) {
@@ -155,12 +157,24 @@ const Expenses: React.FC<ExpensesProps> = ({ expenses, addExpense, updateExpense
     };
 
     const filteredExpenses = useMemo(() => {
-        return expenses.filter(exp => 
-            (exp.name.includes(filters.search) || (exp.notes || '').includes(filters.search)) &&
+        return expenses.filter(exp => {
+            let dateMatch = true;
+            if (filters.date) {
+                const expDate = new Date(exp.date);
+                const filterD = new Date(filters.date);
+                if (filterPeriod === 'daily') {
+                    dateMatch = exp.date === filters.date;
+                } else if (filterPeriod === 'monthly') {
+                    dateMatch = expDate.getMonth() === filterD.getMonth() && expDate.getFullYear() === filterD.getFullYear();
+                } else if (filterPeriod === 'yearly') {
+                    dateMatch = expDate.getFullYear() === filterD.getFullYear();
+                }
+            }
+            return (exp.name.includes(filters.search) || (exp.notes || '').includes(filters.search)) &&
             (filters.type ? exp.type === filters.type : true) &&
-            (filters.date ? exp.date === filters.date : true)
-        ).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    }, [expenses, filters]);
+            dateMatch;
+        }).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    }, [expenses, filters, filterPeriod]);
 
     return (
         <div className="animate-fade-in space-y-6">
@@ -178,7 +192,38 @@ const Expenses: React.FC<ExpensesProps> = ({ expenses, addExpense, updateExpense
                     <option value="عامة">عامة</option>
                     <option value="موظفين">موظفين</option>
                 </select>
-                <input type="date" value={filters.date} onChange={e => setFilters(f => ({ ...f, date: e.target.value }))} className="p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600" />
+                <select value={filterPeriod} onChange={e => setFilterPeriod(e.target.value as any)} className="p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600">
+                    <option value="daily">يومي</option>
+                    <option value="monthly">شهري</option>
+                    <option value="yearly">سنوي</option>
+                </select>
+                <div className="flex gap-2">
+                    <input type="date" value={filters.date} onChange={e => setFilters(f => ({ ...f, date: e.target.value }))} className="p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600" />
+                    <button 
+                        onClick={() => {
+                            if (!filters.date) return;
+                            let startDate = filters.date;
+                            let endDate = filters.date;
+                            const filterD = new Date(filters.date);
+                            if (filterPeriod === 'monthly') {
+                                const startOfMonth = new Date(filterD.getFullYear(), filterD.getMonth(), 1);
+                                const endOfMonth = new Date(filterD.getFullYear(), filterD.getMonth() + 1, 0);
+                                startDate = startOfMonth.toISOString().split('T')[0];
+                                endDate = endOfMonth.toISOString().split('T')[0];
+                            } else if (filterPeriod === 'yearly') {
+                                const startOfYear = new Date(filterD.getFullYear(), 0, 1);
+                                const endOfYear = new Date(filterD.getFullYear(), 11, 31);
+                                startDate = startOfYear.toISOString().split('T')[0];
+                                endDate = endOfYear.toISOString().split('T')[0];
+                            }
+                            fetchDataByDateRange('expenses', startDate, endDate);
+                        }}
+                        className="px-3 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition"
+                        title="جلب بيانات من الخادم"
+                    >
+                        <i className="fas fa-cloud-download-alt"></i>
+                    </button>
+                </div>
             </div>
 
             <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-x-auto">
