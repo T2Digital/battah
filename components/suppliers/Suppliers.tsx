@@ -166,10 +166,18 @@ const PaymentModal: React.FC<{
     };
 
     const handleSubmit = () => {
-        const finalData = {
+        const finalData: any = {
             ...formData,
             invoiceTotal: formData.invoiceTotal === '' ? undefined : Number(formData.invoiceTotal)
         };
+        
+        // Remove undefined fields to prevent Firestore errors
+        Object.keys(finalData).forEach(key => {
+            if (finalData[key] === undefined) {
+                delete finalData[key];
+            }
+        });
+
         onSave(paymentToEdit ? { ...finalData, id: paymentToEdit.id } : finalData);
     };
 
@@ -232,7 +240,9 @@ const SupplierDetails: React.FC<{
     purchaseOrders: PurchaseOrder[];
     payments: Payment[];
     onViewOrder: (order: PurchaseOrder) => void;
-}> = ({ supplier, onBack, purchaseOrders, payments, onViewOrder }) => {
+    onEditOrder: (order: PurchaseOrder) => void;
+    onDeleteOrder: (order: PurchaseOrder) => void;
+}> = ({ supplier, onBack, purchaseOrders, payments, onViewOrder, onEditOrder, onDeleteOrder }) => {
     const supplierOrders = useMemo(() => purchaseOrders.filter(po => po.supplierId === supplier.id), [purchaseOrders, supplier.id]);
     const supplierPayments = useMemo(() => payments.filter(p => p.supplierId === supplier.id), [payments, supplier.id]);
 
@@ -307,10 +317,17 @@ const SupplierDetails: React.FC<{
                                                 </span>
                                             </td>
                                             <td className="px-4 py-3">
-                                                <button onClick={() => onViewOrder(po)} className="text-blue-500 hover:text-blue-700 text-sm flex items-center gap-1">
-                                                    <i className="fas fa-eye"></i>
-                                                    التفاصيل
-                                                </button>
+                                                <div className="flex items-center gap-3">
+                                                    <button onClick={() => onViewOrder(po)} className="text-blue-500 hover:text-blue-700 text-sm flex items-center gap-1" title="التفاصيل">
+                                                        <i className="fas fa-eye"></i>
+                                                    </button>
+                                                    <button onClick={() => onEditOrder(po)} className="text-green-500 hover:text-green-700 text-sm flex items-center gap-1" title="تعديل">
+                                                        <i className="fas fa-edit"></i>
+                                                    </button>
+                                                    <button onClick={() => onDeleteOrder(po)} className="text-red-500 hover:text-red-700 text-sm flex items-center gap-1" title="حذف">
+                                                        <i className="fas fa-trash"></i>
+                                                    </button>
+                                                </div>
                                             </td>
                                         </tr>
                                     ))
@@ -353,14 +370,16 @@ const SupplierDetails: React.FC<{
 };
 
 const Suppliers: React.FC<SuppliersProps> = ({ suppliers, payments, addPayment, updatePayment, deletePayment, purchaseOrders }) => {
-    const { addSupplier, updateSupplier, deleteSupplier, products, addProduct, addPurchaseOrder, updateProductStock } = useStore(state => ({
+    const { addSupplier, updateSupplier, deleteSupplier, products, addProduct, addPurchaseOrder, updateProductStock, updatePurchaseOrder, deletePurchaseOrder } = useStore(state => ({
         addSupplier: state.addSupplier,
         updateSupplier: state.updateSupplier,
         deleteSupplier: state.deleteSupplier,
         products: state.appData?.products || [],
         addProduct: state.addProduct,
         addPurchaseOrder: state.addPurchaseOrder,
-        updateProductStock: state.updateProductStock
+        updateProductStock: state.updateProductStock,
+        updatePurchaseOrder: state.updatePurchaseOrder,
+        deletePurchaseOrder: state.deletePurchaseOrder
     }));
     const [activeTab, setActiveTab] = useState<'suppliers' | 'payments'>('suppliers');
     
@@ -375,6 +394,8 @@ const Suppliers: React.FC<SuppliersProps> = ({ suppliers, payments, addPayment, 
     const [isDirectStatementModalOpen, setDirectStatementModalOpen] = useState(false);
     const [isReturnModalOpen, setReturnModalOpen] = useState(false);
     const [orderToView, setOrderToView] = useState<PurchaseOrder | null>(null);
+    const [orderToEdit, setOrderToEdit] = useState<PurchaseOrder | null>(null);
+    const [orderToDelete, setOrderToDelete] = useState<PurchaseOrder | null>(null);
 
     const [isDeleting, setIsDeleting] = useState(false);
     
@@ -458,15 +479,51 @@ const Suppliers: React.FC<SuppliersProps> = ({ suppliers, payments, addPayment, 
         }
     };
 
+    const handleSaveOrderEdit = async (order: Omit<PurchaseOrder, 'id'> & { id?: number }) => {
+        if (order.id) {
+            try {
+                await updatePurchaseOrder(order.id, order);
+                setOrderToEdit(null);
+                alert('تم تحديث الفاتورة بنجاح.');
+            } catch (error) {
+                console.error("Failed to update order:", error);
+                alert('حدث خطأ أثناء تحديث الفاتورة.');
+            }
+        }
+    };
+
+    const confirmDeleteOrder = async () => {
+        if (!orderToDelete) return;
+        setIsDeleting(true);
+        try {
+            await deletePurchaseOrder(orderToDelete.id);
+            setOrderToDelete(null);
+            alert('تم حذف الفاتورة بنجاح.');
+        } catch (error) {
+            console.error("Failed to delete order:", error);
+            alert(`فشل حذف الفاتورة: ${error instanceof Error ? error.message : String(error)}`);
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
     const suppliersWithBalance = useMemo(() => {
         return suppliers.map(s => {
             const supplierOrders = purchaseOrders.filter(po => po.supplierId === s.id);
             const supplierPayments = payments.filter(p => p.supplierId === s.id);
             const totalInvoices = supplierOrders.reduce((sum, po) => sum + (po.type === 'مرتجع' ? -po.totalAmount : po.totalAmount), 0);
             const totalPaid = supplierPayments.reduce((sum, p) => sum + p.payment, 0);
-            return { ...s, remainingBalance: totalInvoices - totalPaid };
+            return { ...s, totalInvoices, totalPaid, remainingBalance: totalInvoices - totalPaid };
         });
     }, [suppliers, purchaseOrders, payments]);
+
+    const dashboardStats = useMemo(() => {
+        const totalSuppliers = suppliers.length;
+        const totalInvoices = suppliersWithBalance.reduce((sum, s) => sum + s.totalInvoices, 0);
+        const totalPaid = suppliersWithBalance.reduce((sum, s) => sum + s.totalPaid, 0);
+        const totalDebt = suppliersWithBalance.reduce((sum, s) => sum + (s.remainingBalance > 0 ? s.remainingBalance : 0), 0);
+        return { totalSuppliers, totalInvoices, totalPaid, totalDebt };
+    }, [suppliersWithBalance, suppliers.length]);
 
     const paymentsWithDetails = useMemo(() => {
         return payments
@@ -483,18 +540,9 @@ const Suppliers: React.FC<SuppliersProps> = ({ suppliers, payments, addPayment, 
                     purchaseOrders={purchaseOrders}
                     payments={payments}
                     onViewOrder={setOrderToView}
+                    onEditOrder={setOrderToEdit}
+                    onDeleteOrder={setOrderToDelete}
                 />
-                {orderToView && (
-                    <PurchaseOrderModal
-                        isOpen={!!orderToView}
-                        onClose={() => setOrderToView(null)}
-                        onSave={() => {}} // View only
-                        orderToEdit={orderToView}
-                        suppliers={suppliers}
-                        products={products}
-                        isViewOnly={true}
-                    />
-                )}
             </>
         );
     }
@@ -515,6 +563,45 @@ const Suppliers: React.FC<SuppliersProps> = ({ suppliers, payments, addPayment, 
                     <i className="fas fa-undo"></i> مردودات مشتريات
                 </button>
             </SectionHeader>
+
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center text-blue-600 dark:text-blue-300 text-xl">
+                        <i className="fas fa-users"></i>
+                    </div>
+                    <div>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">إجمالي الموردين</p>
+                        <p className="text-xl font-bold text-gray-900 dark:text-white">{dashboardStats.totalSuppliers}</p>
+                    </div>
+                </div>
+                <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-full bg-purple-100 dark:bg-purple-900 flex items-center justify-center text-purple-600 dark:text-purple-300 text-xl">
+                        <i className="fas fa-file-invoice-dollar"></i>
+                    </div>
+                    <div>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">إجمالي الفواتير</p>
+                        <p className="text-xl font-bold text-gray-900 dark:text-white">{formatCurrency(dashboardStats.totalInvoices)}</p>
+                    </div>
+                </div>
+                <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center text-green-600 dark:text-green-300 text-xl">
+                        <i className="fas fa-money-check-alt"></i>
+                    </div>
+                    <div>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">إجمالي المدفوعات</p>
+                        <p className="text-xl font-bold text-gray-900 dark:text-white">{formatCurrency(dashboardStats.totalPaid)}</p>
+                    </div>
+                </div>
+                <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-900 flex items-center justify-center text-red-600 dark:text-red-300 text-xl">
+                        <i className="fas fa-hand-holding-usd"></i>
+                    </div>
+                    <div>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">إجمالي المديونية</p>
+                        <p className="text-xl font-bold text-red-600 dark:text-red-400">{formatCurrency(dashboardStats.totalDebt)}</p>
+                    </div>
+                </div>
+            </div>
             
             <div className="flex flex-col sm:flex-row justify-between items-center border-b dark:border-gray-700 pb-4 gap-4">
                 <div className="flex">
@@ -647,6 +734,42 @@ const Suppliers: React.FC<SuppliersProps> = ({ suppliers, payments, addPayment, 
                     products={products}
                     isViewOnly={true}
                 />
+            )}
+
+            {orderToEdit && (
+                <PurchaseOrderModal
+                    isOpen={!!orderToEdit}
+                    onClose={() => setOrderToEdit(null)}
+                    onSave={handleSaveOrderEdit}
+                    orderToEdit={orderToEdit}
+                    suppliers={suppliers}
+                    products={products}
+                    isViewOnly={false}
+                />
+            )}
+
+            {orderToDelete && (
+                <Modal isOpen={!!orderToDelete} onClose={() => setOrderToDelete(null)} title="تأكيد حذف الفاتورة">
+                    <div className="p-6">
+                        <p className="mb-6 text-gray-700">هل أنت متأكد من أنك تريد حذف هذه الفاتورة؟ لا يمكن التراجع عن هذا الإجراء.</p>
+                        <div className="flex justify-end gap-3">
+                            <button
+                                onClick={() => setOrderToDelete(null)}
+                                className="px-4 py-2 text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200"
+                                disabled={isDeleting}
+                            >
+                                إلغاء
+                            </button>
+                            <button
+                                onClick={confirmDeleteOrder}
+                                className="px-4 py-2 text-white bg-red-600 rounded-lg hover:bg-red-700 flex items-center gap-2"
+                                disabled={isDeleting}
+                            >
+                                {isDeleting ? 'جاري الحذف...' : 'تأكيد الحذف'}
+                            </button>
+                        </div>
+                    </div>
+                </Modal>
             )}
 
             {supplierToDelete && (

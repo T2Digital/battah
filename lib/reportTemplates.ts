@@ -712,21 +712,129 @@ export const generateInventoryReportContent = (appData: AppData, branch: string)
     return html;
 };
 
-export const generateProductCardexReportContent = (appData: AppData, productId: number) => {
-    const { dailySales, products } = appData;
+export const generateProductCardexReportContent = (appData: AppData, productId: number, startDate?: string, endDate?: string) => {
+    const { dailySales, products, purchaseOrders, stockTransfers } = appData;
     const product = products.find(p => p.id === productId);
     if (!product) return generateReportHTML('خطأ', '#ef4444', 'لم يتم العثور على المنتج');
     
-    const movements = dailySales
-        .flatMap(sale => normalizeSaleItems(sale).map(item => ({ ...item, ...sale })))
-        .filter(movement => movement.productId === productId)
-        .sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    let allMovements: any[] = [];
+
+    // 1. Sales & Returns
+    dailySales.forEach(sale => {
+        normalizeSaleItems(sale).forEach(item => {
+            if (item.productId === productId) {
+                const isReturn = sale.direction === 'مرتجع' || item.isReturn;
+                allMovements.push({
+                    date: sale.date,
+                    timestamp: sale.timestamp,
+                    type: isReturn ? 'مرتجع مبيعات' : 'مبيعات',
+                    invoiceNumber: sale.invoiceNumber,
+                    branch: sale.branchSoldFrom,
+                    quantityChange: isReturn ? item.quantity : -item.quantity,
+                    notes: sale.notes || '',
+                    price: item.unitPrice
+                });
+            }
+        });
+    });
+
+    // 2. Purchases & Returns
+    purchaseOrders.forEach(po => {
+        if (po.status === 'مكتمل') {
+            po.items.forEach(item => {
+                if (item.productId === productId) {
+                    const isReturn = po.type === 'مرتجع';
+                    allMovements.push({
+                        date: po.orderDate,
+                        timestamp: po.timestamp,
+                        type: isReturn ? 'مرتجع مشتريات' : 'مشتريات',
+                        invoiceNumber: `PO-${po.id}`,
+                        branch: 'main', // Assuming purchases go to main branch initially
+                        quantityChange: isReturn ? -item.quantity : item.quantity,
+                        notes: po.notes || '',
+                        price: item.purchasePrice
+                    });
+                }
+            });
+        }
+    });
+
+    // 3. Stock Transfers
+    stockTransfers.forEach(transfer => {
+        if (transfer.productId === productId) {
+            // Outgoing
+            allMovements.push({
+                date: transfer.date,
+                timestamp: transfer.timestamp,
+                type: 'نقل مخزون (صادر)',
+                invoiceNumber: `TR-${transfer.id}`,
+                branch: transfer.fromBranch,
+                quantityChange: -transfer.quantity,
+                notes: `إلى ${transfer.toBranch} - ${transfer.notes || ''}`,
+                price: 0
+            });
+            // Incoming
+            allMovements.push({
+                date: transfer.date,
+                timestamp: transfer.timestamp,
+                type: 'نقل مخزون (وارد)',
+                invoiceNumber: `TR-${transfer.id}`,
+                branch: transfer.toBranch,
+                quantityChange: transfer.quantity,
+                notes: `من ${transfer.fromBranch} - ${transfer.notes || ''}`,
+                price: 0
+            });
+        }
+    });
+
+    // Sort all movements by date and timestamp
+    allMovements.sort((a, b) => {
+        const timeA = a.timestamp ? new Date(a.timestamp).getTime() : new Date(a.date).getTime();
+        const timeB = b.timestamp ? new Date(b.timestamp).getTime() : new Date(b.date).getTime();
+        return timeA - timeB;
+    });
+
+    // Calculate running balance and filter by date
+    let runningBalance = 0; // Ideally, we'd have an initial stock value, but we'll calculate from 0 or assume current stock is the end result.
+    // Actually, it's better to calculate backwards from current stock to get the initial stock before the first movement.
+    const totalStock = product.stock.main + product.stock.branch1 + product.stock.branch2 + product.stock.branch3;
+    
+    let netChange = 0;
+    allMovements.forEach(m => {
+        netChange += m.quantityChange;
+    });
+    
+    // Initial stock before any recorded movement
+    let currentBalance = totalStock - netChange;
+    
+    let filteredMovements: any[] = [];
+    let openingBalanceForPeriod = currentBalance;
+
+    allMovements.forEach(m => {
+        const mDate = new Date(m.date);
+        const isAfterStart = !startDate || mDate >= new Date(startDate);
+        const isBeforeEnd = !endDate || mDate <= new Date(endDate);
         
+        if (!startDate || mDate < new Date(startDate)) {
+            openingBalanceForPeriod += m.quantityChange;
+        }
+
+        currentBalance += m.quantityChange;
+        m.runningBalance = currentBalance;
+
+        if (isAfterStart && isBeforeEnd) {
+            filteredMovements.push(m);
+        }
+    });
+
+    const dateRangeText = startDate && endDate ? `من ${formatDate(startDate)} إلى ${formatDate(endDate)}` : (startDate ? `من ${formatDate(startDate)}` : (endDate ? `حتى ${formatDate(endDate)}` : 'كل الأوقات'));
+
     const content = `
         <div class="header">
             <h1>شركة بطاح الأصلي لقطع غيار السيارات</h1>
             <h2>تقرير حركة صنف (كارت الصنف)</h2>
             <p>تاريخ التقرير: ${formatDate(new Date().toISOString())}</p>
+            <p>الفترة: ${dateRangeText}</p>
         </div>
         <div class="summary">
             <h3>بيانات الصنف</h3>
@@ -734,23 +842,45 @@ export const generateProductCardexReportContent = (appData: AppData, productId: 
                 <div class="summary-item" style="grid-column: span 2;"><p>اسم الصنف</p><strong>${product.name}</strong></div>
                 <div class="summary-item"><p>الكود (SKU)</p><strong>${product.sku}</strong></div>
                 <div class="summary-item"><p>سعر البيع</p><strong>${formatCurrency(product.sellingPrice)}</strong></div>
+                <div class="summary-item"><p>المخزون الفعلي الحالي</p><strong class="text-blue-600">${totalStock}</strong></div>
             </div>
         </div>
         <table>
-            <thead><tr><th>التاريخ والوقت</th><th>رقم الفاتورة</th><th>نوع الحركة</th><th>الفرع</th><th>الكمية</th><th>ملاحظات</th></tr></thead>
+            <thead>
+                <tr>
+                    <th>التاريخ والوقت</th>
+                    <th>رقم المرجع</th>
+                    <th>نوع الحركة</th>
+                    <th>الفرع</th>
+                    <th>الكمية</th>
+                    <th>الرصيد التراكمي</th>
+                    <th>ملاحظات</th>
+                </tr>
+            </thead>
             <tbody>
-                ${movements.length > 0 ? movements.map(m => {
-                    const quantityChange = m.direction === 'مرتجع' ? `+${m.quantity}` : `-${m.quantity}`;
-                    const rowClass = m.direction === 'مرتجع' ? 'text-green-600' : 'text-red-600';
+                <tr class="bg-gray-100 font-bold">
+                    <td colspan="5" style="text-align: right;">رصيد بداية المدة</td>
+                    <td class="text-blue-600">${openingBalanceForPeriod}</td>
+                    <td></td>
+                </tr>
+                ${filteredMovements.length > 0 ? filteredMovements.map(m => {
+                    const quantityChangeStr = m.quantityChange > 0 ? `+${m.quantityChange}` : `${m.quantityChange}`;
+                    const rowClass = m.quantityChange > 0 ? 'text-green-600' : 'text-red-600';
                     return `<tr>
                         <td dir="ltr">${formatDateTime(m.date, m.timestamp)}</td>
                         <td>${m.invoiceNumber}</td>
-                        <td>${m.direction}</td>
-                        <td>${m.branchSoldFrom}</td>
-                        <td class="${rowClass} font-bold">${quantityChange}</td>
+                        <td>${m.type}</td>
+                        <td>${m.branch}</td>
+                        <td class="${rowClass} font-bold" dir="ltr">${quantityChangeStr}</td>
+                        <td class="font-bold">${m.runningBalance}</td>
                         <td>${m.notes || '-'}</td>
                     </tr>`
-                }).join('') : `<tr><td colspan="6" style="text-align: center; padding: 20px;">لا توجد حركات مسجلة لهذا الصنف.</td></tr>`}
+                }).join('') : `<tr><td colspan="7" style="text-align: center; padding: 20px;">لا توجد حركات مسجلة لهذا الصنف في هذه الفترة.</td></tr>`}
+                <tr class="bg-gray-100 font-bold">
+                    <td colspan="5" style="text-align: right;">رصيد نهاية المدة</td>
+                    <td class="text-blue-600">${filteredMovements.length > 0 ? filteredMovements[filteredMovements.length - 1].runningBalance : openingBalanceForPeriod}</td>
+                    <td></td>
+                </tr>
             </tbody>
         </table>
         <div class="footer"><p>تم إنشاء هذا التقرير بواسطة نظام إدارة شركة بطاح الأصلي المتكامل</p></div>
@@ -841,4 +971,149 @@ export const generateSalesAnalysisReportContent = (appData: AppData) => {
         <div class="footer"><p>تم إنشاء هذا التقرير بواسطة نظام إدارة شركة بطاح الأصلي المتكامل</p></div>
     `;
     return generateReportHTML('تحليل المبيعات', '#059669', content);
+};
+
+export const generateFinancialClosingReportContent = (appData: AppData, startDate: string, endDate: string) => {
+    const { dailySales, expenses, payroll, products } = appData;
+
+    // Filter data by date range
+    const filteredSales = dailySales.filter(s => s.date >= startDate && s.date <= endDate);
+    const filteredExpenses = expenses.filter(e => e.date >= startDate && e.date <= endDate);
+    const filteredPayroll = payroll.filter(p => p.date >= startDate && p.date <= endDate);
+
+    // Calculate Sales and COGS
+    let totalSalesRevenue = 0;
+    let totalSalesReturns = 0;
+    let totalCOGS = 0;
+    let totalReturnsCOGS = 0;
+
+    filteredSales.forEach(sale => {
+        const items = normalizeSaleItems(sale);
+        
+        if (sale.direction === 'بيع') {
+            totalSalesRevenue += sale.totalAmount;
+            items.forEach(item => {
+                const product = products.find(p => p.id === item.productId);
+                if (product) {
+                    totalCOGS += (product.purchasePrice * item.quantity);
+                }
+            });
+        } else if (sale.direction === 'مرتجع') {
+            totalSalesReturns += sale.totalAmount;
+            items.forEach(item => {
+                const product = products.find(p => p.id === item.productId);
+                if (product) {
+                    totalReturnsCOGS += (product.purchasePrice * item.quantity);
+                }
+            });
+        }
+    });
+
+    const netSales = totalSalesRevenue - totalSalesReturns;
+    const netCOGS = totalCOGS - totalReturnsCOGS;
+    const grossProfit = netSales - netCOGS;
+
+    // Calculate Expenses
+    const totalExpenses = filteredExpenses.reduce((sum, e) => sum + e.amount, 0);
+    
+    // Calculate Payroll
+    const totalPayroll = filteredPayroll.reduce((sum, p) => sum + p.disbursed, 0);
+
+    // Calculate Net Profit
+    const netProfit = grossProfit - totalExpenses - totalPayroll;
+
+    const content = `
+        ${getReportStyles('#4f46e5')}
+        <div class="header">
+            <h1>تقرير تقفيل الحسابات (قائمة الدخل)</h1>
+            <h2>الفترة من: ${formatDate(startDate)} إلى: ${formatDate(endDate)}</h2>
+        </div>
+
+        <div class="summary">
+            <h3>ملخص الأرباح والخسائر</h3>
+            <div class="summary-grid">
+                <div class="summary-item">
+                    <p>إجمالي المبيعات</p>
+                    <strong>${formatCurrency(totalSalesRevenue)}</strong>
+                </div>
+                <div class="summary-item">
+                    <p>إجمالي المرتجعات</p>
+                    <strong>${formatCurrency(totalSalesReturns)}</strong>
+                </div>
+                <div class="summary-item">
+                    <p>صافي المبيعات</p>
+                    <strong>${formatCurrency(netSales)}</strong>
+                </div>
+                <div class="summary-item">
+                    <p>تكلفة البضاعة المباعة</p>
+                    <strong>${formatCurrency(netCOGS)}</strong>
+                </div>
+                <div class="summary-item" style="background-color: #f0fdf4; border-color: #22c55e;">
+                    <p style="color: #166534; font-weight: bold;">مجمل الربح</p>
+                    <strong style="color: #15803d;">${formatCurrency(grossProfit)}</strong>
+                </div>
+                <div class="summary-item">
+                    <p>إجمالي المصروفات</p>
+                    <strong>${formatCurrency(totalExpenses)}</strong>
+                </div>
+                <div class="summary-item">
+                    <p>إجمالي المرتبات المنصرفة</p>
+                    <strong>${formatCurrency(totalPayroll)}</strong>
+                </div>
+                <div class="summary-item" style="background-color: ${netProfit >= 0 ? '#dcfce7' : '#fee2e2'}; border-color: ${netProfit >= 0 ? '#22c55e' : '#ef4444'};">
+                    <p style="color: ${netProfit >= 0 ? '#166534' : '#991b1b'}; font-weight: bold;">صافي الربح / الخسارة</p>
+                    <strong style="color: ${netProfit >= 0 ? '#15803d' : '#b91c1c'}; font-size: 24px;">${formatCurrency(netProfit)}</strong>
+                </div>
+            </div>
+        </div>
+
+        <div class="sub-header">تفاصيل المصروفات</div>
+        <table>
+            <thead>
+                <tr>
+                    <th>التاريخ</th>
+                    <th>النوع</th>
+                    <th>البيان</th>
+                    <th>المبلغ</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${filteredExpenses.length > 0 ? filteredExpenses.map(e => `
+                    <tr>
+                        <td dir="ltr">${formatDate(e.date)}</td>
+                        <td>${e.type}</td>
+                        <td>${e.name}</td>
+                        <td>${formatCurrency(e.amount)}</td>
+                    </tr>
+                `).join('') : '<tr><td colspan="4" style="text-align: center;">لا توجد مصروفات في هذه الفترة</td></tr>'}
+            </tbody>
+        </table>
+
+        <div class="sub-header">تفاصيل المرتبات المنصرفة</div>
+        <table>
+            <thead>
+                <tr>
+                    <th>التاريخ</th>
+                    <th>الموظف</th>
+                    <th>الراتب الأساسي</th>
+                    <th>المبلغ المنصرف</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${filteredPayroll.length > 0 ? filteredPayroll.map(p => {
+                    const emp = appData.employees.find(e => e.id === p.employeeId);
+                    return `
+                    <tr>
+                        <td dir="ltr">${formatDate(p.date)}</td>
+                        <td>${emp ? emp.name : 'غير معروف'}</td>
+                        <td>${formatCurrency(p.basicSalary)}</td>
+                        <td>${formatCurrency(p.disbursed)}</td>
+                    </tr>
+                `}).join('') : '<tr><td colspan="4" style="text-align: center;">لا توجد مرتبات منصرفة في هذه الفترة</td></tr>'}
+            </tbody>
+        </table>
+        <div class="footer"><p>تم إنشاء هذا التقرير بواسطة نظام إدارة شركة بطاح الأصلي المتكامل</p></div>
+    `;
+
+    return generateReportHTML('تقرير تقفيل الحسابات', '#4f46e5', content);
 };

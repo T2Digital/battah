@@ -101,8 +101,9 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
 
     const { totalSales, transactionsCount } = useMemo(() => {
         const total = todaySales.reduce((sum, sale) => {
-            if (sale.direction === 'بيع') return sum + sale.totalAmount;
-            if (sale.direction === 'مرتجع') return sum - sale.totalAmount;
+            if (sale.direction === 'بيع' || sale.direction === 'مرتجع' || sale.direction === 'تبديل') {
+                return sum + sale.totalAmount;
+            }
             return sum;
         }, 0);
         return { totalSales: total, transactionsCount: todaySales.length };
@@ -196,47 +197,53 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
                 let amountIn = 0;
                 let amountOut = 0;
 
+                const totalPaid = (newSale.cashAmount || 0) + (newSale.electronicAmount || 0);
+
                 if (newSale.direction === 'بيع') {
                     transactionType = 'إيراد مبيعات';
-                    amountIn = newSale.totalAmount;
+                    amountIn = Math.abs(totalPaid);
                 } else if (newSale.direction === 'مرتجع') {
                     transactionType = 'مرتجع مبيعات';
-                    amountOut = newSale.totalAmount;
+                    amountOut = Math.abs(totalPaid);
                 } else if (newSale.direction === 'تبديل') {
                     if (newSale.totalAmount >= 0) {
                         transactionType = 'إيراد مبيعات';
-                        amountIn = newSale.totalAmount;
+                        amountIn = Math.abs(totalPaid);
                     } else {
                         transactionType = 'مرتجع مبيعات';
-                        amountOut = Math.abs(newSale.totalAmount);
+                        amountOut = Math.abs(totalPaid);
                     }
                 }
 
                 if (newSale.paymentMethod === 'مختلط' && newSale.cashAmount && newSale.electronicAmount) {
-                    // For mixed payments, we assume it's a positive total amount (customer pays us)
-                    // If it's negative, it's unlikely they use mixed payment for a refund, but we handle it just in case
-                    const cashIn = amountIn > 0 ? newSale.cashAmount : 0;
-                    const cashOut = amountOut > 0 ? newSale.cashAmount : 0;
-                    const elecIn = amountIn > 0 ? newSale.electronicAmount : 0;
-                    const elecOut = amountOut > 0 ? newSale.electronicAmount : 0;
+                    const cashIn = amountIn > 0 ? Math.abs(newSale.cashAmount) : 0;
+                    const cashOut = amountOut > 0 ? Math.abs(newSale.cashAmount) : 0;
+                    const elecIn = amountIn > 0 ? Math.abs(newSale.electronicAmount) : 0;
+                    const elecOut = amountOut > 0 ? Math.abs(newSale.electronicAmount) : 0;
 
-                    await addTreasuryTransaction({
-                        date: newSale.date, type: transactionType, description: `${newSale.direction} فاتورة #${newSale.invoiceNumber} (نقدي)`,
-                        amountIn: cashIn,
-                        amountOut: cashOut, relatedId: newSale.id, paymentMethod: 'cash'
-                    });
-                    await addTreasuryTransaction({
-                        date: newSale.date, type: transactionType, description: `${newSale.direction} فاتورة #${newSale.invoiceNumber} (إلكتروني)`,
-                        amountIn: elecIn,
-                        amountOut: elecOut, relatedId: newSale.id, paymentMethod: 'electronic'
-                    });
-                } else {
+                    if (cashIn > 0 || cashOut > 0) {
+                        await addTreasuryTransaction({
+                            date: newSale.date, type: transactionType, description: `${newSale.direction} فاتورة #${newSale.invoiceNumber} (نقدي)`,
+                            amountIn: cashIn,
+                            amountOut: cashOut, relatedId: newSale.id, paymentMethod: 'cash'
+                        });
+                    }
+                    if (elecIn > 0 || elecOut > 0) {
+                        await addTreasuryTransaction({
+                            date: newSale.date, type: transactionType, description: `${newSale.direction} فاتورة #${newSale.invoiceNumber} (إلكتروني)`,
+                            amountIn: elecIn,
+                            amountOut: elecOut, relatedId: newSale.id, paymentMethod: 'electronic'
+                        });
+                    }
+                } else if (newSale.paymentMethod !== 'آجل') {
                     const method = newSale.paymentMethod === 'إلكترونى' ? 'electronic' : 'cash';
-                    await addTreasuryTransaction({
-                        date: newSale.date, type: transactionType, description: `${newSale.direction} فاتورة #${newSale.invoiceNumber}`,
-                        amountIn: amountIn,
-                        amountOut: amountOut, relatedId: newSale.id, paymentMethod: method
-                    });
+                    if (amountIn > 0 || amountOut > 0) {
+                        await addTreasuryTransaction({
+                            date: newSale.date, type: transactionType, description: `${newSale.direction} فاتورة #${newSale.invoiceNumber}`,
+                            amountIn: amountIn,
+                            amountOut: amountOut, relatedId: newSale.id, paymentMethod: method
+                        });
+                    }
                 }
             }
         }
@@ -537,7 +544,7 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
                             {saleToView.discount ? (
                                 <div className="flex justify-between text-red-500">
                                     <span>خصم ({saleToView.discount}%):</span>
-                                    <span>-{formatCurrency((saleToView.totalAmount / (1 - (saleToView.discount/100))) * (saleToView.discount/100))}</span>
+                                    <span>-{formatCurrency(Math.abs((saleToView.totalAmount / (1 - (saleToView.discount/100))) * (saleToView.discount/100)))}</span>
                                 </div>
                             ) : null}
                             {saleToView.cashAmount ? (

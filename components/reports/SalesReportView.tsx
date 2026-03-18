@@ -78,15 +78,13 @@ const SalesReportView: React.FC<SalesReportViewProps> = ({ setActiveReport }) =>
             const items = normalizeSaleItems(sale);
             const saleCost = items.reduce((sum, item) => {
                  const product = products.find(p => p.id === item.productId);
-                 return sum + (product ? product.purchasePrice * item.quantity : 0);
+                 const itemCost = product ? product.purchasePrice * item.quantity : 0;
+                 return item.isReturn ? sum - itemCost : sum + itemCost;
             }, 0);
             
-            if (sale.direction === 'بيع') {
+            if (sale.direction === 'بيع' || sale.direction === 'مرتجع' || sale.direction === 'تبديل') {
                 acc[date].revenue += sale.totalAmount;
                 acc[date].cost += saleCost;
-            } else if (sale.direction === 'مرتجع') {
-                acc[date].revenue -= sale.totalAmount;
-                acc[date].cost -= saleCost;
             }
             return acc;
         }, {} as Record<string, { revenue: number; cost: number }>);

@@ -18,6 +18,7 @@ const statusMap: Record<Order['status'], { text: string; color: string }> = {
     shipped: { text: 'تم الشحن', color: 'text-green-500' },
     cancelled: { text: 'ملغي', color: 'text-red-500' },
     collected: { text: 'تم الاستلام', color: 'text-purple-500' },
+    returned: { text: 'مرتجع', color: 'text-gray-500' },
 };
 
 const MyOrdersModal: React.FC<MyOrdersModalProps> = ({ isOpen, onClose }) => {

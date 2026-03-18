@@ -38,9 +38,9 @@ const InventoryReports: React.FC<InventoryReportsProps> = ({ setActiveReport }) 
         }
     };
     
-    const handleProductSelectForCardex = (product: Product) => {
+    const handleProductSelectForCardex = (product: Product, startDate: string, endDate: string) => {
         setProductSelectorOpen(false);
-        const content = generateProductCardexReportContent(appData, product.id);
+        const content = generateProductCardexReportContent(appData, product.id, startDate, endDate);
         openReportWindow(`كارت الصنف - ${product.name}`, content);
     };
 

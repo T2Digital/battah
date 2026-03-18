@@ -899,21 +899,33 @@ const useStore = create<AppState & AppActions>((set, get) => ({
         }
     },
     addPayment: async (payment) => {
-        const maxId = Math.max(0, ...(get().appData?.payments.map(p => Number(p.id) || 0) || []));
-        const newPayment = { ...payment, id: maxId + 1, timestamp: new Date().toISOString() };
-        await setDoc(doc(db, "payments", String(newPayment.id)), newPayment);
-        if (newPayment.payment > 0) {
-            const supplierName = get().appData?.suppliers.find(s => s.id === newPayment.supplierId)?.name || 'مورد';
-            await get().addTreasuryTransaction({
-                date: newPayment.date, type: 'دفعة لمورد', description: `دفعة لـ ${supplierName}`,
-                amountIn: 0, amountOut: newPayment.payment, relatedId: newPayment.id
-            });
+        try {
+            const maxId = Math.max(0, ...(get().appData?.payments.map(p => Number(p.id) || 0) || []));
+            const newPayment = { ...payment, id: maxId + 1, timestamp: new Date().toISOString() };
+            await setDoc(doc(db, "payments", String(newPayment.id)), newPayment);
+            if (newPayment.payment > 0) {
+                const supplierName = get().appData?.suppliers.find(s => s.id === newPayment.supplierId)?.name || 'مورد';
+                await get().addTreasuryTransaction({
+                    date: newPayment.date, type: 'دفعة لمورد', description: `دفعة لـ ${supplierName}`,
+                    amountIn: 0, amountOut: newPayment.payment, relatedId: newPayment.id
+                });
+            }
+            get().addToast('تم إضافة الدفعة بنجاح', 'success');
+        } catch (error) {
+            console.error("Error adding payment:", error);
+            get().addToast('حدث خطأ أثناء إضافة الدفعة', 'error');
+            throw error;
         }
-        get().addToast('تم إضافة الدفعة بنجاح', 'success');
     },
     updatePayment: async (paymentId, updates) => {
-        await updateDoc(doc(db, "payments", String(paymentId)), updates);
-        get().addToast('تم تحديث الدفعة بنجاح', 'success');
+        try {
+            await updateDoc(doc(db, "payments", String(paymentId)), updates);
+            get().addToast('تم تحديث الدفعة بنجاح', 'success');
+        } catch (error) {
+            console.error("Error updating payment:", error);
+            get().addToast('حدث خطأ أثناء تحديث الدفعة', 'error');
+            throw error;
+        }
     },
     deletePayment: async (paymentId) => {
         try {
@@ -964,9 +976,14 @@ const useStore = create<AppState & AppActions>((set, get) => ({
         await setDoc(doc(db, "settings", "storefront"), settings, { merge: true });
     },
     addTreasuryTransaction: async (transaction) => {
-        const maxId = Math.max(0, ...(get().appData?.treasury.map(t => Number(t.id) || 0) || []));
-        const newTransaction = { ...transaction, id: maxId + 1, timestamp: new Date().toISOString() };
-        await setDoc(doc(db, "treasury", String(newTransaction.id)), newTransaction);
+        try {
+            const maxId = Math.max(0, ...(get().appData?.treasury.map(t => Number(t.id) || 0) || []));
+            const newTransaction = { ...transaction, id: maxId + 1, timestamp: new Date().toISOString() };
+            await setDoc(doc(db, "treasury", String(newTransaction.id)), newTransaction);
+        } catch (error) {
+            console.error("Error adding treasury transaction:", error);
+            throw error;
+        }
     },
     deleteTreasuryTransaction: async (transactionId) => {
         await deleteDoc(doc(db, "treasury", String(transactionId)));

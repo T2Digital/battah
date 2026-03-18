@@ -104,6 +104,7 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveSection }) => {
         pendingOrders: true,
         suppliersDebt: true,
         customersDebt: true,
+        todaySupplierPayments: true,
     };
 
     const [visibleCards, setVisibleCards] = useState(() => {
@@ -139,7 +140,7 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveSection }) => {
     const { 
         currentTreasuryBalance, dailyNetProfit, sellerTodaySales,
         todayInvoicesCount, todayExpensesTotal, reorderPointProductsCount, pendingOrdersCount, dailySalesTotal,
-        todayBranchSales, todayOnlineSales, suppliersDebt, customersDebt
+        todayBranchSales, todayOnlineSales, suppliersDebt, customersDebt, todaySupplierPayments
     } = useMemo(() => {
         let balance = (treasury || []).reduce((sum, t) => sum + (t.amountIn || 0) - (t.amountOut || 0), 0);
 
@@ -159,10 +160,11 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveSection }) => {
             const items = normalizeSaleItems(sale);
             const saleCost = items.reduce((sum, item) => {
                 const product = (products || []).find(p => p.id === item.productId);
-                return sum + (product ? product.purchasePrice * item.quantity : 0);
+                const itemCost = product ? product.purchasePrice * item.quantity : 0;
+                return item.isReturn ? sum - itemCost : sum + itemCost;
             }, 0);
 
-            if (sale.direction === 'بيع') {
+            if (sale.direction === 'بيع' || sale.direction === 'مرتجع' || sale.direction === 'تبديل') {
                 profit += (saleRevenue - saleCost);
                 totalSalesAmount += saleRevenue;
                 if (sale.source === 'أونلاين') {
@@ -170,22 +172,14 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveSection }) => {
                 } else {
                     branchSales += saleRevenue;
                 }
-            } else if (sale.direction === 'مرتجع') {
-                profit -= (saleRevenue - saleCost);
-                totalSalesAmount -= saleRevenue;
-                if (sale.source === 'أونلاين') {
-                    onlineSales -= saleRevenue;
-                } else {
-                    branchSales -= saleRevenue;
-                }
             }
         });
         
         let sellerSales = null;
         if(currentUser?.role === 'seller') {
             sellerSales = todaySales
-                .filter(s => s.sellerId === currentUser.id)
-                .reduce((sum, s) => sum + (s.direction === 'بيع' ? s.totalAmount : -s.totalAmount), 0);
+                .filter(s => s.sellerId === currentUser.id && (s.direction === 'بيع' || s.direction === 'مرتجع' || s.direction === 'تبديل'))
+                .reduce((sum, s) => sum + s.totalAmount, 0);
         }
 
         const invoicesCount = todaySales.length;
@@ -196,8 +190,27 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveSection }) => {
         }).length;
         const pendingCount = (orders || []).filter(o => o.status === 'pending').length;
 
-        const sDebt = (purchaseOrders || []).reduce((sum, po) => sum + (po.type === 'مرتجع' ? -po.totalAmount : po.totalAmount), 0) - (payments || []).reduce((sum, p) => sum + p.payment, 0);
-        const cDebt = (dailySales || []).reduce((sum, sale) => sum + (sale.remainingDebt || 0), 0);
+        const sDebtMap = new Map<number, number>();
+        (purchaseOrders || []).forEach(po => {
+            const currentDebt = sDebtMap.get(po.supplierId) || 0;
+            sDebtMap.set(po.supplierId, currentDebt + (po.type === 'مرتجع' ? -po.totalAmount : po.totalAmount));
+        });
+        (payments || []).forEach(p => {
+            const currentDebt = sDebtMap.get(p.supplierId) || 0;
+            sDebtMap.set(p.supplierId, currentDebt - p.payment);
+        });
+        const sDebt = Array.from(sDebtMap.values()).reduce((sum, debt) => sum + (debt > 0 ? debt : 0), 0);
+
+        const cDebtMap = new Map<string, number>();
+        (dailySales || []).forEach(sale => {
+            const phone = sale.customerPhone || 'بدون رقم';
+            if (phone === 'بدون رقم' && !sale.customerName) return;
+            const currentDebt = cDebtMap.get(phone) || 0;
+            cDebtMap.set(phone, currentDebt + (sale.remainingDebt || 0));
+        });
+        const cDebt = Array.from(cDebtMap.values()).reduce((sum, debt) => sum + (debt > 0 ? debt : 0), 0);
+
+        const todaySupplierPayments = (payments || []).filter(p => p.date === todayStr).reduce((sum, p) => sum + p.payment, 0);
 
         return { 
             currentTreasuryBalance: balance, 
@@ -211,7 +224,8 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveSection }) => {
             todayBranchSales: branchSales,
             todayOnlineSales: onlineSales,
             suppliersDebt: sDebt,
-            customersDebt: cDebt
+            customersDebt: cDebt,
+            todaySupplierPayments
         };
     }, [treasury, dailySales, products, expenses, orders, todayStr, currentUser, users, purchaseOrders, payments]);
 
@@ -234,39 +248,28 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveSection }) => {
             </div>
              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 {visibleCards.treasury && (
-                    <div onClick={() => setActiveSection(Section.Treasury)} className="cursor-pointer">
-                        <StatCard icon="fa-wallet" title="رصيد الخزينة الحالي" value={currentTreasuryBalance} isCurrency />
-                    </div>
+                    <StatCard icon="fa-wallet" title="رصيد الخزينة الحالي" value={currentTreasuryBalance} isCurrency onViewDetails={() => setActiveSection(Section.Treasury)} />
                 )}
                 {visibleCards.profit && (
-                    <div onClick={() => setActiveSection(Section.DailySales)} className="cursor-pointer">
-                        <StatCard icon="fa-chart-pie" title={currentUser?.role === Role.BranchManager ? `صافي ربح فرعك اليوم` : `صافي الربح اليومي`} value={dailyNetProfit} isCurrency />
-                    </div>
+                    <StatCard icon="fa-chart-pie" title={currentUser?.role === Role.BranchManager ? `صافي ربح فرعك اليوم` : `صافي الربح اليومي`} value={dailyNetProfit} isCurrency onViewDetails={() => setActiveSection(Section.DailySales)} />
                 )}
                 {visibleCards.todaySalesTotal && (
-                     <div onClick={() => setActiveSection(Section.DailySales)} className="cursor-pointer">
-                        <StatCard icon="fa-shopping-cart" title="إجمالي مبيعات اليوم" value={dailySalesTotal} isCurrency />
-                    </div>
+                    <StatCard icon="fa-shopping-cart" title="إجمالي مبيعات اليوم" value={dailySalesTotal} isCurrency onViewDetails={() => setActiveSection(Section.DailySales)} />
                 )}
                 {visibleCards.todayBranchSales && (
-                     <div onClick={() => setActiveSection(Section.DailySales)} className="cursor-pointer">
-                        <StatCard icon="fa-store" title="مبيعات الفروع اليوم" value={todayBranchSales} isCurrency />
-                    </div>
+                    <StatCard icon="fa-store" title="مبيعات الفروع اليوم" value={todayBranchSales} isCurrency onViewDetails={() => setActiveSection(Section.DailySales)} />
                 )}
                 {visibleCards.todayOnlineSales && (
-                     <div onClick={() => setActiveSection(Section.DailySales)} className="cursor-pointer">
-                        <StatCard icon="fa-globe" title="مبيعات الأونلاين اليوم" value={todayOnlineSales} isCurrency />
-                    </div>
+                    <StatCard icon="fa-globe" title="مبيعات الأونلاين اليوم" value={todayOnlineSales} isCurrency onViewDetails={() => setActiveSection(Section.DailySales)} />
                 )}
                 {visibleCards.suppliersDebt && (
-                    <div onClick={() => setActiveSection(Section.Suppliers)} className="cursor-pointer">
-                        <StatCard icon="fa-truck" title="مديونية الموردين" value={suppliersDebt} isCurrency />
-                    </div>
+                    <StatCard icon="fa-truck" title="مديونية الموردين" value={suppliersDebt} isCurrency onViewDetails={() => setActiveSection(Section.Suppliers)} />
                 )}
                 {visibleCards.customersDebt && (
-                    <div onClick={() => setActiveSection(Section.DailySales)} className="cursor-pointer">
-                        <StatCard icon="fa-users" title="مديونية العملاء" value={customersDebt} isCurrency />
-                    </div>
+                    <StatCard icon="fa-users" title="مديونية العملاء" value={customersDebt} isCurrency onViewDetails={() => setActiveSection(Section.Customers)} />
+                )}
+                {visibleCards.todaySupplierPayments && (
+                    <StatCard icon="fa-money-bill-wave" title="دفعات الموردين اليوم" value={todaySupplierPayments} isCurrency onViewDetails={() => setActiveSection(Section.Suppliers)} />
                 )}
                 {visibleCards.sellerSales && sellerTodaySales !== null && (
                      <StatCard icon="fa-user-tag" title="مبيعاتك اليوم" value={sellerTodaySales} isCurrency />
@@ -275,19 +278,13 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveSection }) => {
                      <StatCard icon="fa-file-invoice" title="عدد فواتير اليوم" value={todayInvoicesCount.toString()} />
                 )}
                 {visibleCards.todayExpenses && (
-                    <div onClick={() => setActiveSection(Section.Expenses)} className="cursor-pointer">
-                        <StatCard icon="fa-receipt" title="مصروفات اليوم" value={todayExpensesTotal} isCurrency />
-                    </div>
+                    <StatCard icon="fa-receipt" title="مصروفات اليوم" value={todayExpensesTotal} isCurrency onViewDetails={() => setActiveSection(Section.Expenses)} />
                 )}
                 {visibleCards.reorderPoint && (
-                    <div onClick={() => setActiveSection(Section.StoreManagement)} className="cursor-pointer">
-                        <StatCard icon="fa-exclamation-triangle" title="منتجات وصلت لحد الطلب" value={reorderPointProductsCount.toString()} />
-                    </div>
+                    <StatCard icon="fa-exclamation-triangle" title="منتجات وصلت لحد الطلب" value={reorderPointProductsCount.toString()} onViewDetails={() => setActiveSection(Section.StoreManagement)} />
                 )}
                 {visibleCards.pendingOrders && (
-                    <div onClick={() => setActiveSection(Section.Orders)} className="cursor-pointer">
-                        <StatCard icon="fa-box" title="طلبات أونلاين معلقة" value={pendingOrdersCount.toString()} />
-                    </div>
+                    <StatCard icon="fa-box" title="طلبات أونلاين معلقة" value={pendingOrdersCount.toString()} onViewDetails={() => setActiveSection(Section.Orders)} />
                 )}
             </div>
 
@@ -332,7 +329,7 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveSection }) => {
             </div>
 
              <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg">
-                <RecentActivities employees={employees || []} advances={advances || []} expenses={expenses || []} />
+                <RecentActivities appData={appData} />
             </div>
 
             <CustomizeDashboardModal

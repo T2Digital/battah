@@ -283,6 +283,15 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
             return;
         }
 
+        let finalCashAmount = cashAmount;
+        let finalElectronicAmount = electronicAmount;
+
+        if (paymentMethod === 'نقدى' && cashAmount === 0) {
+            finalCashAmount = Math.abs(totalAmount);
+        } else if (paymentMethod === 'إلكترونى' && electronicAmount === 0) {
+            finalElectronicAmount = Math.abs(totalAmount);
+        }
+
         for (const item of items) {
              const product = products.find(p => p.id === item.productId);
              if (product && item.quantity > product.stock[branchSoldFrom] && direction === 'بيع') {
@@ -314,11 +323,11 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
             discount: discount || 0, // Ensure discount is not undefined
             cashierLocation,
             paymentMethod,
-            cashAmount: paymentMethod === 'نقدى' ? cashAmount : (paymentMethod === 'إلكترونى' || paymentMethod === 'آجل' ? 0 : cashAmount),
-            electronicAmount: paymentMethod === 'إلكترونى' ? electronicAmount : (paymentMethod === 'نقدى' || paymentMethod === 'آجل' ? 0 : electronicAmount),
+            cashAmount: paymentMethod === 'نقدى' ? finalCashAmount : (paymentMethod === 'إلكترونى' || paymentMethod === 'آجل' ? 0 : finalCashAmount),
+            electronicAmount: paymentMethod === 'إلكترونى' ? finalElectronicAmount : (paymentMethod === 'نقدى' || paymentMethod === 'آجل' ? 0 : finalElectronicAmount),
             customerName,
             customerPhone,
-            remainingDebt: paymentMethod === 'آجل' ? totalAmount : (paymentMethod === 'نقدى' ? totalAmount - cashAmount : (paymentMethod === 'إلكترونى' ? totalAmount - electronicAmount : totalAmount - (cashAmount + electronicAmount))),
+            remainingDebt: paymentMethod === 'آجل' ? totalAmount : (paymentMethod === 'نقدى' ? totalAmount - (Math.sign(totalAmount) * finalCashAmount) : (paymentMethod === 'إلكترونى' ? totalAmount - (Math.sign(totalAmount) * finalElectronicAmount) : totalAmount - (Math.sign(totalAmount) * (finalCashAmount + finalElectronicAmount)))),
             items: items.map(({ stock, ...rest }) => ({
                 ...rest,
                 hasSerialNumber: rest.hasSerialNumber || false, // Ensure boolean
@@ -555,7 +564,7 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
                                     <input type="number" value={cashAmount === 0 ? '' : cashAmount} onChange={e => {
                                         const val = Number(e.target.value);
                                         setCashAmount(val);
-                                        setElectronicAmount(Math.max(0, totalAmount - val));
+                                        setElectronicAmount(Math.max(0, Math.abs(totalAmount) - val));
                                     }} className="w-full mt-1 p-2 border rounded dark:bg-gray-700 dark:border-gray-600" />
                                 </div>
                                 <div>
@@ -563,7 +572,7 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
                                     <input type="number" value={electronicAmount === 0 ? '' : electronicAmount} onChange={e => {
                                         const val = Number(e.target.value);
                                         setElectronicAmount(val);
-                                        setCashAmount(Math.max(0, totalAmount - val));
+                                        setCashAmount(Math.max(0, Math.abs(totalAmount) - val));
                                     }} className="w-full mt-1 p-2 border rounded dark:bg-gray-700 dark:border-gray-600" />
                                 </div>
                             </div>
@@ -575,7 +584,7 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
                                         <span>المدفوع ({paymentMethod})</span>
                                         <button 
                                             type="button" 
-                                            onClick={() => paymentMethod === 'نقدى' ? setCashAmount(totalAmount) : setElectronicAmount(totalAmount)}
+                                            onClick={() => paymentMethod === 'نقدى' ? setCashAmount(Math.abs(totalAmount)) : setElectronicAmount(Math.abs(totalAmount))}
                                             className="text-xs text-primary hover:underline"
                                         >
                                             مدفوع بالكامل
@@ -592,14 +601,14 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
                                     <label>المتبقي (آجل)</label>
                                     <input 
                                         type="number" 
-                                        value={Math.max(0, totalAmount - (paymentMethod === 'نقدى' ? cashAmount : electronicAmount))} 
+                                        value={Math.max(0, Math.abs(totalAmount) - (paymentMethod === 'نقدى' ? cashAmount : electronicAmount))} 
                                         readOnly 
                                         className="w-full mt-1 p-2 border rounded bg-gray-100 dark:bg-gray-600 dark:border-gray-500 text-red-500 font-bold" 
                                     />
                                 </div>
                             </div>
                         )}
-                        {(paymentMethod === 'آجل' || paymentMethod === 'مختلط' || (paymentMethod === 'نقدى' && totalAmount - cashAmount > 0) || (paymentMethod === 'إلكترونى' && totalAmount - electronicAmount > 0)) && (
+                        {(paymentMethod === 'آجل' || paymentMethod === 'مختلط' || (paymentMethod === 'نقدى' && Math.abs(totalAmount) - cashAmount > 0) || (paymentMethod === 'إلكترونى' && Math.abs(totalAmount) - electronicAmount > 0)) && (
                             <>
                                 <div>
                                     <label>اسم العميل</label>
