@@ -1,13 +1,13 @@
 
 import React, { useState } from 'react';
 // Fix: Corrected import path
-import { PurchaseOrder, Product } from '../../types';
+import { PurchaseOrder, Product, PurchaseOrderItem } from '../../types';
 import Modal from '../shared/Modal';
 
 interface ReceiveOrderModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onConfirm: (orderId: number, receivedItems: { productId: number; quantity: number }[], receivedInto: 'main' | 'branch1' | 'branch2' | 'branch3') => void;
+    onConfirm: (orderId: number, receivedItems: PurchaseOrderItem[], receivedInto: 'main' | 'branch1' | 'branch2' | 'branch3') => void;
     order: PurchaseOrder;
     products: Product[];
 }

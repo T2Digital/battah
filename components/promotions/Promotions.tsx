@@ -161,6 +161,7 @@ const Promotions: React.FC = () => {
                     title="تأكيد الحذف"
                     message={`هل أنت متأكد من حذف كود الخصم "${codeToDelete.code}"؟`}
                     isLoading={isDeleting}
+                    requireSecurityCheck={true}
                 />
             )}
         </div>

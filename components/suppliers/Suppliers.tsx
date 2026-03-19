@@ -246,7 +246,7 @@ const SupplierDetails: React.FC<{
     const supplierOrders = useMemo(() => purchaseOrders.filter(po => po.supplierId === supplier.id), [purchaseOrders, supplier.id]);
     const supplierPayments = useMemo(() => payments.filter(p => p.supplierId === supplier.id), [payments, supplier.id]);
 
-    const totalInvoices = useMemo(() => supplierOrders.reduce((sum, po) => sum + (po.type === 'مرتجع' ? -po.totalAmount : po.totalAmount), 0), [supplierOrders]);
+    const totalInvoices = useMemo(() => supplierOrders.filter(po => po.status === 'مكتمل').reduce((sum, po) => sum + (po.type === 'مرتجع' ? -po.totalAmount : po.totalAmount), 0), [supplierOrders]);
     const totalPaid = useMemo(() => supplierPayments.reduce((sum, p) => sum + p.payment, 0), [supplierPayments]);
     const remainingBalance = totalInvoices - totalPaid;
 
@@ -283,12 +283,12 @@ const SupplierDetails: React.FC<{
                         <table className="w-full text-sm text-right text-gray-500 dark:text-gray-400">
                             <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-300">
                                 <tr>
-                                    <th className="px-4 py-3">رقم الأمر</th>
-                                    <th className="px-4 py-3">النوع</th>
-                                    <th className="px-4 py-3">التاريخ</th>
-                                    <th className="px-4 py-3">الإجمالي</th>
-                                    <th className="px-4 py-3">الحالة</th>
-                                    <th className="px-4 py-3">الإجراءات</th>
+                                    <th className="px-4 py-3 whitespace-nowrap">رقم الأمر</th>
+                                    <th className="px-4 py-3 whitespace-nowrap">النوع</th>
+                                    <th className="px-4 py-3 whitespace-nowrap">التاريخ</th>
+                                    <th className="px-4 py-3 whitespace-nowrap">الإجمالي</th>
+                                    <th className="px-4 py-3 whitespace-nowrap">الحالة</th>
+                                    <th className="px-4 py-3 whitespace-nowrap">الإجراءات</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -297,17 +297,17 @@ const SupplierDetails: React.FC<{
                                 ) : (
                                     supplierOrders.map(po => (
                                         <tr key={po.id} className="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
-                                            <td className="px-4 py-3">PO-{po.id.toString().padStart(4, '0')}</td>
-                                            <td className="px-4 py-3">
+                                            <td className="px-4 py-3 whitespace-nowrap">PO-{po.id.toString().padStart(4, '0')}</td>
+                                            <td className="px-4 py-3 whitespace-nowrap">
                                                 <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                                                     po.type === 'مرتجع' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300' : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300'
                                                 }`}>
                                                     {po.type || 'شراء'}
                                                 </span>
                                             </td>
-                                            <td className="px-4 py-3">{formatDate(po.orderDate)}</td>
-                                            <td className="px-4 py-3">{formatCurrency(po.totalAmount)}</td>
-                                            <td className="px-4 py-3">
+                                            <td className="px-4 py-3 whitespace-nowrap">{formatDate(po.orderDate)}</td>
+                                            <td className="px-4 py-3 whitespace-nowrap">{formatCurrency(po.totalAmount)}</td>
+                                            <td className="px-4 py-3 whitespace-nowrap">
                                                 <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                                                     po.status === 'مكتمل' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300' :
                                                     po.status === 'ملغي' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300' :
@@ -316,7 +316,7 @@ const SupplierDetails: React.FC<{
                                                     {po.status}
                                                 </span>
                                             </td>
-                                            <td className="px-4 py-3">
+                                            <td className="px-4 py-3 whitespace-nowrap">
                                                 <div className="flex items-center gap-3">
                                                     <button onClick={() => onViewOrder(po)} className="text-blue-500 hover:text-blue-700 text-sm flex items-center gap-1" title="التفاصيل">
                                                         <i className="fas fa-eye"></i>
@@ -343,9 +343,9 @@ const SupplierDetails: React.FC<{
                         <table className="w-full text-sm text-right text-gray-500 dark:text-gray-400">
                             <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-300">
                                 <tr>
-                                    <th className="px-4 py-3">التاريخ</th>
-                                    <th className="px-4 py-3">المبلغ</th>
-                                    <th className="px-4 py-3">ملاحظات</th>
+                                    <th className="px-4 py-3 whitespace-nowrap">التاريخ</th>
+                                    <th className="px-4 py-3 whitespace-nowrap">المبلغ</th>
+                                    <th className="px-4 py-3 whitespace-nowrap">ملاحظات</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -354,9 +354,9 @@ const SupplierDetails: React.FC<{
                                 ) : (
                                     supplierPayments.map(p => (
                                         <tr key={p.id} className="border-b dark:border-gray-700">
-                                            <td className="px-4 py-3">{formatDate(p.date)}</td>
-                                            <td className="px-4 py-3 text-green-600 font-bold">{formatCurrency(p.payment)}</td>
-                                            <td className="px-4 py-3">{p.notes || '-'}</td>
+                                            <td className="px-4 py-3 whitespace-nowrap">{formatDate(p.date)}</td>
+                                            <td className="px-4 py-3 whitespace-nowrap text-green-600 font-bold">{formatCurrency(p.payment)}</td>
+                                            <td className="px-4 py-3 whitespace-nowrap">{p.notes || '-'}</td>
                                         </tr>
                                     ))
                                 )}
@@ -452,10 +452,6 @@ const Suppliers: React.FC<SuppliersProps> = ({ suppliers, payments, addPayment, 
             // 1. Add the purchase order (it will be marked as 'مكتمل' by the modal)
             await addPurchaseOrder(order);
             
-            // 2. Update the stock for each item
-            for (const item of order.items) {
-                await updateProductStock(item.productId, branch, item.quantity);
-            }
             setDirectStatementModalOpen(false);
             alert('تم إضافة بيان البضاعة وتحديث المخزون بنجاح.');
         } catch (error) {
@@ -468,9 +464,6 @@ const Suppliers: React.FC<SuppliersProps> = ({ suppliers, payments, addPayment, 
         try {
             await addPurchaseOrder({ ...order, type: 'مرتجع', status: 'مكتمل' });
             
-            for (const item of order.items) {
-                await updateProductStock(item.productId, branch, -item.quantity);
-            }
             setReturnModalOpen(false);
             alert('تم إضافة مردود المشتريات وتحديث المخزون بنجاح.');
         } catch (error) {
@@ -509,7 +502,7 @@ const Suppliers: React.FC<SuppliersProps> = ({ suppliers, payments, addPayment, 
 
     const suppliersWithBalance = useMemo(() => {
         return suppliers.map(s => {
-            const supplierOrders = purchaseOrders.filter(po => po.supplierId === s.id);
+            const supplierOrders = purchaseOrders.filter(po => po.supplierId === s.id && po.status === 'مكتمل');
             const supplierPayments = payments.filter(p => p.supplierId === s.id);
             const totalInvoices = supplierOrders.reduce((sum, po) => sum + (po.type === 'مرتجع' ? -po.totalAmount : po.totalAmount), 0);
             const totalPaid = supplierPayments.reduce((sum, p) => sum + p.payment, 0);
@@ -531,167 +524,8 @@ const Suppliers: React.FC<SuppliersProps> = ({ suppliers, payments, addPayment, 
             .sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     }, [payments, suppliers]);
 
-    if (selectedSupplier) {
-        return (
-            <>
-                <SupplierDetails
-                    supplier={selectedSupplier}
-                    onBack={() => setSelectedSupplier(null)}
-                    purchaseOrders={purchaseOrders}
-                    payments={payments}
-                    onViewOrder={setOrderToView}
-                    onEditOrder={setOrderToEdit}
-                    onDeleteOrder={setOrderToDelete}
-                />
-            </>
-        );
-    }
-
-    return (
-        <div className="animate-fade-in space-y-6">
-            <SectionHeader icon="fa-truck" title="الموردين والدفعات">
-                <button onClick={() => { setSupplierToEdit(null); setSupplierModalOpen(true); }} className="px-4 py-2 bg-primary text-white rounded-lg flex items-center gap-2 hover:bg-primary-dark transition shadow-md">
-                    <i className="fas fa-plus"></i> إضافة مورد
-                </button>
-                <button onClick={() => { setPaymentToEdit(null); setPaymentModalOpen(true); }} className="px-4 py-2 bg-secondary text-white rounded-lg flex items-center gap-2 hover:bg-secondary-dark transition shadow-md">
-                    <i className="fas fa-money-bill"></i> إضافة دفعة
-                </button>
-                <button onClick={() => setDirectStatementModalOpen(true)} className="px-4 py-2 bg-green-600 text-white rounded-lg flex items-center gap-2 hover:bg-green-700 transition shadow-md">
-                    <i className="fas fa-file-invoice"></i> بيان بضاعة مباشر
-                </button>
-                <button onClick={() => setReturnModalOpen(true)} className="px-4 py-2 bg-red-600 text-white rounded-lg flex items-center gap-2 hover:bg-red-700 transition shadow-md">
-                    <i className="fas fa-undo"></i> مردودات مشتريات
-                </button>
-            </SectionHeader>
-
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center text-blue-600 dark:text-blue-300 text-xl">
-                        <i className="fas fa-users"></i>
-                    </div>
-                    <div>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">إجمالي الموردين</p>
-                        <p className="text-xl font-bold text-gray-900 dark:text-white">{dashboardStats.totalSuppliers}</p>
-                    </div>
-                </div>
-                <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-full bg-purple-100 dark:bg-purple-900 flex items-center justify-center text-purple-600 dark:text-purple-300 text-xl">
-                        <i className="fas fa-file-invoice-dollar"></i>
-                    </div>
-                    <div>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">إجمالي الفواتير</p>
-                        <p className="text-xl font-bold text-gray-900 dark:text-white">{formatCurrency(dashboardStats.totalInvoices)}</p>
-                    </div>
-                </div>
-                <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center text-green-600 dark:text-green-300 text-xl">
-                        <i className="fas fa-money-check-alt"></i>
-                    </div>
-                    <div>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">إجمالي المدفوعات</p>
-                        <p className="text-xl font-bold text-gray-900 dark:text-white">{formatCurrency(dashboardStats.totalPaid)}</p>
-                    </div>
-                </div>
-                <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-900 flex items-center justify-center text-red-600 dark:text-red-300 text-xl">
-                        <i className="fas fa-hand-holding-usd"></i>
-                    </div>
-                    <div>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">إجمالي المديونية</p>
-                        <p className="text-xl font-bold text-red-600 dark:text-red-400">{formatCurrency(dashboardStats.totalDebt)}</p>
-                    </div>
-                </div>
-            </div>
-            
-            <div className="flex flex-col sm:flex-row justify-between items-center border-b dark:border-gray-700 pb-4 gap-4">
-                <div className="flex">
-                    <button onClick={() => setActiveTab('suppliers')} className={`px-6 py-3 font-semibold ${activeTab === 'suppliers' ? 'border-b-2 border-primary text-primary' : 'text-gray-500'}`}>الموردين</button>
-                    <button onClick={() => setActiveTab('payments')} className={`px-6 py-3 font-semibold ${activeTab === 'payments' ? 'border-b-2 border-primary text-primary' : 'text-gray-500'}`}>الدفعات</button>
-                </div>
-                <div className="w-full sm:w-64">
-                    <select 
-                        className="w-full p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 text-sm"
-                        onChange={(e) => {
-                            const supplier = suppliers.find(s => s.id === Number(e.target.value));
-                            if (supplier) setSelectedSupplier(supplier);
-                        }}
-                        value=""
-                    >
-                        <option value="" disabled>بحث عن مورد وعرض تفاصيله...</option>
-                        {suppliers.map(s => (
-                            <option key={s.id} value={s.id}>{s.name}</option>
-                        ))}
-                    </select>
-                </div>
-            </div>
-
-            {activeTab === 'suppliers' && (
-                <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-x-auto">
-                    <table className="w-full text-sm text-right text-gray-500 dark:text-gray-400">
-                        <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-300">
-                            <tr>
-                                <th className="px-6 py-3">اسم المورد</th>
-                                <th className="px-6 py-3">رقم الاتصال</th>
-                                <th className="px-6 py-3">العنوان</th>
-                                <th className="px-6 py-3">الرصيد المتبقي</th>
-                                <th className="px-6 py-3">الإجراءات</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {suppliersWithBalance.map(s => (
-                                <tr key={s.id} className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
-                                    <td className="px-6 py-4 font-medium text-gray-900 whitespace-nowrap dark:text-white">{s.name}</td>
-                                    <td className="px-6 py-4">{s.contact}</td>
-                                    <td className="px-6 py-4">{s.address}</td>
-                                    <td className={`px-6 py-4 font-bold ${s.remainingBalance > 0 ? 'text-red-600' : 'text-gray-900 dark:text-white'}`}>
-                                        {formatCurrency(s.remainingBalance)}
-                                    </td>
-                                    <td className="px-6 py-4 flex gap-3">
-                                        <button onClick={() => setSelectedSupplier(s)} className="text-green-600 hover:text-green-800" title="عرض التفاصيل"><i className="fas fa-eye"></i></button>
-                                        <button onClick={() => { setSupplierToEdit(s); setSupplierModalOpen(true); }} className="text-blue-500" title="تعديل"><i className="fas fa-edit"></i></button>
-                                        <button onClick={() => setSupplierToDelete(s)} className="text-red-500 w-6 text-center" title="حذف">
-                                            <i className="fas fa-trash"></i>
-                                        </button>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-            )}
-
-            {activeTab === 'payments' && (
-                 <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-x-auto">
-                    <table className="w-full text-sm text-right text-gray-500 dark:text-gray-400">
-                        <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-300">
-                            <tr>
-                                <th className="px-6 py-3">التاريخ</th>
-                                <th className="px-6 py-3">اسم المورد</th>
-                                <th className="px-6 py-3">مبلغ الدفعة</th>
-                                <th className="px-6 py-3">أمر الشراء</th>
-                                <th className="px-6 py-3">الإجراءات</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {paymentsWithDetails.map(p => (
-                                <tr key={p.id} className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
-                                    <td className="px-6 py-4">{formatDate(p.date)}</td>
-                                    <td className="px-6 py-4 font-medium text-gray-900 whitespace-nowrap dark:text-white">{p.supplierName}</td>
-                                    <td className="px-6 py-4">{formatCurrency(p.payment)}</td>
-                                    <td className="px-6 py-4">{p.purchaseOrderId ? `PO-${p.purchaseOrderId.toString().padStart(4, '0')}` : '-'}</td>
-                                    <td className="px-6 py-4 flex gap-3">
-                                        <button onClick={() => { setPaymentToEdit(p); setPaymentModalOpen(true); }} className="text-blue-500"><i className="fas fa-edit"></i></button>
-                                        <button onClick={() => setPaymentToDelete(p)} className="text-red-500 w-6 text-center">
-                                            <i className="fas fa-trash"></i>
-                                        </button>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-            )}
-            
+    const renderModals = () => (
+        <>
             <SupplierModal isOpen={isSupplierModalOpen} onClose={() => setSupplierModalOpen(false)} onSave={handleSaveSupplier} supplierToEdit={supplierToEdit} />
             <PaymentModal isOpen={isPaymentModalOpen} onClose={() => setPaymentModalOpen(false)} onSave={handleSavePayment} paymentToEdit={paymentToEdit} suppliers={suppliers} purchaseOrders={purchaseOrders}/>
 
@@ -795,6 +629,171 @@ const Suppliers: React.FC<SuppliersProps> = ({ suppliers, payments, addPayment, 
                     requireSecurityCheck={true}
                 />
             )}
+        </>
+    );
+
+    if (selectedSupplier) {
+        return (
+            <div className="animate-fade-in space-y-6">
+                <SupplierDetails
+                    supplier={selectedSupplier}
+                    onBack={() => setSelectedSupplier(null)}
+                    purchaseOrders={purchaseOrders}
+                    payments={payments}
+                    onViewOrder={setOrderToView}
+                    onEditOrder={setOrderToEdit}
+                    onDeleteOrder={setOrderToDelete}
+                />
+                {renderModals()}
+            </div>
+        );
+    }
+
+    return (
+        <div className="animate-fade-in space-y-6">
+            <SectionHeader icon="fa-truck" title="الموردين والدفعات">
+                <button onClick={() => { setSupplierToEdit(null); setSupplierModalOpen(true); }} className="px-4 py-2 bg-primary text-white rounded-lg flex items-center gap-2 hover:bg-primary-dark transition shadow-md">
+                    <i className="fas fa-plus"></i> إضافة مورد
+                </button>
+                <button onClick={() => { setPaymentToEdit(null); setPaymentModalOpen(true); }} className="px-4 py-2 bg-secondary text-white rounded-lg flex items-center gap-2 hover:bg-secondary-dark transition shadow-md">
+                    <i className="fas fa-money-bill"></i> إضافة دفعة
+                </button>
+                <button onClick={() => setDirectStatementModalOpen(true)} className="px-4 py-2 bg-green-600 text-white rounded-lg flex items-center gap-2 hover:bg-green-700 transition shadow-md">
+                    <i className="fas fa-file-invoice"></i> بيان بضاعة مباشر
+                </button>
+                <button onClick={() => setReturnModalOpen(true)} className="px-4 py-2 bg-red-600 text-white rounded-lg flex items-center gap-2 hover:bg-red-700 transition shadow-md">
+                    <i className="fas fa-undo"></i> مردودات مشتريات
+                </button>
+            </SectionHeader>
+
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center text-blue-600 dark:text-blue-300 text-xl">
+                        <i className="fas fa-users"></i>
+                    </div>
+                    <div>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">إجمالي الموردين</p>
+                        <p className="text-xl font-bold text-gray-900 dark:text-white">{dashboardStats.totalSuppliers}</p>
+                    </div>
+                </div>
+                <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-full bg-purple-100 dark:bg-purple-900 flex items-center justify-center text-purple-600 dark:text-purple-300 text-xl">
+                        <i className="fas fa-file-invoice-dollar"></i>
+                    </div>
+                    <div>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">إجمالي الفواتير</p>
+                        <p className="text-xl font-bold text-gray-900 dark:text-white">{formatCurrency(dashboardStats.totalInvoices)}</p>
+                    </div>
+                </div>
+                <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center text-green-600 dark:text-green-300 text-xl">
+                        <i className="fas fa-money-check-alt"></i>
+                    </div>
+                    <div>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">إجمالي المدفوعات</p>
+                        <p className="text-xl font-bold text-gray-900 dark:text-white">{formatCurrency(dashboardStats.totalPaid)}</p>
+                    </div>
+                </div>
+                <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-900 flex items-center justify-center text-red-600 dark:text-red-300 text-xl">
+                        <i className="fas fa-hand-holding-usd"></i>
+                    </div>
+                    <div>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">إجمالي المديونية</p>
+                        <p className="text-xl font-bold text-red-600 dark:text-red-400">{formatCurrency(dashboardStats.totalDebt)}</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div className="flex flex-col sm:flex-row justify-between items-center border-b dark:border-gray-700 pb-4 gap-4">
+                <div className="flex">
+                    <button onClick={() => setActiveTab('suppliers')} className={`px-6 py-3 font-semibold ${activeTab === 'suppliers' ? 'border-b-2 border-primary text-primary' : 'text-gray-500'}`}>الموردين</button>
+                    <button onClick={() => setActiveTab('payments')} className={`px-6 py-3 font-semibold ${activeTab === 'payments' ? 'border-b-2 border-primary text-primary' : 'text-gray-500'}`}>الدفعات</button>
+                </div>
+                <div className="w-full sm:w-64">
+                    <select 
+                        className="w-full p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 text-sm"
+                        onChange={(e) => {
+                            const supplier = suppliers.find(s => s.id === Number(e.target.value));
+                            if (supplier) setSelectedSupplier(supplier);
+                        }}
+                        value=""
+                    >
+                        <option value="" disabled>بحث عن مورد وعرض تفاصيله...</option>
+                        {suppliers.map(s => (
+                            <option key={s.id} value={s.id}>{s.name}</option>
+                        ))}
+                    </select>
+                </div>
+            </div>
+
+            {activeTab === 'suppliers' && (
+                <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-x-auto">
+                    <table className="w-full text-sm text-right text-gray-500 dark:text-gray-400">
+                        <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-300">
+                            <tr>
+                                <th className="px-6 py-3 whitespace-nowrap">اسم المورد</th>
+                                <th className="px-6 py-3 whitespace-nowrap">رقم الاتصال</th>
+                                <th className="px-6 py-3 whitespace-nowrap">العنوان</th>
+                                <th className="px-6 py-3 whitespace-nowrap">الرصيد المتبقي</th>
+                                <th className="px-6 py-3 whitespace-nowrap">الإجراءات</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {suppliersWithBalance.map(s => (
+                                <tr key={s.id} className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
+                                    <td className="px-6 py-4 font-medium text-gray-900 whitespace-nowrap dark:text-white">{s.name}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap">{s.contact}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap">{s.address}</td>
+                                    <td className={`px-6 py-4 font-bold whitespace-nowrap ${s.remainingBalance > 0 ? 'text-red-600' : 'text-gray-900 dark:text-white'}`}>
+                                        {formatCurrency(s.remainingBalance)}
+                                    </td>
+                                    <td className="px-6 py-4 flex gap-3 whitespace-nowrap">
+                                        <button onClick={() => setSelectedSupplier(s)} className="text-green-600 hover:text-green-800" title="عرض التفاصيل"><i className="fas fa-eye"></i></button>
+                                        <button onClick={() => { setSupplierToEdit(s); setSupplierModalOpen(true); }} className="text-blue-500" title="تعديل"><i className="fas fa-edit"></i></button>
+                                        <button onClick={() => setSupplierToDelete(s)} className="text-red-500 w-6 text-center" title="حذف">
+                                            <i className="fas fa-trash"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+
+            {activeTab === 'payments' && (
+                 <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-x-auto">
+                    <table className="w-full text-sm text-right text-gray-500 dark:text-gray-400">
+                        <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-300">
+                            <tr>
+                                <th className="px-6 py-3 whitespace-nowrap">التاريخ</th>
+                                <th className="px-6 py-3 whitespace-nowrap">اسم المورد</th>
+                                <th className="px-6 py-3 whitespace-nowrap">مبلغ الدفعة</th>
+                                <th className="px-6 py-3 whitespace-nowrap">أمر الشراء</th>
+                                <th className="px-6 py-3 whitespace-nowrap">الإجراءات</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {paymentsWithDetails.map(p => (
+                                <tr key={p.id} className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
+                                    <td className="px-6 py-4 whitespace-nowrap">{formatDate(p.date)}</td>
+                                    <td className="px-6 py-4 font-medium text-gray-900 whitespace-nowrap dark:text-white">{p.supplierName}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap">{formatCurrency(p.payment)}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap">{p.purchaseOrderId ? `PO-${p.purchaseOrderId.toString().padStart(4, '0')}` : '-'}</td>
+                                    <td className="px-6 py-4 flex gap-3 whitespace-nowrap">
+                                        <button onClick={() => { setPaymentToEdit(p); setPaymentModalOpen(true); }} className="text-blue-500"><i className="fas fa-edit"></i></button>
+                                        <button onClick={() => setPaymentToDelete(p)} className="text-red-500 w-6 text-center">
+                                            <i className="fas fa-trash"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+            {renderModals()}
         </div>
     );
 };

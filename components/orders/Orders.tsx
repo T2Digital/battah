@@ -494,6 +494,7 @@ const Orders: React.FC = () => {
                     title="تأكيد حذف الطلب"
                     message={getDeleteWarningMessage(orderToDelete)}
                     isLoading={isDeleting}
+                    requireSecurityCheck={true}
                 />
             )}
 

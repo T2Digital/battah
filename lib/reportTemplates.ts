@@ -473,20 +473,20 @@ export const generateAttendanceReportContent = (appData: AppData) => {
 export const generatePayrollReportContent = (appData: AppData) => {
     const { payroll, employees } = appData;
     const getEmployeeName = (id: number) => employees.find(e => e.id === id)?.name || 'غير معروف';
-    const totalDisbursed = payroll.reduce((s, p) => s + p.disbursed, 0);
+    const totalPayroll = payroll.reduce((sum, p) => sum + Math.max(0, p.basicSalary + (p.incentives || 0) - (p.expenseDeductions || 0)), 0);
 
     const content = `
         <div class="header"><h1>شركة بطاح الأصلي لقطع غيار السيارات</h1><h2>تقرير المرتبات</h2><p>تاريخ التقرير: ${formatDate(new Date().toISOString())}</p></div>
-        <div class="summary"><h3>ملخص المرتبات</h3><div class="summary-grid"><div class="summary-item"><p>إجمالي المصروف</p><strong>${formatCurrency(totalDisbursed)}</strong></div></div></div>
+        <div class="summary"><h3>ملخص المرتبات</h3><div class="summary-grid"><div class="summary-item"><p>إجمالي التكلفة الفعلية</p><strong>${formatCurrency(totalPayroll)}</strong></div></div></div>
         <table>
-            <thead><tr><th>التاريخ والوقت</th><th>الموظف</th><th>الراتب الأساسي</th><th>المصروف</th><th>المتبقي</th></tr></thead>
+            <thead><tr><th>التاريخ والوقت</th><th>الموظف</th><th>الراتب الأساسي</th><th>المنصرف</th><th>التكلفة الفعلية</th></tr></thead>
             <tbody>
                 ${payroll.map(p => `<tr>
                     <td dir="ltr">${formatDateTime(p.date, p.timestamp)}</td>
                     <td>${getEmployeeName(p.employeeId)}</td>
                     <td>${formatCurrency(p.basicSalary)}</td>
                     <td>${formatCurrency(p.disbursed)}</td>
-                    <td>${formatCurrency(p.basicSalary - p.disbursed)}</td>
+                    <td>${formatCurrency(Math.max(0, p.basicSalary + (p.incentives || 0) - (p.expenseDeductions || 0)))}</td>
                 </tr>`).join('')}
             </tbody>
         </table>
@@ -519,10 +519,10 @@ export const generateExpensesReportContent = (appData: AppData) => {
 };
 
 export const generateSuppliersReportContent = (appData: AppData) => {
-    const { suppliers, payments } = appData;
+    const { suppliers, payments, purchaseOrders } = appData;
     const getSupplierName = (id: number) => suppliers.find(s => s.id === id)?.name || 'غير معروف';
     const totalPayments = payments.reduce((s, p) => s + p.payment, 0);
-    const totalInvoices = payments.reduce((s, p) => s + p.invoiceTotal, 0);
+    const totalInvoices = purchaseOrders.filter(po => po.status === 'مكتمل').reduce((sum, po) => sum + (po.type === 'مرتجع' ? -po.totalAmount : po.totalAmount), 0);
     
     const content = `
         <div class="header"><h1>شركة بطاح الأصلي لقطع غيار السيارات</h1><h2>تقرير الموردين</h2><p>تاريخ التقرير: ${formatDate(new Date().toISOString())}</p></div>
@@ -999,11 +999,29 @@ export const generateFinancialClosingReportContent = (appData: AppData, startDat
                 }
             });
         } else if (sale.direction === 'مرتجع') {
-            totalSalesReturns += sale.totalAmount;
+            totalSalesReturns += Math.abs(sale.totalAmount);
             items.forEach(item => {
                 const product = products.find(p => p.id === item.productId);
                 if (product) {
                     totalReturnsCOGS += (product.purchasePrice * item.quantity);
+                }
+            });
+        } else if (sale.direction === 'تبديل') {
+            items.forEach(item => {
+                const product = products.find(p => p.id === item.productId);
+                const itemTotal = item.quantity * item.unitPrice;
+                const itemDiscountedTotal = itemTotal - (itemTotal * (sale.discount || 0) / 100);
+                
+                if (item.isReturn) {
+                    totalSalesReturns += itemDiscountedTotal;
+                    if (product) {
+                        totalReturnsCOGS += (product.purchasePrice * item.quantity);
+                    }
+                } else {
+                    totalSalesRevenue += itemDiscountedTotal;
+                    if (product) {
+                        totalCOGS += (product.purchasePrice * item.quantity);
+                    }
                 }
             });
         }
@@ -1017,7 +1035,7 @@ export const generateFinancialClosingReportContent = (appData: AppData, startDat
     const totalExpenses = filteredExpenses.reduce((sum, e) => sum + e.amount, 0);
     
     // Calculate Payroll
-    const totalPayroll = filteredPayroll.reduce((sum, p) => sum + p.disbursed, 0);
+    const totalPayroll = filteredPayroll.reduce((sum, p) => sum + Math.max(0, p.basicSalary + (p.incentives || 0) - (p.expenseDeductions || 0)), 0);
 
     // Calculate Net Profit
     const netProfit = grossProfit - totalExpenses - totalPayroll;
@@ -1057,7 +1075,7 @@ export const generateFinancialClosingReportContent = (appData: AppData, startDat
                     <strong>${formatCurrency(totalExpenses)}</strong>
                 </div>
                 <div class="summary-item">
-                    <p>إجمالي المرتبات المنصرفة</p>
+                    <p>إجمالي تكلفة المرتبات</p>
                     <strong>${formatCurrency(totalPayroll)}</strong>
                 </div>
                 <div class="summary-item" style="background-color: ${netProfit >= 0 ? '#dcfce7' : '#fee2e2'}; border-color: ${netProfit >= 0 ? '#22c55e' : '#ef4444'};">

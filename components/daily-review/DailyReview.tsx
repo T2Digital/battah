@@ -218,6 +218,7 @@ const DailyReview: React.FC = () => {
                     title="تأكيد الحذف"
                     message={`هل أنت متأكد من حذف مراجعة يوم ${formatDate(reviewToDelete.date)}؟`}
                     isLoading={isDeleting}
+                    requireSecurityCheck={true}
                 />
             )}
         </div>

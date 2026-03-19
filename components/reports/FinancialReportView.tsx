@@ -83,7 +83,7 @@ const FinancialReportView: React.FC<FinancialReportViewProps> = ({ setActiveRepo
 
     const totalExpenses = useMemo(() => filteredExpenses.reduce((sum, e) => sum + e.amount, 0), [filteredExpenses]);
     const totalAdvances = useMemo(() => filteredAdvances.reduce((sum, a) => sum + a.amount, 0), [filteredAdvances]);
-    const totalPayroll = useMemo(() => filteredPayroll.reduce((sum, p) => sum + p.disbursed, 0), [filteredPayroll]);
+    const totalPayroll = useMemo(() => filteredPayroll.reduce((sum, p) => sum + Math.max(0, p.basicSalary + (p.incentives || 0) - (p.expenseDeductions || 0)), 0), [filteredPayroll]);
     
     const customerDebts = useMemo(() => {
         const debts = new Map<string, { name: string, phone: string, totalDebt: number, invoices: string[] }>();
@@ -110,7 +110,7 @@ const FinancialReportView: React.FC<FinancialReportViewProps> = ({ setActiveRepo
         let totalReturnsCOGS = 0;
 
         filteredSales.forEach(sale => {
-            const items = sale.items || (sale.productId ? [{ productId: sale.productId, quantity: sale.quantity || 1, unitPrice: sale.unitPrice || 0, itemType: sale.itemType || 'قطع غيار' }] : []);
+            const items = sale.items || (sale.productId ? [{ productId: sale.productId, quantity: sale.quantity || 1, unitPrice: sale.unitPrice || 0, itemType: sale.itemType || 'قطع غيار', isReturn: sale.direction === 'مرتجع' }] : []);
             
             if (sale.direction === 'بيع') {
                 totalSalesRevenue += sale.totalAmount;
@@ -121,11 +121,29 @@ const FinancialReportView: React.FC<FinancialReportViewProps> = ({ setActiveRepo
                     }
                 });
             } else if (sale.direction === 'مرتجع') {
-                totalSalesReturns += sale.totalAmount;
+                totalSalesReturns += Math.abs(sale.totalAmount);
                 items.forEach(item => {
                     const product = appData?.products?.find(p => p.id === item.productId);
                     if (product) {
                         totalReturnsCOGS += (product.purchasePrice * item.quantity);
+                    }
+                });
+            } else if (sale.direction === 'تبديل') {
+                items.forEach(item => {
+                    const product = appData?.products?.find(p => p.id === item.productId);
+                    const itemTotal = item.quantity * item.unitPrice;
+                    const itemDiscountedTotal = itemTotal - (itemTotal * (sale.discount || 0) / 100);
+                    
+                    if (item.isReturn) {
+                        totalSalesReturns += itemDiscountedTotal;
+                        if (product) {
+                            totalReturnsCOGS += (product.purchasePrice * item.quantity);
+                        }
+                    } else {
+                        totalSalesRevenue += itemDiscountedTotal;
+                        if (product) {
+                            totalCOGS += (product.purchasePrice * item.quantity);
+                        }
                     }
                 });
             }
@@ -264,10 +282,10 @@ const FinancialReportView: React.FC<FinancialReportViewProps> = ({ setActiveRepo
                 {activeTab === 'payroll' && (
                      <table className="w-full text-sm text-right">
                         <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-300">
-                            <tr><th className="px-6 py-3">التاريخ والوقت</th><th className="px-6 py-3">الموظف</th><th className="px-6 py-3">الراتب الأساسي</th><th className="px-6 py-3">المصروف</th></tr>
+                            <tr><th className="px-6 py-3">التاريخ والوقت</th><th className="px-6 py-3">الموظف</th><th className="px-6 py-3">الراتب الأساسي</th><th className="px-6 py-3">المنصرف</th><th className="px-6 py-3">التكلفة الفعلية</th></tr>
                         </thead>
-                        <tbody>{filteredPayroll.map(p => <tr key={p.id} className="border-b dark:border-gray-700"><td className="whitespace-nowrap" dir="ltr">{formatDateTime(p.date, p.timestamp)}</td><td>{getEmployeeName(p.employeeId)}</td><td>{formatCurrency(p.basicSalary)}</td><td>{formatCurrency(p.disbursed)}</td></tr>).map(el => React.cloneElement(el, { className: `${el.props.className} hover:bg-gray-50 dark:hover:bg-gray-600`, children: el.props.children.map((c:any) => React.cloneElement(c, {className: 'px-6 py-4'}))}))}</tbody>
-                        <tfoot><tr className="font-bold bg-gray-100 dark:bg-gray-700"><td colSpan={3} className="px-6 py-3">الإجمالي</td><td className="px-6 py-3">{formatCurrency(totalPayroll)}</td></tr></tfoot>
+                        <tbody>{filteredPayroll.map(p => <tr key={p.id} className="border-b dark:border-gray-700"><td className="whitespace-nowrap" dir="ltr">{formatDateTime(p.date, p.timestamp)}</td><td>{getEmployeeName(p.employeeId)}</td><td>{formatCurrency(p.basicSalary)}</td><td>{formatCurrency(p.disbursed)}</td><td className="font-bold text-red-600 dark:text-red-400">{formatCurrency(Math.max(0, p.basicSalary + (p.incentives || 0) - (p.expenseDeductions || 0)))}</td></tr>).map(el => React.cloneElement(el, { className: `${el.props.className} hover:bg-gray-50 dark:hover:bg-gray-600`, children: el.props.children.map((c:any) => React.cloneElement(c, {className: 'px-6 py-4'}))}))}</tbody>
+                        <tfoot><tr className="font-bold bg-gray-100 dark:bg-gray-700"><td colSpan={4} className="px-6 py-3">الإجمالي</td><td className="px-6 py-3 text-red-600 dark:text-red-400">{formatCurrency(totalPayroll)}</td></tr></tfoot>
                     </table>
                 )}
                 {activeTab === 'debts' && (
@@ -326,7 +344,7 @@ const FinancialReportView: React.FC<FinancialReportViewProps> = ({ setActiveRepo
                                 <p className="text-lg font-bold text-red-600 dark:text-red-400">{formatCurrency(closingData.totalExpenses)}</p>
                             </div>
                             <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-xl border border-gray-200 dark:border-gray-600">
-                                <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">إجمالي المرتبات المنصرفة</p>
+                                <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">إجمالي تكلفة المرتبات</p>
                                 <p className="text-lg font-bold text-red-600 dark:text-red-400">{formatCurrency(closingData.totalPayroll)}</p>
                             </div>
                             <div className={`p-4 rounded-xl border ${closingData.netProfit >= 0 ? 'bg-green-100 border-green-300 dark:bg-green-900/40 dark:border-green-700' : 'bg-red-100 border-red-300 dark:bg-red-900/40 dark:border-red-700'}`}>

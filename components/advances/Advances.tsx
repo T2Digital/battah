@@ -198,6 +198,7 @@ const Advances: React.FC<AdvancesProps> = ({ advances, addAdvance, updateAdvance
                     title="تأكيد الحذف"
                     message={`هل أنت متأكد من حذف سلفة الموظف "${getEmployeeName(advanceToDelete.employeeId)}" بقيمة ${formatCurrency(advanceToDelete.amount)}؟`}
                     isLoading={isDeleting}
+                    requireSecurityCheck={true}
                 />
             )}
         </div>

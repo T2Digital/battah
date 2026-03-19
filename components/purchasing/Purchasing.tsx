@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { PurchaseOrder, Supplier, Product } from '../../types';
+import { PurchaseOrder, Supplier, Product, PurchaseOrderItem } from '../../types';
 import SectionHeader from '../shared/SectionHeader';
 import PurchaseOrderModal from './PurchaseOrderModal';
 import ReceiveOrderModal from './ReceiveOrderModal';
@@ -85,12 +85,12 @@ const Purchasing: React.FC = () => {
         setOrderModalOpen(false);
     };
 
-    const handleConfirmReception = async (orderId: number, receivedItems: { productId: number; quantity: number }[], receivedInto: 'main' | 'branch1' | 'branch2' | 'branch3') => {
-        for (const receivedItem of receivedItems) {
-            await updateProductStock(receivedItem.productId, receivedInto, receivedItem.quantity);
-        }
-
-        await updatePurchaseOrder(orderId, { status: 'مكتمل' });
+    const handleConfirmReception = async (orderId: number, receivedItems: PurchaseOrderItem[], receivedInto: 'main' | 'branch1' | 'branch2' | 'branch3') => {
+        await updatePurchaseOrder(orderId, { 
+            status: 'مكتمل', 
+            items: receivedItems,
+            branch: receivedInto
+        });
         setReceiveModalOpen(false);
     };
 
@@ -242,6 +242,7 @@ const Purchasing: React.FC = () => {
                     title="تأكيد الحذف"
                     message={`هل أنت متأكد من حذف أمر الشراء رقم "PO-${orderToDelete.id.toString().padStart(4, '0')}"؟`}
                     isLoading={isDeleting}
+                    requireSecurityCheck={true}
                 />
             )}
 

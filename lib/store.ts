@@ -598,7 +598,82 @@ const useStore = create<AppState & AppActions>((set, get) => ({
         return newSale as DailySale;
     },
     updateDailySale: async (saleId, updates) => {
-        await updateDoc(doc(db, "dailySales", String(saleId)), updates);
+        const batch = writeBatch(db);
+        batch.update(doc(db, "dailySales", String(saleId)), updates);
+
+        const state = get();
+        const existingSale = state.appData?.dailySales.find(s => String(s.id) === String(saleId));
+        
+        if (existingSale) {
+            const mergedSale = { ...existingSale, ...updates } as DailySale;
+            const relatedTxs = state.appData?.treasury.filter(t => String(t.relatedId) === String(saleId) && ["إيراد مبيعات", "مرتجع مبيعات"].includes(t.type)) || [];
+            
+            relatedTxs.forEach(t => {
+                batch.delete(doc(db, "treasury", String(t.id)));
+            });
+
+            if (mergedSale.direction !== 'هدية') {
+                let transactionType: 'إيراد مبيعات' | 'مرتجع مبيعات' = 'إيراد مبيعات';
+                let amountIn = 0;
+                let amountOut = 0;
+                const totalPaid = (mergedSale.cashAmount || 0) + (mergedSale.electronicAmount || 0);
+
+                if (mergedSale.direction === 'بيع') {
+                    transactionType = 'إيراد مبيعات';
+                    amountIn = Math.abs(totalPaid);
+                } else if (mergedSale.direction === 'مرتجع') {
+                    transactionType = 'مرتجع مبيعات';
+                    amountOut = Math.abs(totalPaid);
+                } else if (mergedSale.direction === 'تبديل') {
+                    if (mergedSale.totalAmount >= 0) {
+                        transactionType = 'إيراد مبيعات';
+                        amountIn = Math.abs(totalPaid);
+                    } else {
+                        transactionType = 'مرتجع مبيعات';
+                        amountOut = Math.abs(totalPaid);
+                    }
+                }
+
+                const maxTreasuryId = Math.max(0, ...(state.appData?.treasury.map(t => Number(t.id) || 0) || []));
+                let nextTreasuryId = maxTreasuryId + 1;
+
+                if (mergedSale.paymentMethod === 'مختلط' && mergedSale.cashAmount && mergedSale.electronicAmount) {
+                    const cashIn = amountIn > 0 ? Math.abs(mergedSale.cashAmount) : 0;
+                    const cashOut = amountOut > 0 ? Math.abs(mergedSale.cashAmount) : 0;
+                    const elecIn = amountIn > 0 ? Math.abs(mergedSale.electronicAmount) : 0;
+                    const elecOut = amountOut > 0 ? Math.abs(mergedSale.electronicAmount) : 0;
+
+                    if (cashIn > 0 || cashOut > 0) {
+                        const newTx = {
+                            id: nextTreasuryId++,
+                            date: mergedSale.date, type: transactionType, description: `${mergedSale.direction} فاتورة #${mergedSale.invoiceNumber} (نقدي)`,
+                            amountIn: cashIn, amountOut: cashOut, relatedId: mergedSale.id, paymentMethod: 'cash', timestamp: new Date().toISOString()
+                        };
+                        batch.set(doc(db, "treasury", String(newTx.id)), newTx);
+                    }
+                    if (elecIn > 0 || elecOut > 0) {
+                        const newTx = {
+                            id: nextTreasuryId++,
+                            date: mergedSale.date, type: transactionType, description: `${mergedSale.direction} فاتورة #${mergedSale.invoiceNumber} (إلكتروني)`,
+                            amountIn: elecIn, amountOut: elecOut, relatedId: mergedSale.id, paymentMethod: 'electronic', timestamp: new Date().toISOString()
+                        };
+                        batch.set(doc(db, "treasury", String(newTx.id)), newTx);
+                    }
+                } else if (mergedSale.paymentMethod !== 'آجل') {
+                    const method = mergedSale.paymentMethod === 'إلكترونى' ? 'electronic' : 'cash';
+                    if (amountIn > 0 || amountOut > 0) {
+                        const newTx = {
+                            id: nextTreasuryId++,
+                            date: mergedSale.date, type: transactionType, description: `${mergedSale.direction} فاتورة #${mergedSale.invoiceNumber}`,
+                            amountIn: amountIn, amountOut: amountOut, relatedId: mergedSale.id, paymentMethod: method, timestamp: new Date().toISOString()
+                        };
+                        batch.set(doc(db, "treasury", String(newTx.id)), newTx);
+                    }
+                }
+            }
+        }
+
+        await batch.commit();
         get().addToast('تم تحديث الفاتورة بنجاح', 'success');
     },
     deleteDailySale: async (saleId: number | string) => {
@@ -816,12 +891,31 @@ const useStore = create<AppState & AppActions>((set, get) => ({
         }
     },
     updateAdvance: async (advanceId, updates) => {
-        await updateDoc(doc(db, "advances", String(advanceId)), updates);
+        const batch = writeBatch(db);
+        batch.update(doc(db, "advances", String(advanceId)), updates);
+        if (updates.amount !== undefined || updates.date !== undefined) {
+            const state = get();
+            const relatedTx = state.appData?.treasury.find(t => String(t.relatedId) === String(advanceId) && t.type === 'سلفة');
+            if (relatedTx) {
+                const txUpdates: any = {};
+                if (updates.amount !== undefined) txUpdates.amountOut = updates.amount;
+                if (updates.date !== undefined) txUpdates.date = updates.date;
+                batch.update(doc(db, "treasury", String(relatedTx.id)), txUpdates);
+            }
+        }
+        await batch.commit();
         get().addToast('تم تحديث السلفة بنجاح', 'success');
     },
     deleteAdvance: async (advanceId) => {
         try {
-            await deleteDoc(doc(db, "advances", String(advanceId)));
+            const batch = writeBatch(db);
+            batch.delete(doc(db, "advances", String(advanceId)));
+            const state = get();
+            const relatedTx = state.appData?.treasury.find(t => String(t.relatedId) === String(advanceId) && t.type === 'سلفة');
+            if (relatedTx) {
+                batch.delete(doc(db, "treasury", String(relatedTx.id)));
+            }
+            await batch.commit();
         } catch(error) {
             console.error("Error deleting advance:", error);
             throw error;
@@ -846,12 +940,31 @@ const useStore = create<AppState & AppActions>((set, get) => ({
         get().addToast('تم إضافة الراتب بنجاح', 'success');
     },
     updatePayroll: async (payrollId, updates) => {
-        await updateDoc(doc(db, "payroll", String(payrollId)), updates);
+        const batch = writeBatch(db);
+        batch.update(doc(db, "payroll", String(payrollId)), updates);
+        if (updates.disbursed !== undefined || updates.date !== undefined) {
+            const state = get();
+            const relatedTx = state.appData?.treasury.find(t => String(t.relatedId) === String(payrollId) && t.type === 'راتب');
+            if (relatedTx) {
+                const txUpdates: any = {};
+                if (updates.disbursed !== undefined) txUpdates.amountOut = updates.disbursed;
+                if (updates.date !== undefined) txUpdates.date = updates.date;
+                batch.update(doc(db, "treasury", String(relatedTx.id)), txUpdates);
+            }
+        }
+        await batch.commit();
         get().addToast('تم تحديث الراتب بنجاح', 'success');
     },
     deletePayroll: async (payrollId) => {
         try {
-            await deleteDoc(doc(db, "payroll", String(payrollId)));
+            const batch = writeBatch(db);
+            batch.delete(doc(db, "payroll", String(payrollId)));
+            const state = get();
+            const relatedTx = state.appData?.treasury.find(t => String(t.relatedId) === String(payrollId) && t.type === 'راتب');
+            if (relatedTx) {
+                batch.delete(doc(db, "treasury", String(relatedTx.id)));
+            }
+            await batch.commit();
         } catch(error) {
             console.error("Error deleting payroll:", error);
             throw error;
@@ -881,18 +994,94 @@ const useStore = create<AppState & AppActions>((set, get) => ({
         }
     },
     addPurchaseOrder: async (order) => {
-        const maxId = Math.max(0, ...(get().appData?.purchaseOrders.map(o => Number(o.id) || 0) || []));
-        const newOrder = { ...order, id: maxId + 1, timestamp: new Date().toISOString() };
-        await setDoc(doc(db, "purchaseOrders", String(newOrder.id)), newOrder);
-        get().addToast('تم إضافة طلب الشراء بنجاح', 'success');
+        try {
+            const state = get();
+            const maxId = Math.max(0, ...(state.appData?.purchaseOrders.map(o => Number(o.id) || 0) || []));
+            const newOrder = { ...order, id: maxId + 1, timestamp: new Date().toISOString() };
+            
+            const batch = writeBatch(db);
+            batch.set(doc(db, "purchaseOrders", String(newOrder.id)), newOrder);
+
+            if (newOrder.status === 'مكتمل' && newOrder.branch) {
+                for (const item of newOrder.items) {
+                    const productRef = doc(db, "products", String(item.productId));
+                    const quantityToAdd = newOrder.type === 'مرتجع' ? -item.quantity : item.quantity;
+                    batch.update(productRef, {
+                        [`stock.${newOrder.branch}`]: increment(quantityToAdd)
+                    });
+                }
+            }
+            
+            await batch.commit();
+            get().addToast('تم إضافة طلب الشراء بنجاح', 'success');
+        } catch (error) {
+            console.error("Error adding purchase order:", error);
+            throw error;
+        }
     },
     updatePurchaseOrder: async (orderId, updates) => {
-        await updateDoc(doc(db, "purchaseOrders", String(orderId)), updates);
-        get().addToast('تم تحديث طلب الشراء بنجاح', 'success');
+        try {
+            const state = get();
+            const oldOrder = state.appData?.purchaseOrders.find(o => String(o.id) === String(orderId));
+            if (!oldOrder) throw new Error("Order not found");
+
+            const batch = writeBatch(db);
+            batch.update(doc(db, "purchaseOrders", String(orderId)), updates);
+
+            // Revert old stock if it was completed
+            if (oldOrder.status === 'مكتمل' && oldOrder.branch) {
+                for (const item of oldOrder.items) {
+                    const productRef = doc(db, "products", String(item.productId));
+                    const quantityToRevert = oldOrder.type === 'مرتجع' ? item.quantity : -item.quantity;
+                    batch.update(productRef, {
+                        [`stock.${oldOrder.branch}`]: increment(quantityToRevert)
+                    });
+                }
+            }
+
+            // Apply new stock if it is completed
+            const newStatus = updates.status !== undefined ? updates.status : oldOrder.status;
+            const newBranch = updates.branch !== undefined ? updates.branch : oldOrder.branch;
+            const newItems = updates.items !== undefined ? updates.items : oldOrder.items;
+            const newType = updates.type !== undefined ? updates.type : oldOrder.type;
+
+            if (newStatus === 'مكتمل' && newBranch) {
+                for (const item of newItems) {
+                    const productRef = doc(db, "products", String(item.productId));
+                    const quantityToAdd = newType === 'مرتجع' ? -item.quantity : item.quantity;
+                    batch.update(productRef, {
+                        [`stock.${newBranch}`]: increment(quantityToAdd)
+                    });
+                }
+            }
+
+            await batch.commit();
+            get().addToast('تم تحديث طلب الشراء بنجاح', 'success');
+        } catch (error) {
+            console.error("Error updating purchase order:", error);
+            throw error;
+        }
     },
     deletePurchaseOrder: async (orderId) => {
         try {
-            await deleteDoc(doc(db, "purchaseOrders", String(orderId)));
+            const state = get();
+            const order = state.appData?.purchaseOrders.find(o => String(o.id) === String(orderId));
+            if (!order) throw new Error("Order not found");
+
+            const batch = writeBatch(db);
+            batch.delete(doc(db, "purchaseOrders", String(orderId)));
+
+            if (order.status === 'مكتمل' && order.branch) {
+                for (const item of order.items) {
+                    const productRef = doc(db, "products", String(item.productId));
+                    const quantityToRevert = order.type === 'مرتجع' ? item.quantity : -item.quantity;
+                    batch.update(productRef, {
+                        [`stock.${order.branch}`]: increment(quantityToRevert)
+                    });
+                }
+            }
+            await batch.commit();
+            get().addToast('تم حذف طلب الشراء بنجاح', 'success');
         } catch(error) {
             console.error("Error deleting purchase order:", error);
             throw error;
@@ -919,7 +1108,19 @@ const useStore = create<AppState & AppActions>((set, get) => ({
     },
     updatePayment: async (paymentId, updates) => {
         try {
-            await updateDoc(doc(db, "payments", String(paymentId)), updates);
+            const batch = writeBatch(db);
+            batch.update(doc(db, "payments", String(paymentId)), updates);
+            if (updates.payment !== undefined || updates.date !== undefined) {
+                const state = get();
+                const relatedTx = state.appData?.treasury.find(t => String(t.relatedId) === String(paymentId) && t.type === 'دفعة لمورد');
+                if (relatedTx) {
+                    const txUpdates: any = {};
+                    if (updates.payment !== undefined) txUpdates.amountOut = updates.payment;
+                    if (updates.date !== undefined) txUpdates.date = updates.date;
+                    batch.update(doc(db, "treasury", String(relatedTx.id)), txUpdates);
+                }
+            }
+            await batch.commit();
             get().addToast('تم تحديث الدفعة بنجاح', 'success');
         } catch (error) {
             console.error("Error updating payment:", error);
@@ -929,7 +1130,14 @@ const useStore = create<AppState & AppActions>((set, get) => ({
     },
     deletePayment: async (paymentId) => {
         try {
-            await deleteDoc(doc(db, "payments", String(paymentId)));
+            const batch = writeBatch(db);
+            batch.delete(doc(db, "payments", String(paymentId)));
+            const state = get();
+            const relatedTx = state.appData?.treasury.find(t => String(t.relatedId) === String(paymentId) && t.type === 'دفعة لمورد');
+            if (relatedTx) {
+                batch.delete(doc(db, "treasury", String(relatedTx.id)));
+            }
+            await batch.commit();
         } catch(error) {
             console.error("Error deleting payment:", error);
             throw error;
@@ -948,12 +1156,32 @@ const useStore = create<AppState & AppActions>((set, get) => ({
         get().addToast('تم إضافة المصروف بنجاح', 'success');
     },
     updateExpense: async (expenseId, updates) => {
-        await updateDoc(doc(db, "expenses", String(expenseId)), updates);
+        const batch = writeBatch(db);
+        batch.update(doc(db, "expenses", String(expenseId)), updates);
+        if (updates.amount !== undefined || updates.date !== undefined || updates.name !== undefined) {
+            const state = get();
+            const relatedTx = state.appData?.treasury.find(t => String(t.relatedId) === String(expenseId) && t.type === 'مصروف');
+            if (relatedTx) {
+                const txUpdates: any = {};
+                if (updates.amount !== undefined) txUpdates.amountOut = updates.amount;
+                if (updates.date !== undefined) txUpdates.date = updates.date;
+                if (updates.name !== undefined) txUpdates.description = updates.name;
+                batch.update(doc(db, "treasury", String(relatedTx.id)), txUpdates);
+            }
+        }
+        await batch.commit();
         get().addToast('تم تحديث المصروف بنجاح', 'success');
     },
     deleteExpense: async (expenseId) => {
         try {
-            await deleteDoc(doc(db, "expenses", String(expenseId)));
+            const batch = writeBatch(db);
+            batch.delete(doc(db, "expenses", String(expenseId)));
+            const state = get();
+            const relatedTx = state.appData?.treasury.find(t => String(t.relatedId) === String(expenseId) && t.type === 'مصروف');
+            if (relatedTx) {
+                batch.delete(doc(db, "treasury", String(relatedTx.id)));
+            }
+            await batch.commit();
         } catch(error) {
             console.error("Error deleting expense:", error);
             throw error;
@@ -1346,7 +1574,7 @@ const useStore = create<AppState & AppActions>((set, get) => ({
                 batch.delete(nRef);
             });
         
-            if (['confirmed', 'shipped'].includes(orderToDelete.status)) {
+            if (['shipped', 'collected'].includes(orderToDelete.status)) {
                 const sales = state.appData?.dailySales.filter(s => s.invoiceNumber === `ONLINE-${orderId}`) || [];
                 sales.forEach(s => {
                     const sRef = doc(db, "dailySales", String(s.id));

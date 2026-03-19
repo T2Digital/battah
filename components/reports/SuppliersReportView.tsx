@@ -15,7 +15,7 @@ const SuppliersReportView: React.FC<SuppliersReportViewProps> = ({ setActiveRepo
         appData: state.appData,
         fetchDataByDateRange: state.fetchDataByDateRange
     }));
-    const { suppliers = [], payments = [] } = appData || {};
+    const { suppliers = [], payments = [], purchaseOrders = [] } = appData || {};
     const [dateFilter, setDateFilter] = React.useState<'all' | 'today' | 'week' | 'month' | 'custom'>('all');
     const [customStartDate, setCustomStartDate] = React.useState('');
     const [customEndDate, setCustomEndDate] = React.useState('');
@@ -25,6 +25,7 @@ const SuppliersReportView: React.FC<SuppliersReportViewProps> = ({ setActiveRepo
         if (!customStartDate || !customEndDate) return;
         setIsLoadingData(true);
         await fetchDataByDateRange('payments', customStartDate, customEndDate);
+        await fetchDataByDateRange('purchaseOrders', customStartDate, customEndDate);
         setIsLoadingData(false);
     };
 
@@ -68,8 +69,42 @@ const SuppliersReportView: React.FC<SuppliersReportViewProps> = ({ setActiveRepo
             .sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     }, [filteredPayments, suppliers]);
 
+    const filteredPurchaseOrders = useMemo(() => {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        if (dateFilter === 'today') {
+            return purchaseOrders.filter(item => {
+                const d = new Date(item.orderDate);
+                d.setHours(0, 0, 0, 0);
+                return d.getTime() === today.getTime();
+            });
+        } else if (dateFilter === 'week') {
+            const lastWeek = new Date(today);
+            lastWeek.setDate(today.getDate() - 7);
+            return purchaseOrders.filter(item => {
+                const d = new Date(item.orderDate);
+                d.setHours(0, 0, 0, 0);
+                return d >= lastWeek;
+            });
+        } else if (dateFilter === 'month') {
+            const lastMonth = new Date(today);
+            lastMonth.setMonth(today.getMonth() - 1);
+            return purchaseOrders.filter(item => {
+                const d = new Date(item.orderDate);
+                d.setHours(0, 0, 0, 0);
+                return d >= lastMonth;
+            });
+        } else if (dateFilter === 'custom' && customStartDate && customEndDate) {
+            return purchaseOrders.filter(item => {
+                return item.orderDate >= customStartDate && item.orderDate <= customEndDate;
+            });
+        }
+        return purchaseOrders;
+    }, [purchaseOrders, dateFilter, customStartDate, customEndDate]);
+
     const totalPayments = useMemo(() => filteredPayments.reduce((sum, p) => sum + p.payment, 0), [filteredPayments]);
-    const totalInvoices = useMemo(() => filteredPayments.reduce((sum, p) => sum + p.invoiceTotal, 0), [filteredPayments]);
+    const totalInvoices = useMemo(() => filteredPurchaseOrders.filter(po => po.status === 'مكتمل').reduce((sum, po) => sum + (po.type === 'مرتجع' ? -po.totalAmount : po.totalAmount), 0), [filteredPurchaseOrders]);
 
     const handlePrint = () => {
         if (!appData) return;

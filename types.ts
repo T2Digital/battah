@@ -154,6 +154,8 @@ export interface Payroll {
     basicSalary: number;
     incentives?: number; // Added
     deductions?: number; // Added (calculated from advances/expenses)
+    advanceDeductions?: number; // Added to track how much of deductions were advances
+    expenseDeductions?: number; // Added to track how much of deductions were expenses
     daysAttended?: number; // Added
     periodStart?: string; // Added
     periodEnd?: string; // Added
@@ -182,6 +184,7 @@ export interface PurchaseOrder {
     timestamp?: string;
     status: 'معلق' | 'مكتمل' | 'ملغي';
     type?: 'شراء' | 'مرتجع'; // Added for purchase returns
+    branch?: 'main' | 'branch1' | 'branch2' | 'branch3';
     items: PurchaseOrderItem[];
     totalAmount: number;
     notes?: string;

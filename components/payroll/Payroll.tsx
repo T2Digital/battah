@@ -34,6 +34,8 @@ const PayrollModal: React.FC<{
         basicSalary: 0,
         incentives: 0,
         deductions: 0,
+        advanceDeductions: 0,
+        expenseDeductions: 0,
         daysAttended: 0,
         periodStart: '',
         periodEnd: '',
@@ -49,6 +51,8 @@ const PayrollModal: React.FC<{
                 ...recordToEdit, 
                 incentives: recordToEdit.incentives || 0, 
                 deductions: recordToEdit.deductions || 0,
+                advanceDeductions: recordToEdit.advanceDeductions || 0,
+                expenseDeductions: recordToEdit.expenseDeductions || 0,
                 daysAttended: recordToEdit.daysAttended || 0,
                 periodStart: recordToEdit.periodStart || '',
                 periodEnd: recordToEdit.periodEnd || '',
@@ -67,6 +71,8 @@ const PayrollModal: React.FC<{
                 basicSalary: firstEmployee?.basicSalary || 0,
                 incentives: 0,
                 deductions: 0,
+                advanceDeductions: 0,
+                expenseDeductions: 0,
                 daysAttended: 0,
                 periodStart: firstDay,
                 periodEnd: lastDay,
@@ -123,7 +129,9 @@ const PayrollModal: React.FC<{
         setFormData(prev => ({
             ...prev,
             daysAttended: totalDays,
-            deductions: totalDeductions
+            deductions: totalDeductions,
+            advanceDeductions: totalTakenAdvances,
+            expenseDeductions: totalExpenses
         }));
     }, [formData.employeeId, formData.periodStart, formData.periodEnd, attendance, advances, expenses, recordToEdit]);
 
@@ -394,6 +402,7 @@ const Payroll: React.FC<PayrollProps> = ({ payroll, addPayroll, updatePayroll, d
                     title="تأكيد الحذف"
                     message={`هل أنت متأكد من حذف سجل راتب الموظف "${getEmployeeName(recordToDelete.employeeId)}؟"`}
                     isLoading={isDeleting}
+                    requireSecurityCheck={true}
                 />
             )}
         </div>
