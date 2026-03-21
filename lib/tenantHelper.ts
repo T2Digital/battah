@@ -8,7 +8,9 @@ export const DEFAULT_TENANT: Tenant = {
     name: 'بطاح',
     domain: 'battah.vercel.app',
     modules: ['pos', 'inventory', 'purchasing', 'hr', 'treasury', 'ecommerce', 'reports', 'settings'],
-    status: 'active'
+    status: 'active',
+    createdAt: new Date().toISOString(),
+    plan: 'enterprise'
 };
 
 export const fetchTenantByHostname = async (hostname: string): Promise<Tenant> => {

@@ -56,7 +56,8 @@ import {
     Settings,
     Broadcast,
     Section,
-    MainCategory
+    MainCategory,
+    Tenant
 } from '../types';
 import { initialData } from './initialData';
 import { formatCurrency, normalizeSaleItems } from './utils';
@@ -66,6 +67,7 @@ let adminUnsubscribers: Unsubscribe[] = [];
 
 type AppState = {
     currentUser: User | null;
+    currentTenant: Tenant | null;
     isInitialized: boolean; // For admin data
     isPublicInitialized: boolean; // For public data
     isLoading: boolean;
@@ -169,6 +171,7 @@ type AppActions = {
 
 const useStore = create<AppState & AppActions>((set, get) => ({
     currentUser: null,
+    currentTenant: null,
     isInitialized: false,
     isPublicInitialized: false,
     isLoading: false,
@@ -212,7 +215,7 @@ const useStore = create<AppState & AppActions>((set, get) => ({
             publicUnsubscribers.forEach(unsub => unsub());
             publicUnsubscribers = [];
         
-            const publicCollections: (keyof AppData)[] = ['discountCodes', 'broadcasts'];
+            const publicCollections: (keyof AppData)[] = ['broadcasts'];
 
             publicCollections.forEach(name => {
                 const unsub = onSnapshot(collection(db, name as string), (snapshot) => {
@@ -279,36 +282,6 @@ const useStore = create<AppState & AppActions>((set, get) => ({
     
         try {
             get().clearAdminListeners();
-    
-            // --- SECTION 1: One-time fetches and Reconciliation for missed notifications ---
-    
-            // Fetch all orders and notifications once to find any orders that were placed while admin was offline
-            const [ordersSnapshot, notificationsSnapshot] = await Promise.all([
-                getDocs(collection(db, 'orders')),
-                getDocs(collection(db, 'notifications'))
-            ]);
-            
-            const initialOrders = ordersSnapshot.docs.map(d => ({ ...(d.data() as Order), id: d.id }));
-            const initialNotifications = notificationsSnapshot.docs.map(d => ({ ...(d.data() as Notification), id: d.id }));
-    
-            const notifiedOrderIds = new Set(initialNotifications.map(n => n.orderId));
-            const ordersToNotify = initialOrders.filter(order => order.id && !notifiedOrderIds.has(order.id));
-    
-            if (ordersToNotify.length > 0) {
-                const batch = writeBatch(db);
-                ordersToNotify.forEach(order => {
-                    const newNotificationData: Omit<Notification, 'id'> = {
-                        date: order.date, // Use the order's date for accuracy
-                        message: `طلب جديد من ${order.customerName} بقيمة ${formatCurrency(order.totalAmount)}`,
-                        read: false,
-                        orderId: order.id,
-                    };
-                    const notificationRef = doc(collection(db, "notifications"));
-                    batch.set(notificationRef, { ...newNotificationData, id: notificationRef.id });
-                });
-                await batch.commit();
-                get().addToast(`تم العثور على ${ordersToNotify.length} طلبات جديدة.`, 'info');
-            }
     
             // --- SECTION 2: Live Listeners for Real-time Updates ---
     

@@ -280,6 +280,9 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
                 setSelectedProduct={setSelectedProduct}
                 addToCart={addToCart}
                 openCart={() => setCartOpen(true)}
+                cartItems={cartItems}
+                updateCartQuantity={updateCartQuantity}
+                handleCheckout={handleCheckout}
             />
             <InstallPrompt />
             <FloatingCheckoutButton 
