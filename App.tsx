@@ -251,10 +251,23 @@ const App: React.FC = () => {
     useEffect(() => {
         const unsubscribe = setupMessageListener((payload: any) => {
             if (payload?.notification) {
+                // Show in-app toast
                 useStore.getState().addToast(
                     `${payload.notification.title}: ${payload.notification.body}`, 
                     'info'
                 );
+
+                // Show system notification (in phone's notification bar)
+                if (Notification.permission === 'granted') {
+                    navigator.serviceWorker.ready.then((registration) => {
+                        registration.showNotification(payload.notification.title, {
+                            body: payload.notification.body,
+                            icon: '/pwa-192x192.png',
+                            badge: '/pwa-192x192.png',
+                            data: payload.data
+                        });
+                    });
+                }
             }
         });
         return () => {

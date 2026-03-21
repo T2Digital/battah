@@ -26,15 +26,18 @@ if (firebaseConfig.apiKey && firebaseConfig.projectId) {
 
         onBackgroundMessage(messaging, (payload) => {
           console.log('[firebase-messaging-sw.js] Received background message ', payload);
-          const notificationTitle = payload.notification?.title || 'إشعار جديد';
-          const notificationOptions = {
-            body: payload.notification?.body || 'لديك رسالة جديدة',
-            icon: '/pwa-192x192.png',
-            badge: '/pwa-192x192.png',
-            data: payload.data
-          };
-
-          (self as any).registration.showNotification(notificationTitle, notificationOptions);
+          // Firebase automatically displays the notification if payload.notification is present.
+          // We only need to handle data-only messages here if we want to show a notification for them.
+          if (!payload.notification && payload.data) {
+            const notificationTitle = payload.data.title || 'إشعار جديد';
+            const notificationOptions = {
+              body: payload.data.body || 'لديك رسالة جديدة',
+              icon: '/pwa-192x192.png',
+              badge: '/pwa-192x192.png',
+              data: payload.data
+            };
+            (self as any).registration.showNotification(notificationTitle, notificationOptions);
+          }
         });
     } catch (e) {
         console.error('Failed to initialize Firebase Messaging in Service Worker', e);
