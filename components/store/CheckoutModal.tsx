@@ -78,7 +78,8 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, cartItem
             return;
         }
 
-        const codeRef = doc(db, "discountCodes", discountInput.toUpperCase());
+        const tenantId = useStore.getState().currentTenant?.id || 'battah';
+        const codeRef = doc(db, 'tenants', tenantId, "discountCodes", discountInput.toUpperCase());
         const codeSnap = await getDoc(codeRef);
 
         if (!codeSnap.exists()) {

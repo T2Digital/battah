@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, Suspense } from 'react';
 import { onAuthStateChanged } from "firebase/auth";
-import { auth } from './lib/firebase';
+import { auth, setupMessageListener } from './lib/firebase';
 import { Section, Role } from './types';
 import useStore from './lib/store';
 
@@ -245,6 +245,21 @@ const App: React.FC = () => {
         };
         window.addEventListener('navigate-to-section', handleNavigation as EventListener);
         return () => window.removeEventListener('navigate-to-section', handleNavigation as EventListener);
+    }, []);
+
+    // Foreground Push Notification Listener
+    useEffect(() => {
+        const unsubscribe = setupMessageListener((payload: any) => {
+            if (payload?.notification) {
+                useStore.getState().addToast(
+                    `${payload.notification.title}: ${payload.notification.body}`, 
+                    'info'
+                );
+            }
+        });
+        return () => {
+            if (unsubscribe) unsubscribe();
+        };
     }, []);
 
     const renderAdminContent = () => {

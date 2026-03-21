@@ -162,6 +162,7 @@ type AppActions = {
     deleteUser: (userId: string) => Promise<void>;
     updateSettings: (settings: Partial<Settings>) => Promise<void>;
     sendBroadcast: (message: string) => Promise<void>;
+    saveDeviceToken: (token: string) => Promise<void>;
     resetTreasury: (initialBalance: number) => Promise<void>;
     clearTreasury: () => Promise<void>;
 };
@@ -1671,6 +1672,19 @@ const useStore = create<AppState & AppActions>((set, get) => ({
     updateSettings: async (settings) => {
         await setDoc(doc(db, "settings", "general"), settings, { merge: true });
     },
+    saveDeviceToken: async (token: string) => {
+        try {
+            const userId = get().currentUser?.id || 'anonymous';
+            const tokenDocRef = doc(db, "device_tokens", token);
+            await setDoc(tokenDocRef, {
+                token,
+                userId,
+                updatedAt: new Date().toISOString()
+            }, { merge: true });
+        } catch (error) {
+            console.error("Error saving device token:", error);
+        }
+    },
     sendBroadcast: async (message) => {
         const newBroadcast: Broadcast = {
             id: Date.now().toString(),
@@ -1690,6 +1704,29 @@ const useStore = create<AppState & AppActions>((set, get) => ({
             type: 'system',
             targetGroup: 'all'
         });
+
+        // Send Push Notification via API
+        try {
+            const response = await fetch('/api/send-notification', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    title: 'إشعار من الإدارة',
+                    body: message
+                })
+            });
+            
+            const result = await response.json();
+            if (!response.ok) {
+                console.warn('Push notification API returned an error:', result.error);
+            } else {
+                console.log('Push notifications sent successfully:', result);
+            }
+        } catch (error) {
+            console.error('Failed to call push notification API:', error);
+        }
     },
     resetTreasury: async (initialBalance) => {
         const currentBalance = get().appData?.treasury.reduce((acc, t) => acc + (t.amountIn || 0) - (t.amountOut || 0), 0) || 0;

@@ -1,6 +1,7 @@
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from "firebase/firestore";
+import { getMessaging, getToken, onMessage } from "firebase/messaging";
 
 // Your web app's Firebase configuration
 export const firebaseConfig = {
@@ -24,6 +25,43 @@ export const db = initializeFirestore(app, {
     tabManager: persistentMultipleTabManager()
   })
 });
+
+// Initialize Firebase Cloud Messaging and get a reference to the service
+export let messaging: any = null;
+if (typeof window !== 'undefined') {
+  try {
+    messaging = getMessaging(app);
+  } catch (error) {
+    console.warn('Firebase Messaging is not supported or failed to initialize:', error);
+  }
+}
+
+export const requestNotificationPermission = async () => {
+  if (!messaging) return null;
+  try {
+    const permission = await Notification.requestPermission();
+    if (permission === 'granted') {
+      const registration = await navigator.serviceWorker.ready;
+      
+      const token = await getToken(messaging, {
+        serviceWorkerRegistration: registration,
+      });
+      console.log('Notification permission granted. Token:', token);
+      return token;
+    } else {
+      console.log('Notification permission denied');
+      return null;
+    }
+  } catch (error) {
+    console.error('Error requesting notification permission:', error);
+    return null;
+  }
+};
+
+export const setupMessageListener = (callback: (payload: any) => void) => {
+  if (!messaging) return () => {};
+  return onMessage(messaging, callback);
+};
 
 export enum OperationType {
   CREATE = 'create',

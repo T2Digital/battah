@@ -6,6 +6,7 @@ import { db, auth, handleFirestoreError, OperationType } from '../../lib/firebas
 import { Order } from '../../types';
 import Modal from '../shared/Modal';
 import { formatCurrency, formatDate } from '../../lib/utils';
+import useStore from '../../lib/store';
 
 interface MyOrdersModalProps {
     isOpen: boolean;
@@ -26,6 +27,7 @@ const MyOrdersModal: React.FC<MyOrdersModalProps> = ({ isOpen, onClose }) => {
     const [orders, setOrders] = useState<Order[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [hasSearched, setHasSearched] = useState(false);
+    const { currentTenant } = useStore();
 
     const handleSearch = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -38,8 +40,9 @@ const MyOrdersModal: React.FC<MyOrdersModalProps> = ({ isOpen, onClose }) => {
         setOrders([]);
         try {
             // Query for orders associated with the phone number
+            const tenantId = currentTenant?.id || 'battah';
             const q = query(
-                collection(db, "orders"), 
+                collection(db, 'tenants', tenantId, "orders"), 
                 where("customerPhone", "==", phone.trim())
             );
             const querySnapshot = await getDocs(q);

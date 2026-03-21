@@ -95,7 +95,7 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
         setCheckoutOpen(true);
     };
 
-    const handlePlaceOrder = async (customerDetails: { name: string; phone: string; address: string }, paymentMethod: Order['paymentMethod'], paymentProof?: File, discountCode?: string) => {
+    const handlePlaceOrder = async (customerDetails: { name: string; phone: string; address: string }, paymentMethod: Order['paymentMethod'], paymentProof?: File, discountCode?: string, locationLink?: string) => {
         const orderItems: OrderItem[] = cartItems.map(item => ({
             productId: item.product.id,
             productName: item.product.name,
@@ -103,10 +103,9 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
             unitPrice: item.product.sellingPrice,
         }));
         const subtotal = cartItems.reduce((sum, item) => sum + item.product.sellingPrice * item.quantity, 0);
-        const totalAmount = subtotal + 50; // Include delivery fee
-
+        
         try {
-            const proofUrl = await createOrder(customerDetails, orderItems, totalAmount, paymentMethod, paymentProof, discountCode);
+            const proofUrl = await createOrder(customerDetails, orderItems, subtotal, paymentMethod, paymentProof, discountCode, locationLink);
             setCartItems([]);
             setCheckoutOpen(false);
             setNotification('تم إرسال طلبك بنجاح! سيتم التواصل معك للتأكيد.');

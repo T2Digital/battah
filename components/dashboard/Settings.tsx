@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import useStore from '../../lib/store';
 import SectionHeader from '../shared/SectionHeader';
+import { requestNotificationPermission } from '../../lib/firebase';
 
 const Settings: React.FC = () => {
     const { appData, updateSettings, updateStorefrontSettings, addToast } = useStore();
@@ -19,6 +20,29 @@ const Settings: React.FC = () => {
     const [isSaving, setIsSaving] = useState(false);
     const [newTickerMessage, setNewTickerMessage] = useState('');
     const [tickerMessages, setTickerMessages] = useState<string[]>([]);
+    const [notificationStatus, setNotificationStatus] = useState<string>('default');
+
+    useEffect(() => {
+        if ('Notification' in window) {
+            setNotificationStatus(Notification.permission);
+        }
+    }, []);
+
+    const handleEnableNotifications = async () => {
+        const token = await requestNotificationPermission();
+        if (token) {
+            setNotificationStatus('granted');
+            await useStore.getState().saveDeviceToken(token);
+            addToast('تم تفعيل الإشعارات بنجاح', 'success');
+        } else {
+            setNotificationStatus(Notification.permission);
+            if (Notification.permission === 'denied') {
+                addToast('تم رفض صلاحية الإشعارات من قبل المتصفح', 'error');
+            } else {
+                addToast('فشل تفعيل الإشعارات', 'error');
+            }
+        }
+    };
 
     useEffect(() => {
         if (appData?.settings) {
@@ -263,6 +287,43 @@ const Settings: React.FC = () => {
                                 <p className="text-center text-gray-500 italic py-2">لا يوجد رسائل حالياً</p>
                             )}
                         </div>
+                    </div>
+                </div>
+
+                {/* Push Notifications Section */}
+                <div className="border-b dark:border-gray-700 pb-6">
+                    <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
+                        <i className="fas fa-bell text-primary"></i>
+                        إشعارات المتصفح (Push Notifications)
+                    </h3>
+                    <div className="flex flex-col sm:flex-row gap-4 items-center justify-between bg-gray-50 dark:bg-gray-700 p-4 rounded-lg border dark:border-gray-600">
+                        <div>
+                            <p className="font-medium text-gray-800 dark:text-white">
+                                حالة الإشعارات: 
+                                <span className={`mr-2 px-2 py-1 rounded text-sm ${
+                                    notificationStatus === 'granted' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
+                                    notificationStatus === 'denied' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' :
+                                    'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
+                                }`}>
+                                    {notificationStatus === 'granted' ? 'مفعلة' : notificationStatus === 'denied' ? 'مرفوضة' : 'غير مفعلة'}
+                                </span>
+                            </p>
+                            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                قم بتفعيل الإشعارات لتلقي التنبيهات حتى عندما يكون التطبيق مغلقاً.
+                            </p>
+                        </div>
+                        <button
+                            onClick={handleEnableNotifications}
+                            disabled={notificationStatus === 'granted' || notificationStatus === 'denied'}
+                            className={`px-4 py-2 rounded-lg transition flex items-center gap-2 ${
+                                notificationStatus === 'granted' 
+                                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed dark:bg-gray-600 dark:text-gray-400' 
+                                    : 'bg-primary text-white hover:bg-primary-dark'
+                            }`}
+                        >
+                            <i className="fas fa-bell-slash"></i>
+                            تفعيل الإشعارات
+                        </button>
                     </div>
                 </div>
 
