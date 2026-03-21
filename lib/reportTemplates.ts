@@ -1,7 +1,7 @@
 
 
 import { AppData, DailySale, Product } from '../types';
-import { formatCurrency, formatDate, formatDateTime, calculateHours, normalizeSaleItems } from './utils';
+import { formatCurrency, formatDate, formatDateTime, calculateHours, normalizeSaleItems, calculateSaleProfit, getActualSaleRevenue } from './utils';
 
 const getReportStyles = (themeColor: string) => `
 <style>
@@ -283,24 +283,15 @@ export const generateSalesReportContent = (appData: AppData) => {
     const salesByDate = dailySales.reduce((acc, sale) => {
         const date = sale.date;
         if (!acc[date]) {
-            acc[date] = { revenue: 0, cost: 0 };
+            acc[date] = { revenue: 0, profit: 0 };
         }
         
-        const items = normalizeSaleItems(sale);
-        const saleCost = items.reduce((sum, item) => {
-             const product = products.find(p => p.id === item.productId);
-             return sum + (product ? product.purchasePrice * item.quantity : 0);
-        }, 0);
-        
-        if (sale.direction === 'بيع') {
-            acc[date].revenue += sale.totalAmount;
-            acc[date].cost += saleCost;
-        } else if (sale.direction === 'مرتجع') {
-            acc[date].revenue -= sale.totalAmount;
-            acc[date].cost -= saleCost;
+        if (sale.direction === 'بيع' || sale.direction === 'مرتجع' || sale.direction === 'تبديل') {
+            acc[date].revenue += getActualSaleRevenue(sale);
+            acc[date].profit += calculateSaleProfit(sale, products);
         }
         return acc;
-    }, {} as Record<string, { revenue: number, cost: number }>);
+    }, {} as Record<string, { revenue: number, profit: number }>);
 
     const sortedDates = Object.keys(salesByDate).sort((a,b) => new Date(b).getTime() - new Date(a).getTime());
     
@@ -308,8 +299,8 @@ export const generateSalesReportContent = (appData: AppData) => {
     let totalCost = 0;
 
     const tableRows = sortedDates.map(date => {
-        const { revenue, cost } = salesByDate[date];
-        const profit = revenue - cost;
+        const { revenue, profit } = salesByDate[date];
+        const cost = revenue - profit;
         totalRevenue += revenue;
         totalCost += cost;
         return `

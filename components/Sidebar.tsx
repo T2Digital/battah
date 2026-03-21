@@ -36,7 +36,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, activeSection, setActiveSecti
         { id: Section.Notifications, icon: 'fa-bell', label: 'الإشعارات', permission: Section.Notifications, badge: unreadNotificationsCount },
         { id: Section.Users, icon: 'fa-user-shield', label: 'المستخدمين', permission: Section.Users },
         { id: Section.Settings, icon: 'fa-cogs', label: 'الإعدادات', permission: Section.Settings },
-        ...(currentUser?.username === 'ahm.atya@gmail.com' ? [{ id: Section.SuperAdmin, icon: 'fa-globe', label: 'المصنع (Super Admin)', permission: Section.SuperAdmin }] : []),
     ];
 
     const NavLink: React.FC<{ item: typeof navItems[0] }> = ({ item }) => {

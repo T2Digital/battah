@@ -4,7 +4,7 @@
 import React, { useMemo } from 'react';
 import useStore from '../../lib/store';
 import { DailySale, Product } from '../../types';
-import { normalizeSaleItems, formatCurrency, formatDate } from '../../lib/utils';
+import { normalizeSaleItems, formatCurrency, formatDate, calculateSaleProfit, getActualSaleRevenue } from '../../lib/utils';
 import SectionHeader from '../shared/SectionHeader';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
 import { generateSalesReportContent } from '../../lib/reportTemplates';
@@ -69,25 +69,18 @@ const SalesReportView: React.FC<SalesReportViewProps> = ({ setActiveReport }) =>
             });
         }
 
-        const data = filteredSales.reduce((acc: Record<string, { revenue: number; cost: number }>, sale) => {
+        const data = filteredSales.reduce((acc: Record<string, { revenue: number; profit: number }>, sale) => {
             const date = sale.date;
             if (!acc[date]) {
-                acc[date] = { revenue: 0, cost: 0 };
+                acc[date] = { revenue: 0, profit: 0 };
             }
-            
-            const items = normalizeSaleItems(sale);
-            const saleCost = items.reduce((sum, item) => {
-                 const product = products.find(p => p.id === item.productId);
-                 const itemCost = product ? product.purchasePrice * item.quantity : 0;
-                 return item.isReturn ? sum - itemCost : sum + itemCost;
-            }, 0);
             
             if (sale.direction === 'بيع' || sale.direction === 'مرتجع' || sale.direction === 'تبديل') {
-                acc[date].revenue += sale.totalAmount;
-                acc[date].cost += saleCost;
+                acc[date].revenue += getActualSaleRevenue(sale);
+                acc[date].profit += calculateSaleProfit(sale, products);
             }
             return acc;
-        }, {} as Record<string, { revenue: number; cost: number }>);
+        }, {} as Record<string, { revenue: number; profit: number }>);
         
         // FIX: Replaced Object.entries with Object.keys to fix type inference issue.
         return Object.keys(data).map((date) => {
@@ -95,7 +88,7 @@ const SalesReportView: React.FC<SalesReportViewProps> = ({ setActiveReport }) =>
             return {
                 date,
                 ...values,
-                profit: values.revenue - values.cost,
+                cost: values.revenue - values.profit,
             };
         }).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     }, [dailySales, products, currentUser, dateFilter]);

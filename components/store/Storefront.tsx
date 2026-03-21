@@ -290,7 +290,7 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
                 totalAmount={cartItems.reduce((sum, item) => sum + item.product.sellingPrice * item.quantity, 0)}
                 onCheckout={handleCheckout}
             />
-            <StoreFooter />
+            <StoreFooter setViewMode={setViewMode} />
         </div>
     );
 };

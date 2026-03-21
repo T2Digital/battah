@@ -93,7 +93,6 @@ const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose, onSave, existing
         [Section.Settings]: 'الإعدادات',
         [Section.Notifications]: 'الإشعارات',
         [Section.Users]: 'المستخدمين',
-        [Section.SuperAdmin]: 'إدارة النظام',
     };
 
     if (!isOpen) return null;

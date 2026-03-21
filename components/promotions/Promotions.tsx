@@ -47,8 +47,7 @@ const Promotions: React.FC = () => {
                 await updateDiscountCode(id, data);
             } else {
                 // This is a new code, we must ensure it doesn't already exist.
-                const tenantId = useStore.getState().currentTenant?.id || 'battah';
-                const docRef = doc(db, 'tenants', tenantId, "discountCodes", data.code);
+                const docRef = doc(db, 'discountCodes', data.code);
                 const docSnap = await getDoc(docRef);
                 if (docSnap.exists()) {
                     alert('هذا الكود موجود بالفعل. يرجى اختيار كود آخر.');

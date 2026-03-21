@@ -12,7 +12,7 @@ import RecentActivities from './RecentActivities';
 import ActionableAlerts from './ActionableAlerts';
 import { AppData, User, DailySale, Product, Role, Section } from '../../types';
 import useStore from '../../lib/store';
-import { normalizeSaleItems } from '../../lib/utils';
+import { normalizeSaleItems, calculateSaleProfit, getActualSaleRevenue } from '../../lib/utils';
 import CustomizeDashboardModal from './CustomizeDashboardModal';
 
 interface DashboardProps {
@@ -156,16 +156,10 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveSection }) => {
         let onlineSales = 0;
 
         todaySales.forEach(sale => {
-            const saleRevenue = sale.totalAmount;
-            const items = normalizeSaleItems(sale);
-            const saleCost = items.reduce((sum, item) => {
-                const product = (products || []).find(p => p.id === item.productId);
-                const itemCost = product ? product.purchasePrice * item.quantity : 0;
-                return item.isReturn ? sum - itemCost : sum + itemCost;
-            }, 0);
+            const saleRevenue = getActualSaleRevenue(sale);
 
             if (sale.direction === 'بيع' || sale.direction === 'مرتجع' || sale.direction === 'تبديل') {
-                profit += (saleRevenue - saleCost);
+                profit += calculateSaleProfit(sale, products || []);
                 totalSalesAmount += saleRevenue;
                 if (sale.source === 'أونلاين') {
                     onlineSales += saleRevenue;

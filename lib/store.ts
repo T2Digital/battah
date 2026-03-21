@@ -56,8 +56,7 @@ import {
     Settings,
     Broadcast,
     Section,
-    MainCategory,
-    Tenant
+    MainCategory
 } from '../types';
 import { initialData } from './initialData';
 import { formatCurrency, normalizeSaleItems } from './utils';
@@ -67,7 +66,6 @@ let adminUnsubscribers: Unsubscribe[] = [];
 
 type AppState = {
     currentUser: User | null;
-    currentTenant: Tenant | null;
     isInitialized: boolean; // For admin data
     isPublicInitialized: boolean; // For public data
     isLoading: boolean;
@@ -171,7 +169,6 @@ type AppActions = {
 
 const useStore = create<AppState & AppActions>((set, get) => ({
     currentUser: null,
-    currentTenant: null,
     isInitialized: false,
     isPublicInitialized: false,
     isLoading: false,

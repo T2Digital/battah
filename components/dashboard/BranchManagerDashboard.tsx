@@ -5,7 +5,7 @@ import { AppData, User, Role } from '../../types';
 import StatCard from './StatCard';
 import SalesChart from './SalesChart';
 import ActionableAlerts from './ActionableAlerts';
-import { normalizeSaleItems } from '../../lib/utils';
+import { normalizeSaleItems, calculateSaleProfit, getActualSaleRevenue } from '../../lib/utils';
 
 interface BranchManagerDashboardProps {
     currentUser: User;
@@ -28,21 +28,17 @@ const BranchManagerDashboard: React.FC<BranchManagerDashboardProps> = ({ current
         
         const branchSalesToday = dailySales.filter(s => s.date === todayStr && branchEmployeeIds.includes(s.sellerId));
         
-        const branchTotalSales = branchSalesToday.reduce((sum, s) => sum + (s.direction === 'بيع' ? s.totalAmount : -s.totalAmount), 0);
+        const branchTotalSales = branchSalesToday.reduce((sum, s) => {
+            if (s.direction === 'بيع' || s.direction === 'مرتجع' || s.direction === 'تبديل') {
+                return sum + getActualSaleRevenue(s);
+            }
+            return sum;
+        }, 0);
 
         let branchProfit = 0;
         branchSalesToday.forEach(sale => {
-            const saleRevenue = sale.totalAmount;
-            const items = normalizeSaleItems(sale);
-            const saleCost = items.reduce((sum, item) => {
-                const product = products.find(p => p.id === item.productId);
-                return sum + (product ? product.purchasePrice * item.quantity : 0);
-            }, 0);
-
-            if (sale.direction === 'بيع') {
-                branchProfit += (saleRevenue - saleCost);
-            } else if (sale.direction === 'مرتجع') {
-                branchProfit -= (saleRevenue - saleCost);
+            if (sale.direction === 'بيع' || sale.direction === 'مرتجع' || sale.direction === 'تبديل') {
+                branchProfit += calculateSaleProfit(sale, products);
             }
         });
 

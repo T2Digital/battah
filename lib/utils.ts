@@ -1,6 +1,6 @@
 
 
-import { DailySale, SaleItem } from '../types';
+import { DailySale, SaleItem, Product } from '../types';
 
 export const normalizeSaleItems = (sale: DailySale): SaleItem[] => {
     if (sale.items && Array.isArray(sale.items)) {
@@ -15,6 +15,35 @@ export const normalizeSaleItems = (sale: DailySale): SaleItem[] => {
         }];
     }
     return [];
+};
+
+export const getActualSaleRevenue = (sale: DailySale): number => {
+    let revenue = sale.totalAmount;
+    // For legacy data where returns might have been stored as positive amounts
+    if (sale.direction === 'مرتجع' && revenue > 0) {
+        revenue = -revenue;
+    }
+    if (sale.direction === 'بيع' && revenue < 0) {
+        revenue = Math.abs(revenue);
+    }
+    return revenue;
+};
+
+export const calculateSaleProfit = (sale: DailySale, products: Product[]): number => {
+    const revenue = getActualSaleRevenue(sale);
+    const items = normalizeSaleItems(sale);
+    
+    const cost = items.reduce((sum, item) => {
+        const product = products.find(p => p.id === item.productId);
+        const itemCost = product ? product.purchasePrice * item.quantity : 0;
+        const isReturn = item.isReturn !== undefined ? item.isReturn : (sale.direction === 'مرتجع');
+        return isReturn ? sum - itemCost : sum + itemCost;
+    }, 0);
+
+    if (sale.direction === 'بيع' || sale.direction === 'مرتجع' || sale.direction === 'تبديل') {
+        return revenue - cost;
+    }
+    return 0;
 };
 
 

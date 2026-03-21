@@ -1,6 +1,10 @@
 import React from 'react';
 
-const StoreFooter: React.FC = () => {
+interface StoreFooterProps {
+    setViewMode: (mode: 'admin' | 'store') => void;
+}
+
+const StoreFooter: React.FC<StoreFooterProps> = ({ setViewMode }) => {
     return (
         <footer className="bg-white dark:bg-gray-900 border-t border-gray-100 dark:border-gray-800 pt-16 pb-8 mt-16">
             <div className="container mx-auto px-4 sm:px-6">
@@ -47,6 +51,11 @@ const StoreFooter: React.FC = () => {
                             <li><a href="#category-highlights" className="text-gray-600 dark:text-gray-400 hover:text-primary transition-colors flex items-center gap-2"><i className="fas fa-chevron-left text-xs"></i> الأقسام</a></li>
                             <li><a href="#" className="text-gray-600 dark:text-gray-400 hover:text-primary transition-colors flex items-center gap-2"><i className="fas fa-chevron-left text-xs"></i> من نحن</a></li>
                             <li><a href="#" className="text-gray-600 dark:text-gray-400 hover:text-primary transition-colors flex items-center gap-2"><i className="fas fa-chevron-left text-xs"></i> اتصل بنا</a></li>
+                            <li className="sm:hidden">
+                                <button onClick={() => setViewMode('admin')} className="text-gray-600 dark:text-gray-400 hover:text-primary transition-colors flex items-center gap-2">
+                                    <i className="fas fa-user-shield text-xs"></i> تسجيل الدخول (للإدارة)
+                                </button>
+                            </li>
                         </ul>
                     </div>
 

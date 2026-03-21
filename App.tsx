@@ -44,7 +44,6 @@ const Settings = React.lazy(() => import('./components/dashboard/Settings'));
 const Notifications = React.lazy(() => import('./components/notifications/Notifications'));
 const Users = React.lazy(() => import('./components/users/Users'));
 
-
 import AccessDenied from './components/shared/AccessDenied';
 
 type ViewMode = 'admin' | 'store';

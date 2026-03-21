@@ -32,7 +32,6 @@ export enum Section {
     Settings = 'settings',
     Notifications = 'notifications',
     Users = 'users',
-    SuperAdmin = 'superadmin',
 }
 
 export interface User {
@@ -366,17 +365,4 @@ export interface Settings {
     workEndTime: string; // "23:00"
     electronicPaymentNumber?: string; // Added for controlling payment number
     tickerMessages?: string[]; // Added for ticker messages
-}
-
-export type TenantModule = 'store' | 'admin' | 'pos' | 'inventory' | 'hr' | 'accounting' | 'purchasing' | 'treasury' | 'ecommerce' | 'reports' | 'settings' | 'sales';
-
-export interface Tenant {
-    id: string;
-    name: string;
-    domain?: string;
-    modules: TenantModule[];
-    createdAt: string;
-    status: 'active' | 'suspended';
-    plan: 'basic' | 'pro' | 'enterprise';
-    settings?: any;
 }
