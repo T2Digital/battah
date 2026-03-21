@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, Suspense } from 'react';
 import { onAuthStateChanged } from "firebase/auth";
-import { auth, setupMessageListener } from './lib/firebase';
+import { auth, setupMessageListener, requestNotificationPermission } from './lib/firebase';
 import { Section, Role } from './types';
 import useStore from './lib/store';
 
@@ -48,6 +48,60 @@ const Users = React.lazy(() => import('./components/users/Users'));
 import AccessDenied from './components/shared/AccessDenied';
 
 type ViewMode = 'admin' | 'store';
+
+const NotificationPrompt = () => {
+    const [showPrompt, setShowPrompt] = useState(false);
+
+    useEffect(() => {
+        if ('Notification' in window && Notification.permission === 'default') {
+            const hasSeenPrompt = localStorage.getItem('hasSeenNotificationPrompt');
+            if (!hasSeenPrompt) {
+                // Delay showing the prompt slightly so it's not too aggressive
+                const timer = setTimeout(() => setShowPrompt(true), 3000);
+                return () => clearTimeout(timer);
+            }
+        }
+    }, []);
+
+    const handleEnable = async () => {
+        const token = await requestNotificationPermission();
+        if (token) {
+            await useStore.getState().saveDeviceToken(token);
+            useStore.getState().addToast('تم تفعيل الإشعارات بنجاح', 'success');
+        }
+        setShowPrompt(false);
+        localStorage.setItem('hasSeenNotificationPrompt', 'true');
+    };
+
+    const handleDismiss = () => {
+        setShowPrompt(false);
+        localStorage.setItem('hasSeenNotificationPrompt', 'true');
+    };
+
+    if (!showPrompt) return null;
+
+    return (
+        <div className="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:w-96 bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-4 z-50 border border-gray-200 dark:border-gray-700 animate-fade-in flex flex-col gap-3">
+            <div className="flex items-start gap-3">
+                <div className="bg-primary/10 p-2 rounded-full text-primary">
+                    <i className="fas fa-bell text-xl"></i>
+                </div>
+                <div className="flex-1">
+                    <h4 className="font-bold text-gray-800 dark:text-white">تفعيل الإشعارات</h4>
+                    <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">احصل على أحدث العروض وتنبيهات الطلبات فور حدوثها.</p>
+                </div>
+            </div>
+            <div className="flex gap-2 justify-end mt-2">
+                <button onClick={handleDismiss} className="px-4 py-2 text-sm text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition">
+                    ليس الآن
+                </button>
+                <button onClick={handleEnable} className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary-dark transition shadow-md">
+                    تفعيل الإشعارات
+                </button>
+            </div>
+        </div>
+    );
+};
 
 const App: React.FC = () => {
     const { 
@@ -358,12 +412,22 @@ const App: React.FC = () => {
     }
     
     if (viewMode === 'store') {
-        return <Storefront setViewMode={setViewMode} />;
+        return (
+            <>
+                <Storefront setViewMode={setViewMode} />
+                <NotificationPrompt />
+            </>
+        );
     }
 
     // --- Admin View Logic ---
     if (!currentUser) {
-        return <LoginModal setViewMode={setViewMode} />;
+        return (
+            <>
+                <LoginModal setViewMode={setViewMode} />
+                <NotificationPrompt />
+            </>
+        );
     }
 
     if (isLoading || !isInitialized || !appData) {
@@ -373,6 +437,7 @@ const App: React.FC = () => {
     return (
         <div className="bg-slate-100 dark:bg-gray-900 min-h-screen font-cairo">
             <ToastContainer />
+            <NotificationPrompt />
             <Header
                 toggleSidebar={toggleSidebar}
                 isSidebarOpen={isSidebarOpen}

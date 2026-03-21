@@ -8,13 +8,14 @@ interface ModalProps {
     onSave?: (e: React.FormEvent) => void;
     saveLabel?: string;
     isLoading?: boolean;
+    maxWidth?: string;
 }
 
-const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, onSave, saveLabel, isLoading = false }) => {
+const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, onSave, saveLabel, isLoading = false, maxWidth = 'max-w-2xl' }) => {
     if (!isOpen) return null;
 
     const content = (
-        <div className="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-200 rounded-2xl shadow-xl w-full max-w-2xl m-4 max-h-[90vh] flex flex-col">
+        <div className={`bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-200 rounded-2xl shadow-xl w-full ${maxWidth} m-4 max-h-[90vh] flex flex-col`}>
             <div className="flex justify-between items-center p-5 border-b border-gray-200 dark:border-gray-700">
                 <h3 className="text-xl font-bold">{title}</h3>
                 <button onClick={onClose} className="w-8 h-8 flex justify-center items-center rounded-full hover:bg-gray-200 dark:hover:bg-gray-600 transition">

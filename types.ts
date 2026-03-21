@@ -4,18 +4,6 @@ import { Timestamp } from 'firebase/firestore';
 
 export type Branch = 'main' | 'branch1' | 'branch2' | 'branch3';
 
-export type TenantModule = 'pos' | 'inventory' | 'purchasing' | 'hr' | 'treasury' | 'ecommerce' | 'reports' | 'settings';
-
-export interface Tenant {
-    id: string;
-    name: string;
-    domain: string;
-    logoUrl?: string;
-    modules: TenantModule[];
-    status: 'active' | 'suspended';
-    createdAt?: string;
-}
-
 export enum Role {
     Admin = 'admin',
     BranchManager = 'manager',
@@ -44,7 +32,6 @@ export enum Section {
     Settings = 'settings',
     Notifications = 'notifications',
     Users = 'users',
-    SuperAdmin = 'superadmin',
 }
 
 export interface User {
@@ -77,6 +64,9 @@ export interface Product {
     images: string[];
     compatibility?: string[];
     hasSerialNumber?: boolean; // Added
+    discount?: number;
+    isNew?: boolean;
+    rating?: number;
 }
 
 export interface SaleItem {

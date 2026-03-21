@@ -12,16 +12,16 @@ interface StoreProductsProps {
 }
 
 const SkeletonCard = () => (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden flex flex-col h-full animate-pulse">
-        <div className="h-48 bg-gray-300 dark:bg-gray-700"></div>
+    <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm overflow-hidden flex flex-col h-full animate-pulse border border-gray-100 dark:border-gray-700">
+        <div className="h-40 sm:h-48 bg-gray-200 dark:bg-gray-700"></div>
         <div className="p-4 flex flex-col flex-grow">
-            <div className="h-4 bg-gray-300 dark:bg-gray-600 rounded w-3/4 mb-2"></div>
-            <div className="h-3 bg-gray-300 dark:bg-gray-600 rounded w-1/2"></div>
-            <div className="mt-auto pt-4">
-                <div className="h-6 bg-gray-400 dark:bg-gray-500 rounded w-1/3 mb-2"></div>
-                <div className="flex items-center justify-between mt-2">
-                    <div className="h-10 bg-gray-300 dark:bg-gray-600 rounded w-1/3"></div>
-                    <div className="h-10 bg-gray-400 dark:bg-gray-500 rounded-lg w-1/3"></div>
+            <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded-full w-3/4 mb-3"></div>
+            <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded-full w-1/2 mb-4"></div>
+            <div className="mt-auto pt-4 border-t border-gray-100 dark:border-gray-700">
+                <div className="h-6 bg-gray-300 dark:bg-gray-600 rounded-full w-1/3 mb-3"></div>
+                <div className="flex items-center justify-between">
+                    <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded-lg w-1/3"></div>
+                    <div className="h-8 bg-gray-300 dark:bg-gray-600 rounded-lg w-1/3"></div>
                 </div>
             </div>
         </div>
@@ -41,14 +41,18 @@ const StoreProducts: React.FC<StoreProductsProps> = ({ products, onProductClick,
     const isLoading = products.length === 0;
 
     return (
-        <div id="store-products" className="container mx-auto px-4 sm:px-6 py-12">
-            <h2 className="text-3xl font-bold text-center mb-8">جميع المنتجات</h2>
+        <div id="store-products" className="container mx-auto px-4 sm:px-6 py-16">
+            <div className="flex flex-col items-center mb-12">
+                <h2 className="text-3xl sm:text-4xl font-black text-gray-900 dark:text-white mb-4 text-center">جميع المنتجات</h2>
+                <div className="w-24 h-1.5 bg-primary rounded-full"></div>
+            </div>
+            
             <div className="flex flex-col lg:flex-row gap-8">
                 <StoreSidebar products={products} filters={filters} setFilters={setFilters} />
                 <div className="flex-grow">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-6">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-6">
                         {isLoading ? (
-                            Array.from({ length: 8 }).map((_, index) => <SkeletonCard key={index} />)
+                            Array.from({ length: 10 }).map((_, index) => <SkeletonCard key={index} />)
                         ) : filteredProducts.length > 0 ? (
                             filteredProducts.map(product => (
                                 <StoreProductCard
@@ -59,10 +63,18 @@ const StoreProducts: React.FC<StoreProductsProps> = ({ products, onProductClick,
                                 />
                             ))
                         ) : (
-                            <div className="sm:col-span-2 md:col-span-3 xl:col-span-4 text-center text-gray-500 py-16">
-                                <i className="fas fa-search text-4xl mb-4 text-gray-400"></i>
-                                <h4 className="font-bold text-lg">لا توجد منتجات تطابق بحثك</h4>
-                                <p>حاول تعديل الفلاتر أو استخدام كلمات بحث مختلفة.</p>
+                            <div className="col-span-full flex flex-col items-center justify-center text-center py-20 bg-gray-50 dark:bg-gray-800/50 rounded-3xl border border-gray-100 dark:border-gray-700">
+                                <div className="w-24 h-24 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mb-6">
+                                    <i className="fas fa-search text-4xl text-gray-400 dark:text-gray-500"></i>
+                                </div>
+                                <h4 className="font-bold text-xl text-gray-900 dark:text-white mb-2">لا توجد منتجات تطابق بحثك</h4>
+                                <p className="text-gray-500 dark:text-gray-400 max-w-md">حاول تعديل الفلاتر أو استخدام كلمات بحث مختلفة للعثور على ما تبحث عنه.</p>
+                                <button 
+                                    onClick={() => setFilters({ category: 'all', brand: 'all', search: '' })}
+                                    className="mt-6 px-6 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 font-bold rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors shadow-sm"
+                                >
+                                    مسح الفلاتر
+                                </button>
                             </div>
                         )}
                     </div>

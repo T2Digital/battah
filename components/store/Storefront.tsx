@@ -19,6 +19,8 @@ import MyOrdersModal from './MyOrdersModal';
 import InstallPrompt from '../shared/InstallPrompt';
 import FloatingCheckoutButton from './FloatingCheckoutButton';
 
+import StoreFooter from './StoreFooter';
+
 interface StorefrontProps {
     setViewMode: (mode: 'admin' | 'store') => void;
 }
@@ -229,7 +231,7 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
                 onMyOrdersClick={() => setMyOrdersOpen(true)}
             />
             <main>
-                <StoreHero />
+                <StoreHero setFilters={setFilters} />
                 <CategoryHighlights setFilters={setFilters} />
                 <FeaturedProductsSection products={featuredProducts} onProductClick={setSelectedProduct} addToCart={addToCart} />
                 <NewArrivalsSection products={newArrivals} onProductClick={setSelectedProduct} addToCart={addToCart} />
@@ -285,6 +287,7 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
                 totalAmount={cartItems.reduce((sum, item) => sum + item.product.sellingPrice * item.quantity, 0)}
                 onCheckout={handleCheckout}
             />
+            <StoreFooter />
         </div>
     );
 };
