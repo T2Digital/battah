@@ -51,9 +51,9 @@ const StoreFooter: React.FC<StoreFooterProps> = ({ setViewMode }) => {
                             <li><a href="#category-highlights" className="text-gray-600 dark:text-gray-400 hover:text-primary transition-colors flex items-center gap-2"><i className="fas fa-chevron-left text-xs"></i> الأقسام</a></li>
                             <li><a href="#" className="text-gray-600 dark:text-gray-400 hover:text-primary transition-colors flex items-center gap-2"><i className="fas fa-chevron-left text-xs"></i> من نحن</a></li>
                             <li><a href="#" className="text-gray-600 dark:text-gray-400 hover:text-primary transition-colors flex items-center gap-2"><i className="fas fa-chevron-left text-xs"></i> اتصل بنا</a></li>
-                            <li className="sm:hidden">
-                                <button onClick={() => setViewMode('admin')} className="text-gray-600 dark:text-gray-400 hover:text-primary transition-colors flex items-center gap-2">
-                                    <i className="fas fa-user-shield text-xs"></i> تسجيل الدخول (للإدارة)
+                            <li className="pt-4 mt-2 border-t border-gray-100 dark:border-gray-800">
+                                <button onClick={() => setViewMode('admin')} className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-xl hover:bg-gray-800 dark:hover:bg-gray-100 transition-all font-bold text-sm shadow-sm">
+                                    <i className="fas fa-user-shield"></i> تسجيل الدخول للإدارة
                                 </button>
                             </li>
                         </ul>
