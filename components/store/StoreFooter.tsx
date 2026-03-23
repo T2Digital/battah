@@ -68,7 +68,12 @@ const StoreFooter: React.FC<StoreFooterProps> = ({ setViewMode }) => {
                         <ul className="space-y-4">
                             <li className="flex items-start gap-3 text-gray-600 dark:text-gray-400">
                                 <i className="fas fa-map-marker-alt mt-1 text-primary"></i>
-                                <span>القاهرة، مصر<br/>شارع دمشق، متفرع من شارع سوريا</span>
+                                <div className="space-y-2 text-sm">
+                                    <p>79 شارع رمسيس ناصية التوفيقية امام سنترال رمسيس</p>
+                                    <p>19 شارع رمسيس ناصية التوفيقية امام سنترال رمسيس</p>
+                                    <p>6 شارع البورصة ناصية التوفيقية بجوار سينما ريفولى</p>
+                                    <p>1 شارع البورصة ناصية التوفيقية امام دار القضاء العالى</p>
+                                </div>
                             </li>
                             <li className="flex items-center gap-3 text-gray-600 dark:text-gray-400">
                                 <i className="fas fa-phone-alt text-primary"></i>
@@ -87,11 +92,13 @@ const StoreFooter: React.FC<StoreFooterProps> = ({ setViewMode }) => {
                     <p className="text-gray-500 dark:text-gray-400 text-sm text-center md:text-right">
                         &copy; {new Date().getFullYear()} متجر بطاح لقطع الغيار. جميع الحقوق محفوظة.
                     </p>
-                    <div className="flex gap-4 text-2xl text-gray-400">
-                        <i className="fab fa-cc-visa hover:text-blue-600 transition-colors cursor-pointer"></i>
-                        <i className="fab fa-cc-mastercard hover:text-orange-500 transition-colors cursor-pointer"></i>
-                        <i className="fab fa-cc-paypal hover:text-blue-500 transition-colors cursor-pointer"></i>
-                        <i className="fab fa-cc-apple-pay hover:text-gray-900 dark:hover:text-white transition-colors cursor-pointer"></i>
+                    <div className="flex gap-3 items-center">
+                        <div className="flex items-center justify-center h-8 bg-[#E60000] rounded-md text-white font-bold text-xs px-3 hover:bg-red-700 transition-colors cursor-pointer shadow-sm">
+                            Vodafone Cash
+                        </div>
+                        <div className="flex items-center justify-center h-8 bg-[#5A2D82] rounded-md text-white font-bold text-xs px-3 hover:bg-purple-900 transition-colors cursor-pointer shadow-sm">
+                            InstaPay
+                        </div>
                     </div>
                 </div>
             </div>

@@ -385,6 +385,22 @@ const Inventory: React.FC = () => {
                             </tbody>
                         </table>
                     </div>
+                    
+                    {hasMore && !isSearching && (
+                        <div className="flex justify-center mt-6">
+                            <button 
+                                onClick={() => loadProducts(false)} 
+                                disabled={loading}
+                                className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors disabled:opacity-50 flex items-center gap-2"
+                            >
+                                {loading ? (
+                                    <><i className="fas fa-spinner fa-spin"></i> جاري التحميل...</>
+                                ) : (
+                                    <><i className="fas fa-chevron-down"></i> عرض المزيد</>
+                                )}
+                            </button>
+                        </div>
+                    )}
                 </>
             )}
 

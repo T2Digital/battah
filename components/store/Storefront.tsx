@@ -114,7 +114,7 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
             "description": "متجر بطاح الأصلي لقطع غيار السيارات وإكسسواراتها الأصلية.",
             "address": {
                 "@type": "PostalAddress",
-                "streetAddress": "شارع دمشق",
+                "streetAddress": "79 شارع رمسيس ناصية التوفيقية",
                 "addressLocality": "القاهرة",
                 "addressCountry": "EG"
             },
