@@ -165,6 +165,7 @@ type AppActions = {
     saveDeviceToken: (token: string) => Promise<void>;
     resetTreasury: (initialBalance: number) => Promise<void>;
     clearTreasury: () => Promise<void>;
+    resetDatabase: () => Promise<void>;
 };
 
 const useStore = create<AppState & AppActions>((set, get) => ({
@@ -1726,6 +1727,45 @@ const useStore = create<AppState & AppActions>((set, get) => ({
         });
         await batch.commit();
         get().addToast('تم مسح جميع معاملات الخزينة بنجاح', 'success');
+    },
+    resetDatabase: async () => {
+        const state = get();
+        if (!state.appData) return;
+
+        const collectionsToClear: (keyof AppData)[] = [
+            'products', 'dailySales', 'employees', 'advances', 'attendance', 'payroll', 'suppliers', 
+            'purchaseOrders', 'payments', 'expenses', 'treasury', 'dailyReview', 
+            'notifications', 'stockTransfers', 'orders', 'broadcasts', 'discountCodes'
+        ];
+
+        try {
+            for (const collectionName of collectionsToClear) {
+                const items = state.appData[collectionName] as any[];
+                if (!items || items.length === 0) continue;
+
+                for (let i = 0; i < items.length; i += 500) {
+                    const chunk = items.slice(i, i + 500);
+                    const batch = writeBatch(db);
+                    for (const item of chunk) {
+                        batch.delete(doc(db, collectionName as string, String(item.id)));
+                    }
+                    await batch.commit();
+                }
+            }
+            
+            // Also reset storefront settings
+            await state.updateStorefrontSettings({
+                featuredProductIds: [],
+                newArrivalProductIds: [],
+                adminPassword: state.appData.storefrontSettings?.adminPassword // keep password
+            });
+
+            get().addToast('تم مسح جميع البيانات بنجاح', 'success');
+        } catch (error) {
+            console.error("Error resetting database:", error);
+            get().addToast('حدث خطأ أثناء مسح البيانات', 'error');
+            throw error;
+        }
     },
 }));
 

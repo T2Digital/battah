@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import useStore from '../../lib/store';
 import SectionHeader from '../shared/SectionHeader';
 import { requestNotificationPermission } from '../../lib/firebase';
+import ConfirmationModal from '../shared/ConfirmationModal';
 
 const Settings: React.FC = () => {
-    const { appData, updateSettings, updateStorefrontSettings, addToast } = useStore();
+    const { appData, updateSettings, updateStorefrontSettings, addToast, resetDatabase } = useStore();
     const settings = appData?.settings || {
         enableIPRestriction: false,
         enableTimeRestriction: false,
@@ -18,6 +19,8 @@ const Settings: React.FC = () => {
     const [isLoadingIP, setIsLoadingIP] = useState(false);
 
     const [isSaving, setIsSaving] = useState(false);
+    const [isResetting, setIsResetting] = useState(false);
+    const [isResetModalOpen, setIsResetModalOpen] = useState(false);
     const [newTickerMessage, setNewTickerMessage] = useState('');
     const [tickerMessages, setTickerMessages] = useState<string[]>([]);
     const [notificationStatus, setNotificationStatus] = useState<string>('default');
@@ -100,6 +103,18 @@ const Settings: React.FC = () => {
             addToast("فشل في حفظ الإعدادات", "error");
         } finally {
             setIsSaving(false);
+        }
+    };
+
+    const handleResetDatabase = async () => {
+        setIsResetting(true);
+        try {
+            await resetDatabase();
+            setIsResetModalOpen(false);
+        } catch (error) {
+            console.error("Failed to reset database:", error);
+        } finally {
+            setIsResetting(false);
         }
     };
 
@@ -364,6 +379,31 @@ const Settings: React.FC = () => {
                     </p>
                 </div>
 
+                {/* Reset Database Section */}
+                <div className="border-b dark:border-gray-700 pb-6">
+                    <h3 className="text-lg font-bold text-red-600 dark:text-red-400 mb-4 flex items-center gap-2">
+                        <i className="fas fa-exclamation-triangle"></i>
+                        منطقة الخطر (إعادة ضبط المصنع)
+                    </h3>
+                    <div className="flex flex-col sm:flex-row gap-4 items-center justify-between bg-red-50 dark:bg-red-900/20 p-4 rounded-lg border border-red-200 dark:border-red-800">
+                        <div>
+                            <p className="font-medium text-red-800 dark:text-red-300">
+                                مسح جميع بيانات التطبيق
+                            </p>
+                            <p className="text-sm text-red-600 dark:text-red-400 mt-1">
+                                سيتم مسح جميع المنتجات، المبيعات، الطلبات، المصروفات، وكل البيانات الأخرى نهائياً. لا يمكن التراجع عن هذا الإجراء. سيتم الاحتفاظ بحسابات المستخدمين والإعدادات فقط.
+                            </p>
+                        </div>
+                        <button
+                            onClick={() => setIsResetModalOpen(true)}
+                            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition flex items-center gap-2 whitespace-nowrap"
+                        >
+                            <i className="fas fa-trash-alt"></i>
+                            مسح جميع البيانات
+                        </button>
+                    </div>
+                </div>
+
                 <div className="flex justify-end pt-4">
                     <button 
                         onClick={handleSave} 
@@ -376,6 +416,16 @@ const Settings: React.FC = () => {
                 </div>
 
             </div>
+
+            <ConfirmationModal
+                isOpen={isResetModalOpen}
+                onClose={() => setIsResetModalOpen(false)}
+                onConfirm={handleResetDatabase}
+                title="تأكيد مسح جميع البيانات"
+                message="هل أنت متأكد تماماً من رغبتك في مسح جميع البيانات؟ سيتم حذف جميع المنتجات، المبيعات، الطلبات، وكل شيء آخر. هذا الإجراء لا يمكن التراجع عنه!"
+                isLoading={isResetting}
+                requireSecurityCheck={true}
+            />
         </div>
     );
 };

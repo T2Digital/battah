@@ -58,6 +58,7 @@ const StockTransfersList: React.FC<{ transfers: StockTransfer[] }> = ({ transfer
 };
 
 const Inventory: React.FC = () => {
+    console.log('Inventory component rendering...');
     const { 
         stockTransfers,
         setProducts, 

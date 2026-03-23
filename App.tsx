@@ -262,6 +262,7 @@ const App: React.FC = () => {
     useEffect(() => {
         const handleHashChange = () => {
             const hash = window.location.hash.replace('#', '');
+            console.log('Hash changed to:', hash);
             if (Object.values(Section).includes(hash as Section)) {
                 setActiveSection(hash as Section);
             } else {
@@ -365,6 +366,7 @@ const App: React.FC = () => {
         }
 
         if (activeSection !== Section.Dashboard && !hasPermission(activeSection)) {
+            console.log('Redirecting to dashboard because hasPermission is false for', activeSection);
             updateActiveSection(Section.Dashboard);
             return null;
         }

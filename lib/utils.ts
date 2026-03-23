@@ -30,9 +30,16 @@ export const getActualSaleRevenue = (sale: DailySale): number => {
 };
 
 export const calculateSaleProfit = (sale: DailySale, products: Product[]): number => {
-    const revenue = getActualSaleRevenue(sale);
+    let revenue = getActualSaleRevenue(sale);
     const items = normalizeSaleItems(sale);
     
+    // Deduct delivery fee from revenue for online orders to calculate accurate product profit
+    if (sale.source === 'أونلاين' && sale.direction === 'بيع') {
+        revenue -= 50; // Hardcoded delivery fee
+    } else if (sale.source === 'أونلاين' && sale.direction === 'مرتجع') {
+        revenue += 50; // Add back delivery fee if it was deducted during sale
+    }
+
     const cost = items.reduce((sum, item) => {
         const product = products.find(p => p.id === item.productId);
         const itemCost = product ? product.purchasePrice * item.quantity : 0;
