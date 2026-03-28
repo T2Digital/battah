@@ -1,0 +1,158 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: userId (Firebase Auth UID)
+    // Fields:
+    //   - id: string (required)
+    //   - username: string (required, email)
+    //   - name: string (required)
+    //   - role: string (required, enum: admin, manager, seller, accountant, cashier)
+    //   - branch: string (required, enum: main, branch1, branch2, branch3)
+    //   - permissions: list (required, strings of Section enum)
+    //   - password: string (optional, for admin display)
+    //
+    // Collection: products
+    // Document ID: productId (stringified integer)
+    // Fields:
+    //   - id: number (required)
+    //   - name: string (required)
+    //   - sku: string (required)
+    //   - stock: map (required, branch keys to numbers)
+    //   - purchasePrice: number (required)
+    //   - sellingPrice: number (required)
+    //
+    // [Other collections follow similar patterns with 'id' field matching doc ID]
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && 
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin') ||
+         request.auth.token.email == "ahm.atya@gmail.com" ||
+         request.auth.token.email == "admin@battah.com";
+    }
+
+    function isManager() {
+      return isAuthenticated() && 
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'manager' || isAdmin());
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function hasPermission(section) {
+      return isAuthenticated() && 
+        (isAdmin() || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.permissions.hasAny([section]));
+    }
+
+    function isValidString(val, min, max) {
+      return val is string && val.size() >= min && val.size() <= max;
+    }
+
+    function isValidNumber(val, min, max) {
+      return val is number && val >= min && val <= max;
+    }
+
+    // ===============================================================
+    // Collection Rules
+    // ===============================================================
+
+    // Users collection
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isAdmin();
+      allow update: if isAdmin() || (isOwner(userId) && request.resource.data.role == resource.data.role);
+      allow delete: if isAdmin();
+    }
+
+    // Products collection
+    match /products/{productId} {
+      allow read: if true; // Allow public read for storefront
+      allow create, update: if hasPermission('store-management') || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // Sales collection
+    match /dailySales/{saleId} {
+      allow read: if isAuthenticated();
+      allow create: if hasPermission('daily-sales') || isAdmin();
+      allow update: if hasPermission('daily-sales') || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // Treasury collection
+    match /treasury/{transactionId} {
+      allow read: if hasPermission('treasury') || isAdmin();
+      allow create: if hasPermission('treasury') || isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // Expenses collection
+    match /expenses/{expenseId} {
+      allow read: if hasPermission('expenses') || isAdmin();
+      allow create: if hasPermission('expenses') || isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // Employees, Payroll, Advances, Attendance
+    match /employees/{id} { allow read, write: if hasPermission('employees') || isAdmin(); }
+    match /payroll/{id} { allow read, write: if hasPermission('payroll') || isAdmin(); }
+    match /advances/{id} { allow read, write: if hasPermission('advances') || isAdmin(); }
+    match /attendance/{id} { allow read, write: if hasPermission('attendance') || isAdmin(); }
+
+    // Suppliers, Purchase Orders, Payments
+    match /suppliers/{id} { allow read, write: if hasPermission('suppliers') || isAdmin(); }
+    match /purchaseOrders/{id} { allow read, write: if hasPermission('purchasing') || isAdmin(); }
+    match /payments/{id} { allow read, write: if hasPermission('purchasing') || isAdmin(); }
+
+    // Daily Review
+    match /dailyReview/{id} { allow read, write: if hasPermission('daily-review') || isAdmin(); }
+
+    // Orders
+    match /orders/{id} { 
+      allow read: if isAuthenticated();
+      allow create: if true; // Allow public creation for storefront
+      allow update: if hasPermission('orders') || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // Notifications, Broadcasts
+    match /notifications/{id} { allow read, write: if isAuthenticated(); }
+    match /broadcasts/{id} { 
+      allow read: if true; 
+      allow write: if isAdmin();
+    }
+
+    // Stock Transfers
+    match /stockTransfers/{id} { allow read, write: if hasPermission('store-management') || isAdmin(); }
+    
+    // Discount Codes
+    match /discountCodes/{id} { 
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Settings
+    match /settings/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+  }
+}

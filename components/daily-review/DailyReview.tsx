@@ -119,12 +119,28 @@ const DailyReview: React.FC = () => {
         branch3: 'فرع 2',
     };
 
+    const handlePrintReport = () => {
+        import('../../lib/reportTemplates').then(({ generateDailyReviewReportContent }) => {
+            const content = generateDailyReviewReportContent(sortedReviews, filters.dateFrom, filters.dateTo);
+            const reportWindow = window.open('', '_blank');
+            if (reportWindow) {
+                reportWindow.document.write(content);
+                reportWindow.document.close();
+            }
+        });
+    };
+
     return (
         <div className="animate-fade-in space-y-6">
             <SectionHeader icon="fa-chart-line" title="مراجعة اليوميات">
-                <button onClick={() => { setReviewToEdit(null); setModalOpen(true); }} className="px-4 py-2 bg-primary text-white rounded-lg flex items-center gap-2 hover:bg-primary-dark transition shadow-md">
-                    <i className="fas fa-plus"></i> إضافة مراجعة
-                </button>
+                <div className="flex gap-2">
+                    <button onClick={handlePrintReport} className="px-4 py-2 bg-secondary text-white rounded-lg flex items-center gap-2 hover:bg-secondary-dark transition shadow-md">
+                        <i className="fas fa-print"></i> طباعة التقرير
+                    </button>
+                    <button onClick={() => { setReviewToEdit(null); setModalOpen(true); }} className="px-4 py-2 bg-primary text-white rounded-lg flex items-center gap-2 hover:bg-primary-dark transition shadow-md">
+                        <i className="fas fa-plus"></i> إضافة مراجعة
+                    </button>
+                </div>
             </SectionHeader>
 
             <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-lg flex flex-col md:flex-row gap-4 flex-wrap">

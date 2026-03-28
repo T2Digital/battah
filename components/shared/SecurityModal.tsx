@@ -38,11 +38,6 @@ const SecurityModal: React.FC<SecurityModalProps> = ({ isOpen, onClose, onConfir
             onClose();
             setPassword('');
             setError('');
-        } else if (password === 'admin123') {
-            onConfirm();
-            onClose();
-            setPassword('');
-            setError('');
         } else {
             setError('كلمة المرور غير صحيحة');
         }

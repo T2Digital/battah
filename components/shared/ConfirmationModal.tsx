@@ -17,6 +17,7 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({ isOpen, onClose, 
         storefrontSettings: state.appData?.storefrontSettings,
         users: state.appData?.users || []
     }));
+    const [showPassword, setShowPassword] = useState(false);
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
 
@@ -27,8 +28,6 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({ isOpen, onClose, 
             if (storefrontSettings?.adminPassword && password === storefrontSettings.adminPassword) {
                 // success
             } else if (adminUsers.some(u => u.password === password)) {
-                // success
-            } else if (password === 'admin123') {
                 // success
             } else {
                 setError('كلمة المرور غير صحيحة');
@@ -45,13 +44,22 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({ isOpen, onClose, 
                 {requireSecurityCheck && (storefrontSettings?.adminPassword || users.some(u => u.role === 'admin')) && (
                     <div className="mt-4">
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">كلمة مرور العمليات الحساسة</label>
-                        <input
-                            type="password"
-                            value={password}
-                            onChange={(e) => { setPassword(e.target.value); setError(''); }}
-                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring focus:ring-red-500 focus:ring-opacity-50 dark:bg-gray-700 dark:border-gray-600 p-2"
-                            placeholder="كلمة المرور"
-                        />
+                        <div className="relative mt-1">
+                            <input
+                                type={showPassword ? "text" : "password"}
+                                value={password}
+                                onChange={(e) => { setPassword(e.target.value); setError(''); }}
+                                className="block w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring focus:ring-red-500 focus:ring-opacity-50 dark:bg-gray-700 dark:border-gray-600 p-2 pl-10"
+                                placeholder="كلمة المرور"
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setShowPassword(!showPassword)}
+                                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                            >
+                                <i className={`fas ${showPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
+                            </button>
+                        </div>
                         {error && <p className="text-red-500 text-sm mt-1">{error}</p>}
                     </div>
                 )}

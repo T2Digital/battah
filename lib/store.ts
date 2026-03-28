@@ -213,7 +213,7 @@ const useStore = create<AppState & AppActions>((set, get) => ({
             publicUnsubscribers.forEach(unsub => unsub());
             publicUnsubscribers = [];
         
-            const publicCollections: (keyof AppData)[] = ['broadcasts'];
+            const publicCollections: (keyof AppData)[] = ['broadcasts', 'products'];
 
             publicCollections.forEach(name => {
                 const unsub = onSnapshot(collection(db, name as string), (snapshot) => {
@@ -369,11 +369,14 @@ const useStore = create<AppState & AppActions>((set, get) => ({
     seedDatabase: async () => {
         const batch = writeBatch(db);
         Object.entries(initialData).forEach(([collectionName, data]) => {
-            if(collectionName === 'storefrontSettings') {
+            if (collectionName === 'storefrontSettings') {
                 const docRef = doc(db, "settings", "storefront");
                 batch.set(docRef, data);
-            } else if (collectionName !== 'stockTransfers' && collectionName !== 'discountCodes' && collectionName !== 'toasts') { 
-                 (data as any[]).forEach((item: any) => {
+            } else if (collectionName === 'settings') {
+                const docRef = doc(db, "settings", "general");
+                batch.set(docRef, data);
+            } else if (Array.isArray(data) && collectionName !== 'stockTransfers' && collectionName !== 'discountCodes' && collectionName !== 'toasts') { 
+                 data.forEach((item: any) => {
                     const docRef = doc(db, collectionName, String(item.id));
                     batch.set(docRef, item);
                 });

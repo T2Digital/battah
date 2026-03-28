@@ -1,6 +1,6 @@
 
 
-import { AppData, DailySale, Product } from '../types';
+import { AppData, DailySale, Product, DailyReview } from '../types';
 import { formatCurrency, formatDate, formatDateTime, calculateHours, normalizeSaleItems, calculateSaleProfit, getActualSaleRevenue } from './utils';
 
 const getReportStyles = (themeColor: string) => `
@@ -201,9 +201,11 @@ export const generateInvoiceContent = (sale: DailySale, products: Product[]) => 
         <div style="font-size: 12px; margin-bottom: 5px;">
             <div><strong>رقم الفاتورة:</strong> ${sale.invoiceNumber}</div>
             <div><strong>التاريخ والوقت:</strong> ${formatDateTime(sale.date, sale.timestamp)}</div>
+            <div><strong>الفرع:</strong> ${sale.branchSoldFrom === 'main' ? 'الرئيسي' : sale.branchSoldFrom}</div>
             <div><strong>البائع:</strong> ${sale.sellerName}</div>
             ${sale.customerName ? `<div><strong>العميل:</strong> ${sale.customerName}</div>` : ''}
             ${sale.customerPhone ? `<div><strong>تليفون العميل:</strong> ${sale.customerPhone}</div>` : ''}
+            ${sale.warrantyPeriod ? `<div><strong>الضمان:</strong> ${sale.warrantyPeriod}</div>` : ''}
         </div>
         <hr>
         <table cellpadding="0" cellspacing="0">
@@ -1125,4 +1127,57 @@ export const generateFinancialClosingReportContent = (appData: AppData, startDat
     `;
 
     return generateReportHTML('تقرير تقفيل الحسابات', '#4f46e5', content);
+};
+
+export const generateDailyReviewReportContent = (reviews: DailyReview[], startDate: string, endDate: string) => {
+    const branchNames: Record<string, string> = {
+        main: 'المخزن',
+        branch1: 'الرئيسي',
+        branch2: 'فرع 1',
+        branch3: 'فرع 2',
+    };
+
+    const content = `
+        ${getReportStyles('#0891b2')}
+        <div class="header">
+            <h1>تقرير مراجعة اليوميات</h1>
+            <h2>الفترة من: ${formatDate(startDate)} إلى: ${formatDate(endDate)}</h2>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>التاريخ</th>
+                    <th>الفرع</th>
+                    <th>مبيعات المحل</th>
+                    <th>طلبات الأونلاين</th>
+                    <th>المصروفات</th>
+                    <th>رصيد الدرج</th>
+                    <th>ملاحظات</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${reviews.length > 0 ? reviews.map(r => `
+                    <tr>
+                        <td dir="ltr">${formatDate(r.date)}</td>
+                        <td>${branchNames[r.branch] || r.branch}</td>
+                        <td>
+                            <div>${formatCurrency(r.totalSales)}</div>
+                            <div style="font-size: 10px; color: #666;">كاش: ${formatCurrency(r.salesCash)} | إلكتروني: ${formatCurrency(r.salesElectronic)}</div>
+                        </td>
+                        <td>
+                            <div>${formatCurrency(r.onlineOrdersTotal || 0)}</div>
+                            <div style="font-size: 10px; color: #666;">عدد: ${r.onlineOrdersCount || 0}</div>
+                        </td>
+                        <td>${formatCurrency(r.expensesTotal || 0)}</td>
+                        <td style="font-weight: bold;">${formatCurrency(r.drawerBalance)}</td>
+                        <td style="font-size: 10px;">${r.notes || '-'}</td>
+                    </tr>
+                `).join('') : '<tr><td colspan="7" style="text-align: center;">لا توجد مراجعات في هذه الفترة</td></tr>'}
+            </tbody>
+        </table>
+        <div class="footer"><p>تم إنشاء هذا التقرير بواسطة نظام إدارة شركة بطاح الأصلي المتكامل</p></div>
+    `;
+
+    return generateReportHTML('تقرير مراجعة اليوميات', '#0891b2', content);
 };

@@ -20,16 +20,12 @@ const AdminPasswordModal: React.FC<AdminPasswordModalProps> = ({ isOpen, onClose
         const adminUsers = users.filter(u => u.role === 'admin');
         const isValidAdminUser = adminUsers.some(u => u.password === password);
         
-        // Check against admin users, then storefrontSettings.adminPassword, then 'admin123'
+        // Check against admin users, then storefrontSettings.adminPassword
         if (isValidAdminUser) {
             setError('');
             setPassword('');
             onSuccess();
         } else if (storefrontSettings?.adminPassword && password === storefrontSettings.adminPassword) {
-            setError('');
-            setPassword('');
-            onSuccess();
-        } else if (!storefrontSettings?.adminPassword && password === 'admin123') { // Fallback for testing
             setError('');
             setPassword('');
             onSuccess();

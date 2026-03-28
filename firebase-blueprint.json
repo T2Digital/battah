@@ -1,0 +1,144 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Application user with role and permissions",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "username": { "type": "string", "format": "email" },
+        "name": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "manager", "seller", "accountant", "cashier"] },
+        "branch": { "type": "string", "enum": ["main", "branch1", "branch2", "branch3"] },
+        "permissions": { "type": "array", "items": { "type": "string" } },
+        "password": { "type": "string" }
+      },
+      "required": ["id", "username", "name", "role", "branch"]
+    },
+    "Product": {
+      "title": "Product",
+      "description": "Inventory item",
+      "type": "object",
+      "properties": {
+        "id": { "type": "integer" },
+        "name": { "type": "string" },
+        "sku": { "type": "string" },
+        "mainCategory": { "type": "string" },
+        "category": { "type": "string" },
+        "brand": { "type": "string" },
+        "purchasePrice": { "type": "number" },
+        "sellingPrice": { "type": "number" },
+        "stock": { "type": "object" }
+      },
+      "required": ["id", "name", "sku", "mainCategory", "purchasePrice", "sellingPrice", "stock"]
+    },
+    "DailySale": {
+      "title": "Daily Sale",
+      "description": "Sales transaction record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "integer" },
+        "date": { "type": "string", "format": "date" },
+        "invoiceNumber": { "type": "string" },
+        "sellerId": { "type": "string" },
+        "sellerName": { "type": "string" },
+        "totalAmount": { "type": "number" },
+        "branchSoldFrom": { "type": "string" },
+        "direction": { "type": "string", "enum": ["بيع", "مرتجع", "تبديل", "ضمان", "هدية"] }
+      },
+      "required": ["id", "date", "invoiceNumber", "sellerId", "totalAmount", "branchSoldFrom", "direction"]
+    },
+    "DailyReview": {
+      "title": "Daily Review",
+      "description": "Daily branch review record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "string", "format": "date" },
+        "branch": { "type": "string" },
+        "reviewerName": { "type": "string" },
+        "notes": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "completed"] }
+      },
+      "required": ["id", "date", "branch", "reviewerName", "status"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles"
+    },
+    "/products/{productId}": {
+      "schema": "Product",
+      "description": "Inventory products"
+    },
+    "/dailySales/{saleId}": {
+      "schema": "DailySale",
+      "description": "Sales records"
+    },
+    "/employees/{employeeId}": {
+      "schema": "Employee",
+      "description": "Employee records"
+    },
+    "/advances/{advanceId}": {
+      "schema": "Advance",
+      "description": "Salary advances"
+    },
+    "/attendance/{attendanceId}": {
+      "schema": "Attendance",
+      "description": "Attendance records"
+    },
+    "/payroll/{payrollId}": {
+      "schema": "Payroll",
+      "description": "Payroll records"
+    },
+    "/suppliers/{supplierId}": {
+      "schema": "Supplier",
+      "description": "Suppliers"
+    },
+    "/purchaseOrders/{orderId}": {
+      "schema": "PurchaseOrder",
+      "description": "Purchase orders"
+    },
+    "/payments/{paymentId}": {
+      "schema": "Payment",
+      "description": "Supplier payments"
+    },
+    "/expenses/{expenseId}": {
+      "schema": "Expense",
+      "description": "Expenses"
+    },
+    "/treasury/{transactionId}": {
+      "schema": "TreasuryTransaction",
+      "description": "Treasury transactions"
+    },
+    "/dailyReview/{reviewId}": {
+      "schema": "DailyReview",
+      "description": "Daily reviews"
+    },
+    "/orders/{orderId}": {
+      "schema": "Order",
+      "description": "Online orders"
+    },
+    "/notifications/{notificationId}": {
+      "schema": "Notification",
+      "description": "System notifications"
+    },
+    "/broadcasts/{broadcastId}": {
+      "schema": "Broadcast",
+      "description": "Broadcast messages"
+    },
+    "/stockTransfers/{transferId}": {
+      "schema": "StockTransfer",
+      "description": "Stock transfers"
+    },
+    "/discountCodes/{codeId}": {
+      "schema": "DiscountCode",
+      "description": "Discount codes"
+    },
+    "/settings/storefront": {
+      "schema": "StorefrontSettings",
+      "description": "Storefront configuration"
+    }
+  }
+}

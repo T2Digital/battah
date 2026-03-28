@@ -58,6 +58,7 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
         return `رصيد: المخزن(${product.stock.main}), الرئيسي(${product.stock.branch1}), ف1(${product.stock.branch2}), ف2(${product.stock.branch3})`;
     };
 
+    // Initialize modal state when it opens or when existingSale changes
     useEffect(() => {
         const generateInvoiceNumber = () => {
             const today = new Date();
@@ -65,6 +66,8 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
             const todaySalesCount = dailySales.filter(s => s.invoiceNumber.startsWith(prefix)).length;
             return `${prefix}${String(todaySalesCount + 1).padStart(3, '0')}`;
         };
+
+        if (!isOpen) return;
 
         if (existingSale) {
             setInvoiceNumber(existingSale.invoiceNumber);
@@ -114,7 +117,7 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
         setShowSecurityCheck(false);
         setSecurityPassword('');
         setSecurityError('');
-    }, [existingSale, dailySales, currentUser, products, isOpen]);
+    }, [isOpen, existingSale]); // Removed products, dailySales, and currentUser to prevent state reset while modal is open
 
     // Update prices when invoice type changes
     useEffect(() => {
@@ -202,7 +205,20 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
     };
 
     const handleProductSelect = (product: Product) => {
-        if (items.some(item => item.productId === product.id)) return;
+        const existingItemIndex = items.findIndex(item => item.productId === product.id);
+        
+        if (existingItemIndex !== -1) {
+            // If product already exists, increment quantity
+            const updatedItems = [...items];
+            updatedItems[existingItemIndex] = {
+                ...updatedItems[existingItemIndex],
+                quantity: updatedItems[existingItemIndex].quantity + 1
+            };
+            setItems(updatedItems);
+            setProductSearch('');
+            setShowSuggestions(false);
+            return;
+        }
         
         const price = invoiceType === 'wholesale' 
             ? (product.wholesalePrice || product.sellingPrice) 
