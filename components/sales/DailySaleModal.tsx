@@ -58,7 +58,6 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
         return `رصيد: المخزن(${product.stock.main}), الرئيسي(${product.stock.branch1}), ف1(${product.stock.branch2}), ف2(${product.stock.branch3})`;
     };
 
-    // Initialize modal state when it opens or when existingSale changes
     useEffect(() => {
         const generateInvoiceNumber = () => {
             const today = new Date();
@@ -66,8 +65,6 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
             const todaySalesCount = dailySales.filter(s => s.invoiceNumber.startsWith(prefix)).length;
             return `${prefix}${String(todaySalesCount + 1).padStart(3, '0')}`;
         };
-
-        if (!isOpen) return;
 
         if (existingSale) {
             setInvoiceNumber(existingSale.invoiceNumber);
@@ -117,7 +114,7 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
         setShowSecurityCheck(false);
         setSecurityPassword('');
         setSecurityError('');
-    }, [isOpen, existingSale]); // Removed products, dailySales, and currentUser to prevent state reset while modal is open
+    }, [existingSale, dailySales, currentUser, products, isOpen]);
 
     // Update prices when invoice type changes
     useEffect(() => {

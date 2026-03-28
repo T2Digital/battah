@@ -10,6 +10,7 @@ import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import LoginModal from './components/LoginModal';
 import Storefront from './components/store/Storefront';
+import SeedData from './lib/seed';
 import AdminChatbot from './components/admin/AdminChatbot';
 import Reports from './components/reports/Reports';
 import InventoryReports from './components/reports/InventoryReports';
@@ -112,6 +113,8 @@ const App: React.FC = () => {
       clearAdminListeners,
       clearCurrentUser,
       setCurrentUserByEmail,
+      isSeeded,
+      checkIfSeeded,
       addAdvance,
       updateAdvance,
       deleteAdvance,
@@ -278,6 +281,11 @@ const App: React.FC = () => {
         window.location.hash = section;
     };
 
+     useEffect(() => {
+        checkIfSeeded();
+    }, [checkIfSeeded]);
+
+
     const toggleSidebar = () => setSidebarOpen(!isSidebarOpen);
     
     const hasPermission = (permission: Section): boolean => {
@@ -399,6 +407,10 @@ const App: React.FC = () => {
             default: return <Dashboard setActiveSection={updateActiveSection} />;
         }
     };
+    
+    if (!isSeeded) {
+        return <SeedData />;
+    }
     
     if (viewMode === 'store') {
         return (

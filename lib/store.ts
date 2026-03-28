@@ -69,6 +69,7 @@ type AppState = {
     isInitialized: boolean; // For admin data
     isPublicInitialized: boolean; // For public data
     isLoading: boolean;
+    isSeeded: boolean;
     appData: AppData | null;
     pendingOrderIdToOpen: string | null;
 };
@@ -78,6 +79,8 @@ type AppActions = {
     initPublicListeners: () => Promise<void>;
     initAdminListeners: () => Promise<void>;
     clearAdminListeners: () => void;
+    checkIfSeeded: () => Promise<void>;
+    seedDatabase: () => Promise<void>;
     login: (email: string, pass: string) => Promise<void>;
     logout: () => Promise<void>;
     setCurrentUser: (user: User) => void;
@@ -170,6 +173,7 @@ const useStore = create<AppState & AppActions>((set, get) => ({
     isInitialized: false,
     isPublicInitialized: false,
     isLoading: false,
+    isSeeded: true, 
     pendingOrderIdToOpen: null,
     appData: {
         users: [], products: [], dailySales: [], employees: [], advances: [],
@@ -357,6 +361,29 @@ const useStore = create<AppState & AppActions>((set, get) => ({
         set({ isInitialized: false });
     },
 
+    checkIfSeeded: async () => {
+        const docRef = doc(db, "settings", "seeded");
+        const docSnap = await getDoc(docRef);
+        set({ isSeeded: docSnap.exists() });
+    },
+    seedDatabase: async () => {
+        const batch = writeBatch(db);
+        Object.entries(initialData).forEach(([collectionName, data]) => {
+            if(collectionName === 'storefrontSettings') {
+                const docRef = doc(db, "settings", "storefront");
+                batch.set(docRef, data);
+            } else if (collectionName !== 'stockTransfers' && collectionName !== 'discountCodes' && collectionName !== 'toasts') { 
+                 (data as any[]).forEach((item: any) => {
+                    const docRef = doc(db, collectionName, String(item.id));
+                    batch.set(docRef, item);
+                });
+            }
+        });
+        const seededRef = doc(db, "settings", "seeded");
+        batch.set(seededRef, { seededOn: Timestamp.now() });
+        await batch.commit();
+        set({ isSeeded: true });
+    },
     login: async (email, pass) => {
         await signInWithEmailAndPassword(auth, email, pass);
     },
