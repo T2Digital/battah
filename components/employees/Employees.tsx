@@ -24,9 +24,11 @@ const EmployeeModal: React.FC<{
         email: ''
     });
 
-    const { uploadImage } = useStore(state => ({
-        uploadImage: state.uploadImage
+    const { uploadImage, appData } = useStore(state => ({
+        uploadImage: state.uploadImage,
+        appData: state.appData
     }));
+    const storefrontSettings = appData?.storefrontSettings;
     const [showSecurityCheck, setShowSecurityCheck] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
 
@@ -70,7 +72,11 @@ const EmployeeModal: React.FC<{
 
     const handlePreSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        setShowSecurityCheck(true);
+        if (employeeToEdit && storefrontSettings?.adminPassword) {
+            setShowSecurityCheck(true);
+        } else {
+            handleSubmit();
+        }
     };
 
     const handleSecuritySuccess = () => {
@@ -274,8 +280,7 @@ const Employees: React.FC<{ employees: Employee[] }> = ({ employees }) => {
 
     const handleCreateUserClick = (emp: Employee) => {
         setEmployeeForUser(emp);
-        setSecurityAction('createUser');
-        setShowSecurityCheck(true);
+        setUserModalOpen(true);
     };
 
     const handleSecuritySuccess = () => {

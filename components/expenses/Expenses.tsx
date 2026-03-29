@@ -43,7 +43,7 @@ const ExpenseModal: React.FC<{
 
     const handlePreSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (storefrontSettings?.adminPassword) {
+        if (expenseToEdit && storefrontSettings?.adminPassword) {
             setShowSecurityCheck(true);
         } else {
             handleSubmit();

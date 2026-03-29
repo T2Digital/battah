@@ -51,11 +51,7 @@ const StockTransferModal: React.FC<StockTransferModalProps> = ({ isOpen, onClose
 
     const handlePreSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (storefrontSettings?.adminPassword) {
-            setShowSecurityCheck(true);
-        } else {
-            handleSubmit();
-        }
+        handleSubmit();
     };
 
     const handleSecuritySubmit = (e: React.FormEvent) => {

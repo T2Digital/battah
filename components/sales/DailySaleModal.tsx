@@ -66,55 +66,57 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
             return `${prefix}${String(todaySalesCount + 1).padStart(3, '0')}`;
         };
 
-        if (existingSale) {
-            setInvoiceNumber(existingSale.invoiceNumber);
-            setDate(existingSale.date);
-            setDirection(existingSale.direction);
-            setBranchSoldFrom(existingSale.branchSoldFrom);
-            setNotes(existingSale.notes || '');
-            setInvoiceType(existingSale.invoiceType || 'retail');
-            setDiscount(existingSale.discount || 0);
-            setCashierLocation(existingSale.cashierLocation || 'تحت');
-            setWarrantyPeriod(existingSale.notes?.match(/ضمان: (.*)/)?.[1] || '');
-            setPaymentMethod(existingSale.paymentMethod || 'نقدى');
-            setCashAmount(existingSale.cashAmount || 0);
-            setElectronicAmount(existingSale.electronicAmount || 0);
-            setCustomerName(existingSale.customerName || '');
-            setCustomerPhone(existingSale.customerPhone || '');
-            
-            const itemsToEdit = normalizeSaleItems(existingSale);
-            const editableItems = itemsToEdit.map(item => {
-                const product = products.find(p => p.id === item.productId);
-                return {
-                    ...item,
-                    productName: product?.name || 'صنف محذوف',
-                    stock: product?.stock[existingSale.branchSoldFrom] || 0,
-                    hasSerialNumber: product?.hasSerialNumber || false,
-                    serialNumbers: item.serialNumbers || [],
-                };
-            });
-            setItems(editableItems);
-        } else {
-            setInvoiceNumber(generateInvoiceNumber());
-            setDate(new Date().toISOString().split('T')[0]);
-            setDirection('بيع');
-            setBranchSoldFrom('branch1');
-            setNotes('');
-            setItems([]);
-            setInvoiceType('retail');
-            setDiscount(0);
-            setCashierLocation('تحت');
-            setWarrantyPeriod('');
-            setPaymentMethod('نقدى');
-            setCashAmount(0);
-            setElectronicAmount(0);
-            setCustomerName('');
-            setCustomerPhone('');
+        if (isOpen) {
+            if (existingSale) {
+                setInvoiceNumber(existingSale.invoiceNumber);
+                setDate(existingSale.date);
+                setDirection(existingSale.direction);
+                setBranchSoldFrom(existingSale.branchSoldFrom);
+                setNotes(existingSale.notes || '');
+                setInvoiceType(existingSale.invoiceType || 'retail');
+                setDiscount(existingSale.discount || 0);
+                setCashierLocation(existingSale.cashierLocation || 'تحت');
+                setWarrantyPeriod(existingSale.notes?.match(/ضمان: (.*)/)?.[1] || '');
+                setPaymentMethod(existingSale.paymentMethod || 'نقدى');
+                setCashAmount(existingSale.cashAmount || 0);
+                setElectronicAmount(existingSale.electronicAmount || 0);
+                setCustomerName(existingSale.customerName || '');
+                setCustomerPhone(existingSale.customerPhone || '');
+                
+                const itemsToEdit = normalizeSaleItems(existingSale);
+                const editableItems = itemsToEdit.map(item => {
+                    const product = products.find(p => p.id === item.productId);
+                    return {
+                        ...item,
+                        productName: product?.name || 'صنف محذوف',
+                        stock: product?.stock[existingSale.branchSoldFrom] || 0,
+                        hasSerialNumber: product?.hasSerialNumber || false,
+                        serialNumbers: item.serialNumbers || [],
+                    };
+                });
+                setItems(editableItems);
+            } else {
+                setInvoiceNumber(generateInvoiceNumber());
+                setDate(new Date().toISOString().split('T')[0]);
+                setDirection('بيع');
+                setBranchSoldFrom('branch1');
+                setNotes('');
+                setItems([]);
+                setInvoiceType('retail');
+                setDiscount(0);
+                setCashierLocation('تحت');
+                setWarrantyPeriod('');
+                setPaymentMethod('نقدى');
+                setCashAmount(0);
+                setElectronicAmount(0);
+                setCustomerName('');
+                setCustomerPhone('');
+            }
+            setShowSecurityCheck(false);
+            setSecurityPassword('');
+            setSecurityError('');
         }
-        setShowSecurityCheck(false);
-        setSecurityPassword('');
-        setSecurityError('');
-    }, [existingSale, dailySales, currentUser, products, isOpen]);
+    }, [existingSale, isOpen]); // Only re-run when modal opens or existingSale changes
 
     // Update prices when invoice type changes
     useEffect(() => {
@@ -274,11 +276,7 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
     
     const handlePreSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (storefrontSettings?.adminPassword) {
-            setShowSecurityCheck(true);
-        } else {
-            handleSubmit();
-        }
+        handleSubmit();
     };
 
     const handleSecuritySubmit = (e: React.FormEvent) => {

@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, FormEvent } from 'react';
 import useStore from '../../lib/store';
 import { Product } from '../../types';
+import { GoogleGenAI, Type } from "@google/genai";
 
 interface AIChatbotProps {
     setSelectedProduct: (product: Product | null) => void;
@@ -27,116 +28,7 @@ const AIChatbot: React.FC<AIChatbotProps> = ({ setSelectedProduct, addToCart, op
         }
     }, [messages]);
 
-    // --- Local Bot Logic (No API Key Required) ---
-    const searchLocalProducts = (query: string): Product[] => {
-        // Remove common filler words to improve search
-        const fillerWords = ['عايز', 'عاوز', 'محتاج', 'بكام', 'سعر', 'عندك', 'من', 'في', 'يا', 'باشا', 'هندسة', 'لو', 'سمحت', 'عربية', 'عربيتي', 'مشكلة', 'صوت', 'ريحة'];
-        let cleanQuery = query.toLowerCase();
-        fillerWords.forEach(word => {
-            cleanQuery = cleanQuery.replace(new RegExp(`\\b${word}\\b`, 'g'), '');
-        });
-        cleanQuery = cleanQuery.trim();
-
-        if (!cleanQuery) return [];
-
-        const keywords = cleanQuery.split(' ').filter(k => k.length > 2);
-        if (keywords.length === 0) keywords.push(cleanQuery);
-        
-        return products.filter(p => {
-            const searchStr = `${p.name} ${p.description || ''} ${p.category || ''} ${p.brand || ''}`.toLowerCase();
-            return keywords.some(k => searchStr.includes(k));
-        }).slice(0, 3); // Return top 3 matches
-    };
-
-    const processLocalMessage = (text: string): string => {
-        const lowerText = text.toLowerCase();
-        let response = "";
-        let foundProducts: Product[] = [];
-
-        // 1. Check for "Add to Cart" intent
-        if (/(ضيف|هات|اشتري|تمام|ماشي|واحد|اتنين|حط|ابعت|سلة)/.test(lowerText) && lastDiscussedProduct.current) {
-            addToCart(lastDiscussedProduct.current, 1);
-            openCart();
-            const name = lastDiscussedProduct.current.name;
-            lastDiscussedProduct.current = null; // Reset after adding
-            return `عنيا يا ريس! ضفتلك "${name}" في السلة. تحب تطلب حاجة تانية ولا نقفل الأوردر؟`;
-        }
-
-        // 2. Expanded Diagnosis Rules (Hardcoded Knowledge Base)
-        
-        // الفرامل (Brakes)
-        if (/(تصفير|فرامل|صرخة|طنابير|ماستر|باكم|تيل|محجرة|بتسفنج|بدال|سلك فرامل|رعشة مع الفرامل)/.test(lowerText)) {
-            response = "مشاكل الفرامل مفيهاش هزار يا هندسة! لو في تصفير أو رعشة يبقى غالباً تيل فرامل أو الطنابير محتاجة تتخرط. لو البدال محجر أو بيسفنج راجع زيت الباكم والماستر. دي قطع غيار الفرامل المتاحة عندي:";
-            foundProducts = searchLocalProducts("تيل طنابير ماستر باكم");
-        } 
-        // دورة التبريد والحرارة (Cooling & Heat)
-        else if (/(سخونة|حرارة|ميه|ريداتير|بتسخن|مياه|طرمبة ميه|قربة|مروحة|ثرموستات|كوعة|غليان|نقص ميه|مؤشر الحرارة)/.test(lowerText)) {
-            response = "سخونة المكنة خطر! راجع مستوى المياه في القربة والريداتير، وتأكد إن المروحة شغالة ومفيش تسريب من طرمبة المياه أو الكوعة. الثرموستات كمان ممكن يعلق. شوف الحاجات دي في المتجر:";
-            foundProducts = searchLocalProducts("مياه طرمبة ريداتير ثرموستات مروحة");
-        } 
-        // المحرك والزيت (Engine & Oil)
-        else if (/(زيت|لزوجه|موتور|مكنة|فلتر زيت|شمبر|بستم|صباب|جوان|وش سلندر|طحينة|بياكل زيت|دخان|دخنة|تسريب زيت|نقص زيت)/.test(lowerText)) {
-            response = "لو المكنة بتاكل زيت أو بتطلع دخنة (بيضا أو زرقا)، ممكن يكون طقم شنبر أو جلد صباب. لو الزيت بيقلب طحينة يبقى جوان وش سلندر ضرب! طبعاً تغيير الزيت والفلتر في ميعادهم بيحافظ على المكنة. دي الزيوت والفلاتر المتاحة:";
-            foundProducts = searchLocalProducts("زيت فلتر جوان شنبر");
-        } 
-        // الكهرباء والبطارية (Electrical & Battery)
-        else if (/(بطارية|مبتدورش|مارش|دينامو|كهربا|نايمة|عتلة|كتاوت|فيوز|ضفيرة|لمبة|نور|تكتكة)/.test(lowerText)) {
-            response = "لو بتسمع 'تكتكة' والمارش مابيلفش، غالباً البطارية نايمة أو قواطيش البطارية مملحة. لو بتدور بصعوبة ممكن المارش محتاج صيانة. ولو اللمبة بتنور وتطفي يبقى الدينامو مابيشحنش كويس. تحب نشوف أسعار البطاريات؟";
-            foundProducts = searchLocalProducts("بطارية مارش دينامو كتاوت");
-        } 
-        // الإشعال والأداء (Ignition & Performance)
-        else if (/(بوجيهات|سحب|تقطيع|تنتيش|مكتومة|موبينة|رشاشات|بنزين|طرمبة بنزين|مخنوقة|استهلاك|عزم|برجلة)/.test(lowerText)) {
-            response = "التقطيع وضعف السحب واستهلاك البنزين العالي غالباً بيكون من دورة الإشعال (بوجيهات، موبينة، أسلاك) أو دورة الوقود (فلتر بنزين مكتوم، رشاشات محتاجة تنظيف، أو طرمبة بنزين ضعيفة). دي القطع المتاحة:";
-            foundProducts = searchLocalProducts("بوجيه موبينة فلتر بنزين طرمبة رشاش");
-        } 
-        // العفشة والتوجيه (Suspension & Steering)
-        else if (/(عفشة|مساعدين|مقصات|تخبيط|طقطقة|مطب|جلب|بيض|تيش|كبالن|تزييق|عومان|دركسيون|باور|حذفة|رجة)/.test(lowerText)) {
-            response = "طقطقة مع الملفات = كبالن خارجية. تخبيط في المطبات = مساعدين أو جلب مقصات. تزييق = بيض مقصات أو تيش ميزان. لو العربية بتعوم منك راجع العفشة وظبط الزوايا. لقيتلك دول في المتجر:";
-            foundProducts = searchLocalProducts("مساعد مقص تيش كبلن جلب");
-        } 
-        // الفتيس والدبرياج (Transmission & Clutch)
-        else if (/(فتيس|دبرياج|اسطوانة|ديسك|بلية|نتشة|هبدة|غيارات|زيت فتيس|عضة|رعشة في الطلعة)/.test(lowerText)) {
-            response = "رعشة في الطلعة أو الغيارات بتعض = طقم دبرياج (اسطوانة وديسك وبلية). لو فتيس أوتوماتيك وفي نتشة، راجع زيت الفتيس وفلتره الأول. دي القطع المتاحة:";
-            foundProducts = searchLocalProducts("اسطوانة ديسك بلية زيت فتيس");
-        }
-        // السيور والفلاتر (Belts & Filters)
-        else if (/(سيور|سير|كاتينة|دينامو|شداد|بلية كاتينة|فلتر هوا|تكييف)/.test(lowerText)) {
-            response = "سير الكاتينة ده حياة أو موت للمكنة، لازم يتغير في ميعاده مع بلي الشداد! وسيور المجموعة (دينامو وتكييف) لو بتصفر تتغير. وفلاتر الهواء والتكييف بتتغير مع الصيانة الدورية. دي المتاح:";
-            foundProducts = searchLocalProducts("سير كاتينة دينامو فلتر هواء");
-        }
-        // الشكمان (Exhaust)
-        else if (/(شكمان|علبة بيئة|صوت عالي|هباب)/.test(lowerText)) {
-            response = "صوت المكنة العالي أو ريحة العادم الكريهة ممكن يكون تسريب في الشكمان أو علبة البيئة مسدودة. دي قطع الشكمان المتاحة:";
-            foundProducts = searchLocalProducts("شكمان علبة بيئة جوان");
-        }
-        // 3. Greeting
-        else if (/(اهلا|سلام|هاي|مرحبا|ازيك|عامل|صباح|مسا|يا باشا|يا هندسة)/.test(lowerText)) {
-            return "أهلاً بيك يا ريس! منور متجر بطاح الأصلي. معاك مساعد بطاح، أقدر أخدمك في إيه؟ بتدور على قطعة معينة ولا عربيتك فيها مشكلة ومحتاج استشارة؟";
-        }
-        // 4. Company Info
-        else if (/(عنوان|مكان|موقع|تليفون|رقم|تواصل|اتصال|موبايل|فرع)/.test(lowerText)) {
-            return "عناوين فروعنا:\n- 79 شارع رمسيس ناصية التوفيقية امام سنترال رمسيس\n- 19 شارع رمسيس ناصية التوفيقية امام سنترال رمسيس\n- 6 شارع البورصة ناصية التوفيقية بجوار سينما ريفولى\n- 1 شارع البورصة ناصية التوفيقية امام دار القضاء العالى\n\nتقدر تتواصل معانا على رقم الموبايل أو الواتساب: 01080444447\nمواعيد العمل من 9 صباحاً لـ 10 مساءً.";
-        }
-        // 5. General Product Search (Fallback)
-        else {
-            foundProducts = searchLocalProducts(lowerText);
-            if (foundProducts.length > 0) {
-                response = "لقيتلك الحاجات دي في المتجر يا باشا:";
-            } else {
-                return "والله يا هندسة مش لاقي حاجة بالاسم ده في المتجر حالياً. جرب تكتب اسم القطعة بطريقة تانية، أو اشرحلي المشكلة اللي في عربيتك (مثلاً: العربية بتنتش، بتسخن، بتصفر) وأنا هقولك العيب منين.";
-            }
-        }
-
-        // Format Product Results
-        if (foundProducts.length > 0) {
-            lastDiscussedProduct.current = foundProducts[0]; // Save the first one for quick adding
-            const productList = foundProducts.map(p => `\n🔹 ${p.name} - السعر: ${p.sellingPrice} جنيه`).join('');
-            response += `${productList}\n\nلو حابب أضيفلك أول منتج للسلة، قولي "ضيفه" أو "هات واحد".`;
-        }
-
-        return response;
-    };
-
+    // --- Gemini Bot Logic ---
     const handleQuickReply = (text: string) => {
         setInput(text);
         handleSend(undefined, text);
@@ -151,12 +43,154 @@ const AIChatbot: React.FC<AIChatbotProps> = ({ setSelectedProduct, addToCart, op
         setMessages(prev => [...prev, { text: userMsg, sender: 'user' }]);
         setIsLoading(true);
 
-        // Simulate network delay for realism (500ms - 1000ms)
-        setTimeout(() => {
-            const botResponse = processLocalMessage(userMsg);
-            setMessages(prev => [...prev, { text: botResponse, sender: 'bot' }]);
+        try {
+            const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY as string });
+            const modelName = "gemini-3-flash-preview";
+            
+            const tools = [
+                {
+                    functionDeclarations: [
+                        {
+                            name: "add_to_cart",
+                            description: "إضافة منتج إلى سلة التسوق. يجب البحث عن المنتج أولاً للحصول على معرفه (ID).",
+                            parameters: {
+                                type: Type.OBJECT,
+                                properties: {
+                                    productId: { type: Type.NUMBER, description: "معرف المنتج المراد إضافته" },
+                                    quantity: { type: Type.NUMBER, description: "الكمية المطلوبة (افتراضياً 1)" }
+                                },
+                                required: ["productId"]
+                            }
+                        },
+                        {
+                            name: "open_checkout",
+                            description: "فتح صفحة إتمام الطلب (الدفع) للعميل.",
+                            parameters: { type: Type.OBJECT, properties: {} }
+                        },
+                        {
+                            name: "search_products",
+                            description: "البحث عن المنتجات المتاحة في المتجر باستخدام كلمات مفتاحية.",
+                            parameters: {
+                                type: Type.OBJECT,
+                                properties: {
+                                    query: { type: Type.STRING, description: "كلمة البحث (مثلاً: تيل فرامل، زيت، بوجيهات)" }
+                                },
+                                required: ["query"]
+                            }
+                        }
+                    ]
+                }
+            ];
+
+            const systemInstruction = `أنت "مساعد بطاح الذكي"، شخصيتك هي مهندس صيانة سيارات مخضرم وموظف مبيعات محترف في متجر "بطاح" لقطع غيار السيارات.
+لديك خبرة واسعة في تشخيص أعطال السيارات وتقديم النصائح الفنية الدقيقة.
+أسلوبك في الكلام: ودود، شعبي مصري (يا ريس، يا هندسة، يا باشا)، واثق، ومساعد جداً.
+
+مهامك:
+1. تشخيص أعطال السيارات بناءً على وصف العميل واقتراح قطع الغيار المناسبة.
+2. مساعدة العميل في العثور على المنتجات في المتجر باستخدام أداة search_products.
+3. إضافة المنتجات للسلة للعميل باستخدام أداة add_to_cart عند طلبه ذلك.
+4. توجيه العميل لإتمام الطلب باستخدام أداة open_checkout.
+5. تقديم معلومات المتجر (الفروع: رمسيس والتوفيقية، التليفون: 01080444447).
+
+معلومات هامة:
+- لا تخترع منتجات غير موجودة، استخدم دائماً أداة البحث للتأكد.
+- إذا سألك العميل عن مشكلة فنية، اشرح له السبب المحتمل كمهندس خبير ثم اقترح القطع اللازمة.
+- إذا طلب العميل إضافة شيء للسلة، ابحث عنه أولاً ثم استخدم add_to_cart.
+
+فروعنا:
+- 79 شارع رمسيس ناصية التوفيقية امام سنترال رمسيس
+- 19 شارع رمسيس ناصية التوفيقية امام سنترال رمسيس
+- 6 شارع البورصة ناصية التوفيقية بجوار سينما ريفولى
+- 1 شارع البورصة ناصية التوفيقية امام دار القضاء العالى`;
+
+            const history = messages.map(m => ({
+                role: m.sender === 'user' ? 'user' : 'model',
+                parts: [{ text: m.text }]
+            }));
+
+            const response = await ai.models.generateContent({
+                model: modelName,
+                contents: [...history, { role: 'user', parts: [{ text: userMsg }] }],
+                config: {
+                    systemInstruction,
+                    tools,
+                }
+            });
+
+            let botText = response.text || "";
+            const functionCalls = response.functionCalls;
+
+            if (functionCalls) {
+                for (const call of functionCalls) {
+                    if (call.name === "search_products") {
+                        const { query } = call.args as { query: string };
+                        const results = products.filter(p => 
+                            p.name.toLowerCase().includes(query.toLowerCase()) || 
+                            p.description?.toLowerCase().includes(query.toLowerCase()) ||
+                            p.category?.toLowerCase().includes(query.toLowerCase())
+                        ).slice(0, 5);
+                        
+                        const toolResponse = results.length > 0 
+                            ? `نتائج البحث عن "${query}":\n` + results.map(p => `- ${p.name} (ID: ${p.id}) - السعر: ${p.sellingPrice} ج.م`).join('\n')
+                            : `للأسف مفيش نتائج لـ "${query}" حالياً.`;
+
+                        const secondResponse = await ai.models.generateContent({
+                            model: modelName,
+                            contents: [
+                                ...history, 
+                                { role: 'user', parts: [{ text: userMsg }] },
+                                { role: 'model', parts: [{ functionCall: call }] },
+                                { role: 'user', parts: [{ functionResponse: { name: "search_products", response: { result: toolResponse } } }] }
+                            ],
+                            config: { systemInstruction, tools }
+                        });
+                        botText = secondResponse.text || botText;
+                    } else if (call.name === "add_to_cart") {
+                        const { productId, quantity = 1 } = call.args as { productId: number, quantity?: number };
+                        const product = products.find(p => p.id === productId);
+                        if (product) {
+                            addToCart(product, quantity);
+                            const toolResponse = `تم إضافة ${quantity} من ${product.name} للسلة بنجاح.`;
+                            const secondResponse = await ai.models.generateContent({
+                                model: modelName,
+                                contents: [
+                                    ...history, 
+                                    { role: 'user', parts: [{ text: userMsg }] },
+                                    { role: 'model', parts: [{ functionCall: call }] },
+                                    { role: 'user', parts: [{ functionResponse: { name: "add_to_cart", response: { result: toolResponse } } }] }
+                                ],
+                                config: { systemInstruction, tools }
+                            });
+                            botText = secondResponse.text || botText;
+                        }
+                    } else if (call.name === "open_checkout") {
+                        openCart();
+                        const toolResponse = "تم فتح سلة المشتريات للعميل ليتمكن من إتمام الطلب.";
+                        const secondResponse = await ai.models.generateContent({
+                            model: modelName,
+                            contents: [
+                                ...history, 
+                                { role: 'user', parts: [{ text: userMsg }] },
+                                { role: 'model', parts: [{ functionCall: call }] },
+                                { role: 'user', parts: [{ functionResponse: { name: "open_checkout", response: { result: toolResponse } } }] }
+                            ],
+                            config: { systemInstruction, tools }
+                        });
+                        botText = secondResponse.text || botText;
+                    }
+                }
+            }
+
+            if (!botText) botText = "معلش يا ريس، حصلت مشكلة عندي. قولي تاني كده محتاج إيه؟";
+            setMessages(prev => [...prev, { text: botText, sender: 'bot' }]);
+
+        } catch (error) {
+            console.error("Gemini Error:", error);
+            setMessages(prev => [...prev, { text: "يا هندسة السيرفر مهنج شوية، جرب كمان دقيقة كده.", sender: 'bot' }]);
+        } finally {
             setIsLoading(false);
-        }, 800);
+        }
     };
 
     return (
