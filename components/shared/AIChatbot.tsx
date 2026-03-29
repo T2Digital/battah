@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, FormEvent } from 'react';
 import useStore from '../../lib/store';
 import { Product } from '../../types';
+import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 
 interface AIChatbotProps {
     setSelectedProduct: (product: Product | null) => void;
@@ -15,7 +16,7 @@ const AIChatbot: React.FC<AIChatbotProps> = ({ setSelectedProduct, addToCart, op
     const [isLoading, setIsLoading] = useState(false);
     
     const chatBodyRef = useRef<HTMLDivElement>(null);
-    const lastDiscussedProduct = useRef<Product | null>(null);
+    const chatRef = useRef<any>(null);
 
     const { products } = useStore(state => ({
         products: state.appData?.products || [],
@@ -27,136 +28,152 @@ const AIChatbot: React.FC<AIChatbotProps> = ({ setSelectedProduct, addToCart, op
         }
     }, [messages]);
 
-    // --- Local Bot Logic (No API Key Required) ---
-    const searchLocalProducts = (query: string): Product[] => {
-        // Remove common filler words to improve search
-        const fillerWords = ['عايز', 'عاوز', 'محتاج', 'بكام', 'سعر', 'عندك', 'من', 'في', 'يا', 'باشا', 'هندسة', 'لو', 'سمحت', 'عربية', 'عربيتي', 'مشكلة', 'صوت', 'ريحة'];
-        let cleanQuery = query.toLowerCase();
-        fillerWords.forEach(word => {
-            cleanQuery = cleanQuery.replace(new RegExp(`\\b${word}\\b`, 'g'), '');
-        });
-        cleanQuery = cleanQuery.trim();
+    // Initialize Gemini Chat
+    useEffect(() => {
+        const initChat = async () => {
+            const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+            const model = ai.chats.create({
+                model: "gemini-3-flash-preview",
+                config: {
+                    systemInstruction: `أنت مهندس صيانة مخضرم وموظف مبيعات خبير في متجر 'بطاح' لقطع الغيار. لديك معرفة عميقة بكل تفاصيل المتجر والمنتجات المتاحة. شخصيتك ودودة، عملية، وتستخدم لغة فنية بسيطة يفهمها العميل (يا باشا، يا هندسة، يا ريس). مهمتك هي مساعدة العملاء في تشخيص مشاكل سياراتهم واقتراح قطع الغيار المناسبة من المتجر. يمكنك إضافة المنتجات إلى السلة وفتح صفحة إتمام الطلب عند طلب العميل.
 
-        if (!cleanQuery) return [];
+عند البحث عن منتجات، استخدم أداة search_products.
+عند إضافة منتج للسلة، استخدم أداة add_to_cart.
+عند رغبة العميل في الدفع أو إتمام الطلب، استخدم أداة open_checkout.`,
+                    tools: [
+                        {
+                            functionDeclarations: [
+                                {
+                                    name: "search_products",
+                                    description: "البحث عن قطع غيار في المتجر بناءً على اسم القطعة أو وصفها.",
+                                    parameters: {
+                                        type: Type.OBJECT,
+                                        properties: {
+                                            query: {
+                                                type: Type.STRING,
+                                                description: "الكلمة المفتاحية للبحث (مثلاً: تيل فرامل، مساعدين، زيت موتور)"
+                                            }
+                                        },
+                                        required: ["query"]
+                                    }
+                                },
+                                {
+                                    name: "add_to_cart",
+                                    description: "إضافة قطعة غيار إلى سلة المشتريات.",
+                                    parameters: {
+                                        type: Type.OBJECT,
+                                        properties: {
+                                            product_id: {
+                                                type: Type.STRING,
+                                                description: "معرف المنتج (ID) المراد إضافته"
+                                            },
+                                            quantity: {
+                                                type: Type.NUMBER,
+                                                description: "الكمية المطلوبة (الافتراضي 1)"
+                                            }
+                                        },
+                                        required: ["product_id"]
+                                    }
+                                },
+                                {
+                                    name: "open_checkout",
+                                    description: "فتح صفحة إتمام الطلب (Checkout) للعميل.",
+                                    parameters: {
+                                        type: Type.OBJECT,
+                                        properties: {}
+                                    }
+                                }
+                            ]
+                        }
+                    ]
+                }
+            });
+            chatRef.current = model;
+        };
 
-        const keywords = cleanQuery.split(' ').filter(k => k.length > 2);
-        if (keywords.length === 0) keywords.push(cleanQuery);
-        
-        return products.filter(p => {
-            const searchStr = `${p.name} ${p.description || ''} ${p.category || ''} ${p.brand || ''}`.toLowerCase();
-            return keywords.some(k => searchStr.includes(k));
-        }).slice(0, 3); // Return top 3 matches
-    };
-
-    const processLocalMessage = (text: string): string => {
-        const lowerText = text.toLowerCase();
-        let response = "";
-        let foundProducts: Product[] = [];
-
-        // 1. Check for "Add to Cart" intent
-        if (/(ضيف|هات|اشتري|تمام|ماشي|واحد|اتنين|حط|ابعت|سلة)/.test(lowerText) && lastDiscussedProduct.current) {
-            addToCart(lastDiscussedProduct.current, 1);
-            openCart();
-            const name = lastDiscussedProduct.current.name;
-            lastDiscussedProduct.current = null; // Reset after adding
-            return `عنيا يا ريس! ضفتلك "${name}" في السلة. تحب تطلب حاجة تانية ولا نقفل الأوردر؟`;
+        if (!chatRef.current) {
+            initChat();
         }
-
-        // 2. Expanded Diagnosis Rules (Hardcoded Knowledge Base)
-        
-        // الفرامل (Brakes)
-        if (/(تصفير|فرامل|صرخة|طنابير|ماستر|باكم|تيل|محجرة|بتسفنج|بدال|سلك فرامل|رعشة مع الفرامل)/.test(lowerText)) {
-            response = "مشاكل الفرامل مفيهاش هزار يا هندسة! لو في تصفير أو رعشة يبقى غالباً تيل فرامل أو الطنابير محتاجة تتخرط. لو البدال محجر أو بيسفنج راجع زيت الباكم والماستر. دي قطع غيار الفرامل المتاحة عندي:";
-            foundProducts = searchLocalProducts("تيل طنابير ماستر باكم");
-        } 
-        // دورة التبريد والحرارة (Cooling & Heat)
-        else if (/(سخونة|حرارة|ميه|ريداتير|بتسخن|مياه|طرمبة ميه|قربة|مروحة|ثرموستات|كوعة|غليان|نقص ميه|مؤشر الحرارة)/.test(lowerText)) {
-            response = "سخونة المكنة خطر! راجع مستوى المياه في القربة والريداتير، وتأكد إن المروحة شغالة ومفيش تسريب من طرمبة المياه أو الكوعة. الثرموستات كمان ممكن يعلق. شوف الحاجات دي في المتجر:";
-            foundProducts = searchLocalProducts("مياه طرمبة ريداتير ثرموستات مروحة");
-        } 
-        // المحرك والزيت (Engine & Oil)
-        else if (/(زيت|لزوجه|موتور|مكنة|فلتر زيت|شمبر|بستم|صباب|جوان|وش سلندر|طحينة|بياكل زيت|دخان|دخنة|تسريب زيت|نقص زيت)/.test(lowerText)) {
-            response = "لو المكنة بتاكل زيت أو بتطلع دخنة (بيضا أو زرقا)، ممكن يكون طقم شنبر أو جلد صباب. لو الزيت بيقلب طحينة يبقى جوان وش سلندر ضرب! طبعاً تغيير الزيت والفلتر في ميعادهم بيحافظ على المكنة. دي الزيوت والفلاتر المتاحة:";
-            foundProducts = searchLocalProducts("زيت فلتر جوان شنبر");
-        } 
-        // الكهرباء والبطارية (Electrical & Battery)
-        else if (/(بطارية|مبتدورش|مارش|دينامو|كهربا|نايمة|عتلة|كتاوت|فيوز|ضفيرة|لمبة|نور|تكتكة)/.test(lowerText)) {
-            response = "لو بتسمع 'تكتكة' والمارش مابيلفش، غالباً البطارية نايمة أو قواطيش البطارية مملحة. لو بتدور بصعوبة ممكن المارش محتاج صيانة. ولو اللمبة بتنور وتطفي يبقى الدينامو مابيشحنش كويس. تحب نشوف أسعار البطاريات؟";
-            foundProducts = searchLocalProducts("بطارية مارش دينامو كتاوت");
-        } 
-        // الإشعال والأداء (Ignition & Performance)
-        else if (/(بوجيهات|سحب|تقطيع|تنتيش|مكتومة|موبينة|رشاشات|بنزين|طرمبة بنزين|مخنوقة|استهلاك|عزم|برجلة)/.test(lowerText)) {
-            response = "التقطيع وضعف السحب واستهلاك البنزين العالي غالباً بيكون من دورة الإشعال (بوجيهات، موبينة، أسلاك) أو دورة الوقود (فلتر بنزين مكتوم، رشاشات محتاجة تنظيف، أو طرمبة بنزين ضعيفة). دي القطع المتاحة:";
-            foundProducts = searchLocalProducts("بوجيه موبينة فلتر بنزين طرمبة رشاش");
-        } 
-        // العفشة والتوجيه (Suspension & Steering)
-        else if (/(عفشة|مساعدين|مقصات|تخبيط|طقطقة|مطب|جلب|بيض|تيش|كبالن|تزييق|عومان|دركسيون|باور|حذفة|رجة)/.test(lowerText)) {
-            response = "طقطقة مع الملفات = كبالن خارجية. تخبيط في المطبات = مساعدين أو جلب مقصات. تزييق = بيض مقصات أو تيش ميزان. لو العربية بتعوم منك راجع العفشة وظبط الزوايا. لقيتلك دول في المتجر:";
-            foundProducts = searchLocalProducts("مساعد مقص تيش كبلن جلب");
-        } 
-        // الفتيس والدبرياج (Transmission & Clutch)
-        else if (/(فتيس|دبرياج|اسطوانة|ديسك|بلية|نتشة|هبدة|غيارات|زيت فتيس|عضة|رعشة في الطلعة)/.test(lowerText)) {
-            response = "رعشة في الطلعة أو الغيارات بتعض = طقم دبرياج (اسطوانة وديسك وبلية). لو فتيس أوتوماتيك وفي نتشة، راجع زيت الفتيس وفلتره الأول. دي القطع المتاحة:";
-            foundProducts = searchLocalProducts("اسطوانة ديسك بلية زيت فتيس");
-        }
-        // السيور والفلاتر (Belts & Filters)
-        else if (/(سيور|سير|كاتينة|دينامو|شداد|بلية كاتينة|فلتر هوا|تكييف)/.test(lowerText)) {
-            response = "سير الكاتينة ده حياة أو موت للمكنة، لازم يتغير في ميعاده مع بلي الشداد! وسيور المجموعة (دينامو وتكييف) لو بتصفر تتغير. وفلاتر الهواء والتكييف بتتغير مع الصيانة الدورية. دي المتاح:";
-            foundProducts = searchLocalProducts("سير كاتينة دينامو فلتر هواء");
-        }
-        // الشكمان (Exhaust)
-        else if (/(شكمان|علبة بيئة|صوت عالي|هباب)/.test(lowerText)) {
-            response = "صوت المكنة العالي أو ريحة العادم الكريهة ممكن يكون تسريب في الشكمان أو علبة البيئة مسدودة. دي قطع الشكمان المتاحة:";
-            foundProducts = searchLocalProducts("شكمان علبة بيئة جوان");
-        }
-        // 3. Greeting
-        else if (/(اهلا|سلام|هاي|مرحبا|ازيك|عامل|صباح|مسا|يا باشا|يا هندسة)/.test(lowerText)) {
-            return "أهلاً بيك يا ريس! منور متجر بطاح الأصلي. معاك مساعد بطاح، أقدر أخدمك في إيه؟ بتدور على قطعة معينة ولا عربيتك فيها مشكلة ومحتاج استشارة؟";
-        }
-        // 4. Company Info
-        else if (/(عنوان|مكان|موقع|تليفون|رقم|تواصل|اتصال|موبايل|فرع)/.test(lowerText)) {
-            return "عناوين فروعنا:\n- 79 شارع رمسيس ناصية التوفيقية امام سنترال رمسيس\n- 19 شارع رمسيس ناصية التوفيقية امام سنترال رمسيس\n- 6 شارع البورصة ناصية التوفيقية بجوار سينما ريفولى\n- 1 شارع البورصة ناصية التوفيقية امام دار القضاء العالى\n\nتقدر تتواصل معانا على رقم الموبايل أو الواتساب: 01080444447\nمواعيد العمل من 9 صباحاً لـ 10 مساءً.";
-        }
-        // 5. General Product Search (Fallback)
-        else {
-            foundProducts = searchLocalProducts(lowerText);
-            if (foundProducts.length > 0) {
-                response = "لقيتلك الحاجات دي في المتجر يا باشا:";
-            } else {
-                return "والله يا هندسة مش لاقي حاجة بالاسم ده في المتجر حالياً. جرب تكتب اسم القطعة بطريقة تانية، أو اشرحلي المشكلة اللي في عربيتك (مثلاً: العربية بتنتش، بتسخن، بتصفر) وأنا هقولك العيب منين.";
-            }
-        }
-
-        // Format Product Results
-        if (foundProducts.length > 0) {
-            lastDiscussedProduct.current = foundProducts[0]; // Save the first one for quick adding
-            const productList = foundProducts.map(p => `\n🔹 ${p.name} - السعر: ${p.sellingPrice} جنيه`).join('');
-            response += `${productList}\n\nلو حابب أضيفلك أول منتج للسلة، قولي "ضيفه" أو "هات واحد".`;
-        }
-
-        return response;
-    };
-
-    const handleQuickReply = (text: string) => {
-        setInput(text);
-        handleSend(undefined, text);
-    };
+    }, []);
 
     const handleSend = async (e?: FormEvent, textOverride?: string) => {
         if (e) e.preventDefault();
         const userMsg = textOverride || input;
-        if (!userMsg.trim() || isLoading) return;
+        if (!userMsg.trim() || isLoading || !chatRef.current) return;
 
         setInput('');
         setMessages(prev => [...prev, { text: userMsg, sender: 'user' }]);
         setIsLoading(true);
 
-        // Simulate network delay for realism (500ms - 1000ms)
-        setTimeout(() => {
-            const botResponse = processLocalMessage(userMsg);
-            setMessages(prev => [...prev, { text: botResponse, sender: 'bot' }]);
+        try {
+            let response = await chatRef.current.sendMessage({ message: userMsg });
+            let botText = response.text || "";
+
+            // Handle tool calls
+            const functionCalls = response.functionCalls;
+            if (functionCalls) {
+                const results = [];
+                for (const call of functionCalls) {
+                    if (call.name === "search_products") {
+                        const query = call.args.query as string;
+                        const filtered = products.filter(p => 
+                            p.name.toLowerCase().includes(query.toLowerCase()) || 
+                            p.description?.toLowerCase().includes(query.toLowerCase()) ||
+                            p.category?.toLowerCase().includes(query.toLowerCase())
+                        ).slice(0, 5);
+                        
+                        results.push({
+                            name: call.name,
+                            id: call.id,
+                            response: { products: filtered.map(p => ({ id: p.id, name: p.name, price: p.sellingPrice, brand: p.brand })) }
+                        });
+                    } else if (call.name === "add_to_cart") {
+                        const productId = call.args.product_id as string;
+                        const quantity = (call.args.quantity as number) || 1;
+                        const product = products.find(p => String(p.id) === productId);
+                        if (product) {
+                            addToCart(product, quantity);
+                            results.push({
+                                name: call.name,
+                                id: call.id,
+                                response: { success: true, message: `تم إضافة ${product.name} للسلة` }
+                            });
+                        } else {
+                            results.push({
+                                name: call.name,
+                                id: call.id,
+                                response: { success: false, message: "المنتج غير موجود" }
+                            });
+                        }
+                    } else if (call.name === "open_checkout") {
+                        openCart();
+                        results.push({
+                            name: call.name,
+                            id: call.id,
+                            response: { success: true, message: "تم فتح صفحة إتمام الطلب" }
+                        });
+                    }
+                }
+
+                // Send tool responses back to model
+                const finalResponse = await chatRef.current.sendMessage({
+                    message: results.map(r => `Tool ${r.name} returned: ${JSON.stringify(r.response)}`).join("\n")
+                });
+                botText = finalResponse.text || "";
+            }
+
+            setMessages(prev => [...prev, { text: botText, sender: 'bot' }]);
+        } catch (error) {
+            console.error("Gemini Error:", error);
+            setMessages(prev => [...prev, { text: "عذراً يا ريس، حصلت مشكلة فنية بسيطة. جرب تاني كمان شوية.", sender: 'bot' }]);
+        } finally {
             setIsLoading(false);
-        }, 800);
+        }
+    };
+
+    const handleQuickReply = (text: string) => {
+        setInput(text);
+        handleSend(undefined, text);
     };
 
     return (

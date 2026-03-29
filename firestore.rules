@@ -40,8 +40,10 @@ service cloud.firestore {
 
     function isAdmin() {
       return isAuthenticated() && 
-        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
-         (request.auth.token.email == "ahm.atya@gmail.com" && request.auth.token.email_verified == true));
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin') ||
+         request.auth.token.email == "ahm.atya@gmail.com" ||
+         request.auth.token.email == "admin@battah.com";
     }
 
     function isManager() {
@@ -80,7 +82,7 @@ service cloud.firestore {
 
     // Products collection
     match /products/{productId} {
-      allow read: if isAuthenticated();
+      allow read: if true; // Allow public read for storefront
       allow create, update: if hasPermission('store-management') || isAdmin();
       allow delete: if isAdmin();
     }
