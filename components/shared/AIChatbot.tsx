@@ -16,7 +16,7 @@ const AIChatbot: React.FC<AIChatbotProps> = ({ setSelectedProduct, addToCart, op
     const [isLoading, setIsLoading] = useState(false);
     
     const chatBodyRef = useRef<HTMLDivElement>(null);
-    const lastDiscussedProduct = useRef<Product | null>(null);
+    const chatRef = useRef<any>(null);
 
     const { products } = useStore(state => ({
         products: state.appData?.products || [],
@@ -28,7 +28,6 @@ const AIChatbot: React.FC<AIChatbotProps> = ({ setSelectedProduct, addToCart, op
         }
     }, [messages]);
 
-    // --- Gemini Bot Logic ---
     const handleQuickReply = (text: string) => {
         setInput(text);
         handleSend(undefined, text);
@@ -45,7 +44,7 @@ const AIChatbot: React.FC<AIChatbotProps> = ({ setSelectedProduct, addToCart, op
 
         try {
             const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY as string });
-            const modelName = "gemini-3-flash-preview";
+            const modelName = "gemini-3-flash-preview"; 
             
             const tools = [
                 {
@@ -89,35 +88,31 @@ const AIChatbot: React.FC<AIChatbotProps> = ({ setSelectedProduct, addToCart, op
 مهامك:
 1. تشخيص أعطال السيارات بناءً على وصف العميل واقتراح قطع الغيار المناسبة.
 2. مساعدة العميل في العثور على المنتجات في المتجر باستخدام أداة search_products.
-3. إضافة المنتجات للسلة للعميل باستخدام أداة add_to_cart عند طلبه ذلك.
-4. توجيه العميل لإتمام الطلب باستخدام أداة open_checkout.
-5. تقديم معلومات المتجر (الفروع: رمسيس والتوفيقية، التليفون: 01080444447).
+3. عند عرض المنتجات للعميل، يجب عليك دائماً ذكر السعر بوضوح وتنسيق الرد في شكل قائمة منظمة وسهلة القراءة.
+4. إضافة المنتجات للسلة للعميل باستخدام أداة add_to_cart عند طلبه ذلك.
+5. توجيه العميل لإتمام الطلب باستخدام أداة open_checkout.
+6. تقديم معلومات المتجر (الفروع: رمسيس والتوفيقية، التليفون: 01080444447).
 
-معلومات هامة:
+قواعد هامة للتنسيق:
+- عند عرض المنتجات، استخدم التنسيق التالي لكل منتج:
+  * [اسم المنتج]
+  * السعر: [السعر] ج.م
+  * كود المنتج (ID): [رقم الكود]
+- افصل بين كل منتج والآخر بسطر فارغ ليكون الكلام واضح.
 - لا تخترع منتجات غير موجودة، استخدم دائماً أداة البحث للتأكد.
-- إذا سألك العميل عن مشكلة فنية، اشرح له السبب المحتمل كمهندس خبير ثم اقترح القطع اللازمة.
-- إذا طلب العميل إضافة شيء للسلة، ابحث عنه أولاً ثم استخدم add_to_cart.
+- إذا طلب العميل إضافة شيء للسلة، ابحث عنه أولاً ثم استخدم add_to_cart.`;
 
-فروعنا:
-- 79 شارع رمسيس ناصية التوفيقية امام سنترال رمسيس
-- 19 شارع رمسيس ناصية التوفيقية امام سنترال رمسيس
-- 6 شارع البورصة ناصية التوفيقية بجوار سينما ريفولى
-- 1 شارع البورصة ناصية التوفيقية امام دار القضاء العالى`;
+            if (!chatRef.current) {
+                chatRef.current = ai.chats.create({
+                    model: modelName,
+                    config: {
+                        systemInstruction,
+                        tools,
+                    }
+                });
+            }
 
-            const history = messages.map(m => ({
-                role: m.sender === 'user' ? 'user' : 'model',
-                parts: [{ text: m.text }]
-            }));
-
-            const chat = ai.chats.create({
-                model: modelName,
-                config: {
-                    systemInstruction,
-                    tools,
-                },
-                history
-            });
-
+            const chat = chatRef.current;
             let response = await chat.sendMessage({ message: userMsg });
             let botText = response.text || "";
             const functionCalls = response.functionCalls;
@@ -134,7 +129,9 @@ const AIChatbot: React.FC<AIChatbotProps> = ({ setSelectedProduct, addToCart, op
                         ).slice(0, 5);
                         
                         const toolResult = results.length > 0 
-                            ? `نتائج البحث عن "${query}":\n` + results.map(p => `- ${p.name} (ID: ${p.id}) - السعر: ${p.sellingPrice} ج.م`).join('\n')
+                            ? `نتائج البحث عن "${query}":\n\n` + results.map(p => 
+                                `📦 *${p.name}*\n💰 السعر: ${p.sellingPrice} ج.م\n🔢 كود المنتج: ${p.id}\n`
+                              ).join('\n')
                             : `للأسف مفيش نتائج لـ "${query}" حالياً.`;
 
                         functionResponses.push({
@@ -172,6 +169,7 @@ const AIChatbot: React.FC<AIChatbotProps> = ({ setSelectedProduct, addToCart, op
 
         } catch (error) {
             console.error("Gemini Error:", error);
+            chatRef.current = null;
             setMessages(prev => [...prev, { text: "يا هندسة السيرفر مهنج شوية، جرب كمان دقيقة كده.", sender: 'bot' }]);
         } finally {
             setIsLoading(false);
