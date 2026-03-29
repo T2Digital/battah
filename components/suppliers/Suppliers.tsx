@@ -42,7 +42,7 @@ const SupplierModal: React.FC<{
 
     const handlePreSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (supplierToEdit && storefrontSettings?.adminPassword) {
+        if (storefrontSettings?.adminPassword) {
             setShowSecurityCheck(true);
         } else {
             handleSubmit();
@@ -149,7 +149,7 @@ const PaymentModal: React.FC<{
 
     const handlePreSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (paymentToEdit && storefrontSettings?.adminPassword) {
+        if (storefrontSettings?.adminPassword) {
             setShowSecurityCheck(true);
         } else {
             handleSubmit();

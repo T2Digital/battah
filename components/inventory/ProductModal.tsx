@@ -131,15 +131,14 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, ex
 
     const handlePreSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        // Check if price changed for an existing product
-        const priceChanged = existingProduct && (
+        // Check if price changed
+        const priceChanged = !existingProduct || 
             existingProduct.purchasePrice !== formData.purchasePrice ||
             existingProduct.sellingPrice !== formData.sellingPrice ||
             existingProduct.wholesalePrice !== formData.wholesalePrice ||
-            existingProduct.retailPrice !== formData.retailPrice
-        );
+            existingProduct.retailPrice !== formData.retailPrice;
 
-        if (priceChanged && storefrontSettings?.adminPassword) {
+        if (priceChanged) {
             setShowSecurityCheck(true);
         } else {
             handleSubmit();

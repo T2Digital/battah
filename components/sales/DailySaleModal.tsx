@@ -59,8 +59,6 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
     };
 
     useEffect(() => {
-        if (!isOpen) return;
-
         const generateInvoiceNumber = () => {
             const today = new Date();
             const prefix = `${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}`;
@@ -100,7 +98,7 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
             setInvoiceNumber(generateInvoiceNumber());
             setDate(new Date().toISOString().split('T')[0]);
             setDirection('بيع');
-            setBranchSoldFrom(currentUser.branch || 'branch1');
+            setBranchSoldFrom('branch1');
             setNotes('');
             setItems([]);
             setInvoiceType('retail');
@@ -116,23 +114,19 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
         setShowSecurityCheck(false);
         setSecurityPassword('');
         setSecurityError('');
-    }, [existingSale, isOpen]); // Only re-run when opening or changing the sale being edited
+    }, [existingSale, dailySales, currentUser, products, isOpen]);
 
     // Update prices when invoice type changes
-    const prevInvoiceType = useRef(invoiceType);
     useEffect(() => {
-        if (prevInvoiceType.current !== invoiceType) {
-            setItems(prevItems => prevItems.map(item => {
-                const product = products.find(p => p.id === item.productId);
-                if (!product) return item;
-                const newPrice = invoiceType === 'wholesale' 
-                    ? (product.wholesalePrice || product.sellingPrice) 
-                    : (product.retailPrice || product.sellingPrice);
-                return { ...item, unitPrice: newPrice };
-            }));
-            setDiscount(0); // Reset discount when type changes
-            prevInvoiceType.current = invoiceType;
-        }
+        setItems(prevItems => prevItems.map(item => {
+            const product = products.find(p => p.id === item.productId);
+            if (!product) return item;
+            const newPrice = invoiceType === 'wholesale' 
+                ? (product.wholesalePrice || product.sellingPrice) 
+                : (product.retailPrice || product.sellingPrice);
+            return { ...item, unitPrice: newPrice };
+        }));
+        setDiscount(0); // Reset discount when type changes
     }, [invoiceType, products]);
 
     useEffect(() => {
@@ -208,36 +202,37 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
     };
 
     const handleProductSelect = (product: Product) => {
-        setItems(prevItems => {
-            const existingItemIndex = prevItems.findIndex(item => item.productId === product.id);
-            
-            if (existingItemIndex !== -1) {
-                // If product already exists, increment quantity
-                const updatedItems = [...prevItems];
-                updatedItems[existingItemIndex] = {
-                    ...updatedItems[existingItemIndex],
-                    quantity: updatedItems[existingItemIndex].quantity + 1
-                };
-                return updatedItems;
-            }
-            
-            const price = invoiceType === 'wholesale' 
-                ? (product.wholesalePrice || product.sellingPrice) 
-                : (product.retailPrice || product.sellingPrice);
-
-            const newItem: EditableSaleItem = {
-                productId: product.id,
-                productName: product.name,
-                quantity: 1,
-                unitPrice: price,
-                itemType: product.category as SaleItem['itemType'] || 'أخرى',
-                stock: product.stock[branchSoldFrom],
-                hasSerialNumber: product.hasSerialNumber,
-                serialNumbers: [],
-                isReturn: direction === 'مرتجع' || direction === 'تبديل', // Default to true for returns/exchanges, user can uncheck if it's a new item
+        const existingItemIndex = items.findIndex(item => item.productId === product.id);
+        
+        if (existingItemIndex !== -1) {
+            // If product already exists, increment quantity
+            const updatedItems = [...items];
+            updatedItems[existingItemIndex] = {
+                ...updatedItems[existingItemIndex],
+                quantity: updatedItems[existingItemIndex].quantity + 1
             };
-            return [...prevItems, newItem];
-        });
+            setItems(updatedItems);
+            setProductSearch('');
+            setShowSuggestions(false);
+            return;
+        }
+        
+        const price = invoiceType === 'wholesale' 
+            ? (product.wholesalePrice || product.sellingPrice) 
+            : (product.retailPrice || product.sellingPrice);
+
+        const newItem: EditableSaleItem = {
+            productId: product.id,
+            productName: product.name,
+            quantity: 1,
+            unitPrice: price,
+            itemType: product.category as SaleItem['itemType'] || 'أخرى',
+            stock: product.stock[branchSoldFrom],
+            hasSerialNumber: product.hasSerialNumber,
+            serialNumbers: [],
+            isReturn: direction === 'مرتجع' || direction === 'تبديل', // Default to true for returns/exchanges, user can uncheck if it's a new item
+        };
+        setItems(prev => [...prev, newItem]);
         setProductSearch('');
         setShowSuggestions(false);
     };
@@ -279,8 +274,7 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
     
     const handlePreSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        // Only require password for editing existing sales, not for creating new ones
-        if (existingSale && storefrontSettings?.adminPassword) {
+        if (storefrontSettings?.adminPassword) {
             setShowSecurityCheck(true);
         } else {
             handleSubmit();
