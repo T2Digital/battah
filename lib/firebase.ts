@@ -1,9 +1,18 @@
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, getDocFromServer, doc } from "firebase/firestore";
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from "firebase/firestore";
 import { getMessaging, getToken, onMessage } from "firebase/messaging";
-import firebaseConfig from '../firebase-applet-config.json';
-export { firebaseConfig };
+
+// Your web app's Firebase configuration
+export const firebaseConfig = {
+    apiKey: process.env.FIREBASE_API_KEY,
+    authDomain: process.env.FIREBASE_AUTH_DOMAIN,
+    projectId: process.env.FIREBASE_PROJECT_ID,
+    storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
+    appId: process.env.FIREBASE_APP_ID,
+    measurementId: "G-1PT1JS2CVS"
+};
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
@@ -15,19 +24,33 @@ export const db = initializeFirestore(app, {
   localCache: persistentLocalCache({
     tabManager: persistentMultipleTabManager()
   })
-}, firebaseConfig.firestoreDatabaseId);
+});
 
-// Test connection
+// Connection test for diagnosing deployment issues
+import { doc, getDocFromCache, getDocFromServer } from "firebase/firestore";
 async function testConnection() {
+  console.log("Firebase Config Check:", {
+    apiKey: firebaseConfig.apiKey ? "Present" : "Missing",
+    projectId: firebaseConfig.projectId ? "Present" : "Missing",
+    authDomain: firebaseConfig.authDomain ? "Present" : "Missing"
+  });
+
   try {
-    await getDocFromServer(doc(db, 'test', 'connection'));
-  } catch (error) {
-    if(error instanceof Error && error.message.includes('the client is offline')) {
-      console.error("Please check your Firebase configuration. ");
+    // Try to fetch a dummy doc to test server connection
+    await getDocFromServer(doc(db, '_connection_test', 'ping'));
+    console.log("Firestore connection test: Success");
+  } catch (error: any) {
+    if (error.message?.includes('the client is offline')) {
+      console.error("Firestore connection test: Failed (Client is offline/Config error)");
+    } else {
+      console.warn("Firestore connection test: Notice (Expected if collection doesn't exist, but server was reached)", error.message);
     }
   }
 }
-testConnection();
+
+if (typeof window !== 'undefined') {
+  testConnection();
+}
 
 // Initialize Firebase Cloud Messaging and get a reference to the service
 export let messaging: any = null;

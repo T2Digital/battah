@@ -109,19 +109,21 @@ const AIChatbot: React.FC<AIChatbotProps> = ({ setSelectedProduct, addToCart, op
                 parts: [{ text: m.text }]
             }));
 
-            const response = await ai.models.generateContent({
+            const chat = ai.chats.create({
                 model: modelName,
-                contents: [...history, { role: 'user', parts: [{ text: userMsg }] }],
                 config: {
                     systemInstruction,
                     tools,
-                }
+                },
+                history
             });
 
+            let response = await chat.sendMessage({ message: userMsg });
             let botText = response.text || "";
             const functionCalls = response.functionCalls;
 
-            if (functionCalls) {
+            if (functionCalls && functionCalls.length > 0) {
+                const functionResponses = [];
                 for (const call of functionCalls) {
                     if (call.name === "search_products") {
                         const { query } = call.args as { query: string };
@@ -131,54 +133,37 @@ const AIChatbot: React.FC<AIChatbotProps> = ({ setSelectedProduct, addToCart, op
                             p.category?.toLowerCase().includes(query.toLowerCase())
                         ).slice(0, 5);
                         
-                        const toolResponse = results.length > 0 
+                        const toolResult = results.length > 0 
                             ? `نتائج البحث عن "${query}":\n` + results.map(p => `- ${p.name} (ID: ${p.id}) - السعر: ${p.sellingPrice} ج.م`).join('\n')
                             : `للأسف مفيش نتائج لـ "${query}" حالياً.`;
 
-                        const secondResponse = await ai.models.generateContent({
-                            model: modelName,
-                            contents: [
-                                ...history, 
-                                { role: 'user', parts: [{ text: userMsg }] },
-                                { role: 'model', parts: [{ functionCall: call }] },
-                                { role: 'user', parts: [{ functionResponse: { name: "search_products", response: { result: toolResponse } } }] }
-                            ],
-                            config: { systemInstruction, tools }
+                        functionResponses.push({
+                            functionResponse: { name: "search_products", response: { result: toolResult } }
                         });
-                        botText = secondResponse.text || botText;
                     } else if (call.name === "add_to_cart") {
                         const { productId, quantity = 1 } = call.args as { productId: number, quantity?: number };
                         const product = products.find(p => p.id === productId);
                         if (product) {
                             addToCart(product, quantity);
-                            const toolResponse = `تم إضافة ${quantity} من ${product.name} للسلة بنجاح.`;
-                            const secondResponse = await ai.models.generateContent({
-                                model: modelName,
-                                contents: [
-                                    ...history, 
-                                    { role: 'user', parts: [{ text: userMsg }] },
-                                    { role: 'model', parts: [{ functionCall: call }] },
-                                    { role: 'user', parts: [{ functionResponse: { name: "add_to_cart", response: { result: toolResponse } } }] }
-                                ],
-                                config: { systemInstruction, tools }
+                            const toolResult = `تم إضافة ${quantity} من ${product.name} للسلة بنجاح.`;
+                            functionResponses.push({
+                                functionResponse: { name: "add_to_cart", response: { result: toolResult } }
                             });
-                            botText = secondResponse.text || botText;
                         }
                     } else if (call.name === "open_checkout") {
                         openCart();
-                        const toolResponse = "تم فتح سلة المشتريات للعميل ليتمكن من إتمام الطلب.";
-                        const secondResponse = await ai.models.generateContent({
-                            model: modelName,
-                            contents: [
-                                ...history, 
-                                { role: 'user', parts: [{ text: userMsg }] },
-                                { role: 'model', parts: [{ functionCall: call }] },
-                                { role: 'user', parts: [{ functionResponse: { name: "open_checkout", response: { result: toolResponse } } }] }
-                            ],
-                            config: { systemInstruction, tools }
+                        const toolResult = "تم فتح سلة المشتريات للعميل ليتمكن من إتمام الطلب.";
+                        functionResponses.push({
+                            functionResponse: { name: "open_checkout", response: { result: toolResult } }
                         });
-                        botText = secondResponse.text || botText;
                     }
+                }
+
+                if (functionResponses.length > 0) {
+                    const secondResponse = await chat.sendMessage({
+                        message: functionResponses
+                    });
+                    botText = secondResponse.text || botText;
                 }
             }
 
