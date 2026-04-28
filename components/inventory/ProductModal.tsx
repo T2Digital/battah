@@ -4,6 +4,7 @@ import { GoogleGenAI } from "@google/genai";
 import CreatableSelect from 'react-select/creatable';
 import { Product, MainCategory } from '../../types';
 import Modal from '../shared/Modal';
+import BarcodeScannerModal from '../shared/BarcodeScannerModal';
 import AdminPasswordModal from '../shared/AdminPasswordModal';
 import useStore from '../../lib/store';
 
@@ -37,6 +38,7 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, ex
     const [securityPassword, setSecurityPassword] = useState('');
     const [showSecurityCheck, setShowSecurityCheck] = useState(false);
     const [securityError, setSecurityError] = useState('');
+    const [showScanner, setShowScanner] = useState(false);
 
     const mainCategories: MainCategory[] = [
         'قطع غيار',
@@ -188,6 +190,14 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, ex
 
     return (
         <Modal isOpen={isOpen} onClose={onClose} title={existingProduct ? 'تعديل بيانات المنتج' : 'إضافة منتج جديد'} onSave={handlePreSubmit} isLoading={isUploading}>
+            <BarcodeScannerModal 
+                isOpen={showScanner} 
+                onClose={() => setShowScanner(false)} 
+                onScan={(code) => {
+                    setFormData(prev => ({ ...prev, sku: code }));
+                    setShowScanner(false);
+                }} 
+            />
              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {/* Image Section */}
                 <div className="md:col-span-1 space-y-3">
@@ -209,7 +219,12 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, ex
                     </div>
                     <div>
                         <label>الكود (SKU) *</label>
-                        <input type="text" name="sku" value={formData.sku} onChange={handleChange} required className="mt-1 w-full input-base" />
+                        <div className="mt-1 flex gap-2">
+                            <input type="text" name="sku" value={formData.sku} onChange={handleChange} required className="w-full input-base" />
+                            <button type="button" onClick={() => setShowScanner(true)} className="btn-secondary whitespace-nowrap p-2">
+                                <i className="fas fa-barcode"></i>
+                            </button>
+                        </div>
                     </div>
                     <div>
                         <label>الفئة الرئيسية *</label>
