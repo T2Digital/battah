@@ -1,5 +1,6 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Modal from './Modal';
+import { Html5QrcodeScanner } from 'html5-qrcode';
 
 interface BarcodeScannerModalProps {
     isOpen: boolean;
@@ -8,70 +9,54 @@ interface BarcodeScannerModalProps {
 }
 
 const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({ isOpen, onClose, onScan }) => {
-    const videoRef = useRef<HTMLVideoElement>(null);
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
-        let stream: MediaStream | null = null;
+        let scanner: Html5QrcodeScanner | null = null;
         
-        const startCamera = async () => {
-            if (isOpen && videoRef.current) {
-                try {
-                    setError(null);
-                    stream = await navigator.mediaDevices.getUserMedia({
-                        video: { facingMode: 'environment' }
-                    });
-                    videoRef.current.srcObject = stream;
-                    videoRef.current.play();
-                } catch (err) {
-                    console.error("Error accessing camera:", err);
-                    setError("لا يمكن الوصول إلى الكاميرا. يرجى التحقق من الأذونات.");
+        if (isOpen) {
+            scanner = new Html5QrcodeScanner(
+                'reader', 
+                { fps: 10, qrbox: {width: 250, height: 250} }, 
+                /* verbose= */ false
+            );
+            
+            scanner.render(
+                (decodedText) => {
+                    onScan(decodedText);
+                    scanner?.clear();
+                },
+                (err) => {
+                    // Ignore regular scanning errors as they happen constantly during scanning
+                    if (typeof err === 'string' && !err.includes('NotFoundException')) {
+                        console.warn(err);
+                    }
                 }
-            }
-        };
-
-        startCamera();
-
-        return () => {
-            // Cleanup: stop the camera stream when the component unmounts or modal closes
-            if (stream) {
-                stream.getTracks().forEach(track => track.stop());
-            }
-        };
-    }, [isOpen]);
-
-    const handleSimulateScan = () => {
-        // In a real app, you would use a library like react-zxing here to decode the barcode from the video stream.
-        // For now, we simulate a scan with a common product SKU.
-        const simulatedSku = 'BOS-001';
-        alert(`تم محاكاة مسح الباركود بنجاح. الكود: ${simulatedSku}`);
-        onScan(simulatedSku);
-    };
+            );
+            
+            // Clean up old scanner if it fails to mount or on close
+            return () => {
+                if (scanner) {
+                    scanner.clear().catch(console.error);
+                }
+            };
+        }
+    }, [isOpen, onScan]);
 
     return (
         <Modal isOpen={isOpen} onClose={onClose} title="مسح الباركود">
-            <div className="relative w-full aspect-video bg-black rounded-lg overflow-hidden">
+            <div className="relative w-full min-h-[300px] bg-black rounded-lg overflow-hidden flex flex-col items-center justify-center">
                 {error ? (
                     <div className="flex items-center justify-center h-full text-red-500">{error}</div>
                 ) : (
-                    <video ref={videoRef} className="w-full h-full object-cover" muted playsInline />
+                    <div id="reader" className="w-full text-black"></div>
                 )}
-                 <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="w-3/4 h-1/2 border-4 border-dashed border-red-500 border-opacity-70 rounded-lg" />
-                </div>
             </div>
             <div className="mt-4 text-center">
                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                    وجّه الكاميرا نحو الباركود. 
-                    <br/>
-                    (ملاحظة: هذه ميزة تجريبية، انقر أدناه لمحاكاة المسح)
+                    وجّه الكاميرا نحو الباركود أو الـ QR कोड وسيتم قراءته تلقائياً. 
+                    في حالة وجود مشكلة، تأكد من توفر إضاءة جيدة.
                 </p>
-                <button 
-                    onClick={handleSimulateScan}
-                    className="mt-2 px-4 py-2 bg-primary text-white rounded-lg"
-                >
-                    محاكاة مسح ناجح
-                </button>
             </div>
         </Modal>
     );

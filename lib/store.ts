@@ -299,16 +299,16 @@ const useStore = create<AppState & AppActions>((set, get) => ({
             ];
             
             const largeCollections = ['dailySales', 'expenses', 'treasury', 'purchaseOrders', 'payments', 'attendance', 'payroll', 'stockTransfers', 'dailyReview', 'orders'];
-            const thirtyDaysAgo = new Date();
-            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-            const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0];
+            const startOfMonth = new Date();
+            startOfMonth.setDate(1);
+            const startOfMonthStr = startOfMonth.toISOString().split('T')[0];
     
             collectionsToListen.forEach(name => {
                 let collectionQuery = query(collection(db, name as string));
                 
                 if (largeCollections.includes(name)) {
                     const dateField = name === 'purchaseOrders' ? 'orderDate' : 'date';
-                    collectionQuery = query(collection(db, name as string), where(dateField, ">=", thirtyDaysAgoStr));
+                    collectionQuery = query(collection(db, name as string), where(dateField, ">=", startOfMonthStr));
                 }
 
                 const unsub = onSnapshot(collectionQuery, (snapshot) => {
@@ -354,7 +354,19 @@ const useStore = create<AppState & AppActions>((set, get) => ({
     clearAdminListeners: () => {
         adminUnsubscribers.forEach(unsub => unsub());
         adminUnsubscribers = [];
-        set({ isInitialized: false });
+        set((state) => {
+            if (!state.appData) return { isInitialized: false };
+            return {
+                isInitialized: false,
+                appData: {
+                    ...state.appData,
+                    users: [], dailySales: [], employees: [], advances: [],
+                    attendance: [], payroll: [], suppliers: [], purchaseOrders: [],
+                    payments: [], expenses: [], treasury: [], dailyReview: [],
+                    notifications: [], stockTransfers: [], orders: [], broadcasts: []
+                }
+            };
+        });
     },
 
     login: async (email, pass) => {

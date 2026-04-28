@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { DailySale, User, Product, Branch, SaleItem, Role } from '../../types';
 import { formatCurrency, normalizeSaleItems } from '../../lib/utils';
 import Modal from '../shared/Modal';
+import BarcodeScannerModal from '../shared/BarcodeScannerModal';
 import useStore from '../../lib/store';
 
 type EditableSaleItem = SaleItem & { productName: string; stock: number; hasSerialNumber?: boolean };
@@ -41,6 +42,7 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
     
     const [productSearch, setProductSearch] = useState('');
     const [showSuggestions, setShowSuggestions] = useState(false);
+    const [isScannerOpen, setIsScannerOpen] = useState(false);
     const lastAddedItemRef = useRef<HTMLInputElement>(null);
 
     const [securityPassword, setSecurityPassword] = useState('');
@@ -239,6 +241,17 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
         setShowSuggestions(false);
     };
 
+    const handleBarcodeScan = (scannedCode: string) => {
+        setIsScannerOpen(false);
+        // Find product by SKU or exact name match from store products directly
+        const product = products.find(p => p.sku.toLowerCase() === scannedCode.toLowerCase() || String(p.id) === scannedCode);
+        if (product) {
+            handleProductSelect(product);
+        } else {
+            alert(`لم يتم العثور على صنف بالباركود: ${scannedCode}`);
+        }
+    };
+
     const handleSerialNumberChange = (index: number, serialIndex: number, value: string) => {
         const newItems = [...items];
         const serials = [...(newItems[index].serialNumbers || [])];
@@ -381,6 +394,7 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
     }
 
     return (
+        <>
         <Modal isOpen={isOpen} onClose={onClose} title={existingSale ? 'تعديل فاتورة' : 'فاتورة جديدة'} onSave={handlePreSubmit}>
             <div className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -450,16 +464,26 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
                                 onChange={e => { setProductSearch(e.target.value); setShowSuggestions(true); }}
                                 onFocus={() => setShowSuggestions(true)}
                                 onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
-                                className="w-full p-2 pl-10 border rounded dark:bg-gray-700 dark:border-gray-600" 
+                                className="w-full p-2 pl-20 border rounded dark:bg-gray-700 dark:border-gray-600" 
                                 placeholder="اكتب اسم الصنف أو الكود لإضافته..."/>
-                            <button 
-                                type="button" 
-                                onClick={startVoiceSearch} 
-                                className={`absolute left-2 top-1/2 transform -translate-y-1/2 ${isListening ? 'text-red-500 animate-pulse' : 'text-gray-400 hover:text-primary'}`}
-                                title="بحث صوتي"
-                            >
-                                <i className="fas fa-microphone"></i>
-                            </button>
+                            <div className="absolute left-2 top-1/2 transform -translate-y-1/2 flex gap-3">
+                                <button 
+                                    type="button" 
+                                    onClick={() => setIsScannerOpen(true)}
+                                    className="text-gray-400 hover:text-primary transition-colors"
+                                    title="مسح باركود"
+                                >
+                                    <i className="fas fa-barcode text-lg"></i>
+                                </button>
+                                <button 
+                                    type="button" 
+                                    onClick={startVoiceSearch} 
+                                    className={`${isListening ? 'text-red-500 animate-pulse' : 'text-gray-400 hover:text-primary'}`}
+                                    title="بحث صوتي"
+                                >
+                                    <i className="fas fa-microphone text-lg"></i>
+                                </button>
+                            </div>
                         </div>
                         {filteredProducts.length > 0 && showSuggestions && (
                             <ul className="absolute z-10 w-full bg-white dark:bg-gray-600 border dark:border-gray-500 rounded-md mt-10 max-h-60 overflow-y-auto shadow-lg">
@@ -637,6 +661,12 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
                 <div><label>ملاحظات</label><textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} className="w-full mt-1 p-2 border rounded dark:bg-gray-700 dark:border-gray-600"></textarea></div>
             </div>
         </Modal>
+        <BarcodeScannerModal 
+            isOpen={isScannerOpen} 
+            onClose={() => setIsScannerOpen(false)} 
+            onScan={handleBarcodeScan} 
+        />
+        </>
     );
 };
 
