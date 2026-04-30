@@ -267,6 +267,7 @@ const App: React.FC = () => {
                 
                 if (useStore.getState().currentUser) {
                     // Logged in user: Redirect to DailySales and dispatch product scan event
+                    setViewMode('admin');
                     window.location.hash = Section.DailySales;
                     setTimeout(() => {
                         window.dispatchEvent(new CustomEvent('scan-product', { detail: sku }));

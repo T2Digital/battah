@@ -89,7 +89,7 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
     // Handle Smart Scanning from Hash
     useEffect(() => {
         const handleScan = async (e: CustomEvent<string>) => {
-            const sku = e.detail;
+            const sku = e.detail.trim();
             setLoading(true);
             try {
                 // To fetch exact product by sku we can search for it

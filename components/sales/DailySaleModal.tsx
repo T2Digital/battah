@@ -244,13 +244,14 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
 
     const handleBarcodeScan = async (scannedCode: string) => {
         setIsScannerOpen(false);
+        const trimmedCode = scannedCode.trim();
         // Find product by SKU or exact name match from store products directly
-        let product = products.find(p => String(p.sku || '').toLowerCase() === scannedCode.toLowerCase() || String(p.id) === scannedCode);
+        let product = products.find(p => String(p.sku || '').toLowerCase() === trimmedCode.toLowerCase() || String(p.id) === trimmedCode);
         
         if (!product) {
             try {
-                const results = await useStore.getState().searchProducts(scannedCode);
-                product = results.find(p => String(p.sku || '').toLowerCase() === scannedCode.toLowerCase() || String(p.id) === scannedCode);
+                const results = await useStore.getState().searchProducts(trimmedCode);
+                product = results.find(p => String(p.sku || '').toLowerCase() === trimmedCode.toLowerCase() || String(p.id) === trimmedCode);
             } catch (error) {
                 console.error("Failed to fetch product by barcode:", error);
             }
