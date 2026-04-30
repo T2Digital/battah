@@ -218,10 +218,84 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, ex
                         <input type="text" name="name" value={formData.name} onChange={handleChange} required className="mt-1 w-full input-base" />
                     </div>
                     <div>
-                        <label>الكود (SKU) *</label>
+                        <label className="flex items-center justify-between">
+                            <span>الكود (SKU) *</span>
+                            <div className="flex gap-2">
+                                <button type="button" onClick={() => {
+                                    const randomSku = 'BTA-' + Date.now().toString().slice(-6) + Math.random().toString(36).slice(-3).toUpperCase();
+                                    setFormData(prev => ({ ...prev, sku: randomSku }));
+                                }} className="text-sm text-primary hover:text-primary-dark">
+                                    <i className="fas fa-magic"></i> توليد
+                                </button>
+                                {formData.sku && (
+                                    <button type="button" onClick={() => {
+                                        const printWindow = window.open('', '', 'width=600,height=400');
+                                        if (printWindow) {
+                                            const scanUrl = window.location.origin + window.location.pathname + '#scan/' + formData.sku;
+                                            printWindow.document.write(`
+                                                <html dir="rtl">
+                                                    <head>
+                                                        <title>طباعة باركود</title>
+                                                        <style>
+                                                            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+                                                            .barcode-container { text-align: center; border: 1px solid #ccc; padding: 20px; border-radius: 8px; width: fit-content; }
+                                                            h3 { margin: 0 0 10px 0; font-size: 16px; font-weight: bold; }
+                                                            p { margin: 0 0 15px 0; font-size: 14px; color: #555; }
+                                                            #qrcode { display: flex; justify-content: center; margin-bottom: 15px; }
+                                                            @media print {
+                                                                body { justify-content: flex-start; margin-top: 2cm; }
+                                                                .barcode-container { border: none; }
+                                                            }
+                                                        </style>
+                                                        <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.0/dist/JsBarcode.all.min.js"></script>
+                                                        <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+                                                    </head>
+                                                    <body>
+                                                        <div class="barcode-container">
+                                                            <h3>${formData.name}</h3>
+                                                            <p>${formData.brand || 'بدون ماركة'} - ${formData.mainCategory}</p>
+                                                            <!-- QR Code for smart scanning -->
+                                                            <div id="qrcode"></div>
+                                                            <!-- Standard Barcode -->
+                                                            <svg id="barcode"></svg>
+                                                            <p style="margin-top: 10px; font-weight: bold; font-size: 12px;">${formData.hasSerialNumber ? 'رقم السيريال: ' + formData.sku : 'باركود: ' + formData.sku}</p>
+                                                        </div>
+                                                        <script>
+                                                            // Generate QR Code
+                                                            new QRCode(document.getElementById("qrcode"), {
+                                                                text: "${scanUrl}",
+                                                                width: 100,
+                                                                height: 100
+                                                            });
+                                                            
+                                                            // Generate Barcode
+                                                            JsBarcode("#barcode", "${formData.sku}", {
+                                                                format: "CODE128",
+                                                                width: 2,
+                                                                height: 50,
+                                                                displayValue: false
+                                                            });
+                                                            
+                                                            setTimeout(() => {
+                                                                window.print();
+                                                                window.close();
+                                                            }, 800);
+                                                        </script>
+                                                    </body>
+                                                </html>
+                                            `);
+                                            printWindow.document.close();
+                                        }
+                                    }} className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1">
+                                        <i className="fas fa-print"></i>
+                                        طباعة
+                                    </button>
+                                )}
+                            </div>
+                        </label>
                         <div className="mt-1 flex gap-2">
                             <input type="text" name="sku" value={formData.sku} onChange={handleChange} required className="w-full input-base" />
-                            <button type="button" onClick={() => setShowScanner(true)} className="btn-secondary whitespace-nowrap p-2">
+                            <button type="button" onClick={() => setShowScanner(true)} className="btn-secondary whitespace-nowrap p-2" title="مسح باركود">
                                 <i className="fas fa-barcode"></i>
                             </button>
                         </div>

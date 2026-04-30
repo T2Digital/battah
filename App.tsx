@@ -260,6 +260,27 @@ const App: React.FC = () => {
         const handleHashChange = () => {
             const hash = window.location.hash.replace('#', '');
             console.log('Hash changed to:', hash);
+
+            // Handle Smart Scanning
+            if (hash.startsWith('scan/')) {
+                const sku = decodeURIComponent(hash.split('/')[1]);
+                
+                if (useStore.getState().currentUser) {
+                    // Logged in user: Redirect to DailySales and dispatch product scan event
+                    window.location.hash = Section.DailySales;
+                    setTimeout(() => {
+                        window.dispatchEvent(new CustomEvent('scan-product', { detail: sku }));
+                    }, 800); // give time for app and component to load
+                } else {
+                    // Guest user: Redirect to Store and dispatch store product scan event
+                    window.location.hash = ''; // Back to store front
+                    setTimeout(() => {
+                        window.dispatchEvent(new CustomEvent('scan-store-product', { detail: sku }));
+                    }, 800);
+                }
+                return;
+            }
+
             if (Object.values(Section).includes(hash as Section)) {
                 setActiveSection(hash as Section);
             } else {

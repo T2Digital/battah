@@ -45,9 +45,21 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
     
     const [isModalOpen, setModalOpen] = useState(false);
     const [editingSale, setEditingSale] = useState<DailySale | null>(null);
+    const [scannedSku, setScannedSku] = useState<string | null>(null);
     const [saleToDelete, setSaleToDelete] = useState<DailySale | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
     const [isOnline, setIsOnline] = useState(navigator.onLine);
+
+    useEffect(() => {
+        const handleScan = (e: CustomEvent<string>) => {
+            const sku = e.detail;
+            setScannedSku(sku);
+            setEditingSale(null);
+            setModalOpen(true);
+        };
+        window.addEventListener('scan-product', handleScan as EventListener);
+        return () => window.removeEventListener('scan-product', handleScan as EventListener);
+    }, []);
 
     useEffect(() => {
         const handleOnline = () => setIsOnline(true);
@@ -478,12 +490,16 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
             {isModalOpen && (
                 <DailySaleModal
                     isOpen={isModalOpen}
-                    onClose={() => setModalOpen(false)}
+                    onClose={() => {
+                        setModalOpen(false);
+                        setScannedSku(null);
+                    }}
                     onSave={handleSaveSale}
                     currentUser={currentUser}
                     existingSale={editingSale}
                     dailySales={dailySales}
                     products={products}
+                    initialScannedCode={scannedSku || undefined}
                 />
             )}
             {saleToDelete && (

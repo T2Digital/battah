@@ -15,9 +15,10 @@ interface DailySaleModalProps {
     existingSale: DailySale | null;
     dailySales: DailySale[];
     products: Product[];
+    initialScannedCode?: string;
 }
 
-const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave, currentUser, existingSale, dailySales, products }) => {
+const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave, currentUser, existingSale, dailySales, products, initialScannedCode }) => {
     const { storefrontSettings } = useStore(state => ({
         storefrontSettings: state.appData?.storefrontSettings
     }));
@@ -251,6 +252,15 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
             alert(`لم يتم العثور على صنف بالباركود: ${scannedCode}`);
         }
     };
+
+    useEffect(() => {
+        if (initialScannedCode && isOpen) {
+            // Give a little time for states to initialize
+            setTimeout(() => {
+                handleBarcodeScan(initialScannedCode);
+            }, 300);
+        }
+    }, [initialScannedCode, isOpen]);
 
     const handleSerialNumberChange = (index: number, serialIndex: number, value: string) => {
         const newItems = [...items];

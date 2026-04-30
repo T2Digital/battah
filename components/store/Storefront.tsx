@@ -86,6 +86,31 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
         return () => clearTimeout(timer);
     }, [filters.category, filters.search]);
 
+    // Handle Smart Scanning from Hash
+    useEffect(() => {
+        const handleScan = async (e: CustomEvent<string>) => {
+            const sku = e.detail;
+            setLoading(true);
+            try {
+                // To fetch exact product by sku we can search for it
+                // and find the one that exactly matches
+                const results = await searchProducts(sku);
+                const exactMatch = results.find(p => p.sku === sku || String(p.id) === sku);
+                if (exactMatch) {
+                    setSelectedProduct(exactMatch);
+                } else {
+                    alert(`لم يتم العثور على المنتج: ${sku}`);
+                }
+            } catch (error) {
+                console.error("Error finding scanned product:", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+        window.addEventListener('scan-store-product', handleScan as EventListener);
+        return () => window.removeEventListener('scan-store-product', handleScan as EventListener);
+    }, [searchProducts]);
+
     // Broadcast Logic
     useEffect(() => {
         if (broadcasts.length > 0) {
