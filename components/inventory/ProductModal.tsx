@@ -16,10 +16,11 @@ interface ProductModalProps {
 }
 
 const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, existingProduct }) => {
-    const { uploadImage, storefrontSettings, products } = useStore(state => ({
+    const { uploadImage, storefrontSettings, products, currentUser } = useStore(state => ({
         uploadImage: state.uploadImage,
         storefrontSettings: state.appData?.storefrontSettings,
-        products: state.appData?.products || []
+        products: state.appData?.products || [],
+        currentUser: state.currentUser
     }));
     
     // Extract unique brands from existing products
@@ -220,18 +221,19 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, ex
                     <div>
                         <label className="flex items-center justify-between">
                             <span>الكود (SKU) *</span>
-                            <div className="flex gap-2">
-                                <button type="button" onClick={() => {
-                                    const randomSku = 'BTA-' + Date.now().toString().slice(-6) + Math.random().toString(36).slice(-3).toUpperCase();
-                                    setFormData(prev => ({ ...prev, sku: randomSku }));
-                                }} className="text-sm text-primary hover:text-primary-dark">
-                                    <i className="fas fa-magic"></i> توليد
-                                </button>
-                                {formData.sku && (
+                            {['admin', 'manager', 'accountant'].includes(currentUser?.role || '') && (
+                                <div className="flex gap-2">
                                     <button type="button" onClick={() => {
-                                        const printWindow = window.open('', '', 'width=600,height=400');
-                                        if (printWindow) {
-                                            const scanUrl = window.location.origin + window.location.pathname + '#scan/' + formData.sku;
+                                        const randomSku = 'BTA-' + Date.now().toString().slice(-6) + Math.random().toString(36).slice(-3).toUpperCase();
+                                        setFormData(prev => ({ ...prev, sku: randomSku }));
+                                    }} className="text-sm text-primary hover:text-primary-dark">
+                                        <i className="fas fa-magic"></i> توليد
+                                    </button>
+                                    {formData.sku && (
+                                        <button type="button" onClick={() => {
+                                            const printWindow = window.open('', '', 'width=600,height=400');
+                                            if (printWindow) {
+                                                const scanUrl = window.location.origin + window.location.pathname + '#scan/' + formData.sku;
                                             printWindow.document.write(`
                                                 <html dir="rtl">
                                                     <head>
@@ -292,6 +294,7 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, ex
                                     </button>
                                 )}
                             </div>
+                            )}
                         </label>
                         <div className="mt-1 flex gap-2">
                             <input type="text" name="sku" value={formData.sku} onChange={handleChange} required className="w-full input-base" />
