@@ -16,11 +16,12 @@ interface ProductModalProps {
 }
 
 const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, existingProduct }) => {
-    const { uploadImage, storefrontSettings, products, currentUser } = useStore(state => ({
+    const { uploadImage, storefrontSettings, products, currentUser, updateProduct } = useStore(state => ({
         uploadImage: state.uploadImage,
         storefrontSettings: state.appData?.storefrontSettings,
         products: state.appData?.products || [],
-        currentUser: state.currentUser
+        currentUser: state.currentUser,
+        updateProduct: state.updateProduct
     }));
     
     // Extract unique brands from existing products
@@ -223,9 +224,16 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, ex
                             <span>الكود (SKU) *</span>
                             {['admin', 'manager', 'accountant'].includes(currentUser?.role || '') && (
                                 <div className="flex gap-2">
-                                    <button type="button" onClick={() => {
+                                    <button type="button" onClick={async () => {
                                         const randomSku = 'BTA-' + Date.now().toString().slice(-6) + Math.random().toString(36).slice(-3).toUpperCase();
                                         setFormData(prev => ({ ...prev, sku: randomSku }));
+                                        if (existingProduct?.id) {
+                                            try {
+                                                await updateProduct(existingProduct.id, { sku: randomSku });
+                                            } catch (err) {
+                                                console.error("Failed to auto-save SKU", err);
+                                            }
+                                        }
                                     }} className="text-sm text-primary hover:text-primary-dark">
                                         <i className="fas fa-magic"></i> توليد
                                     </button>

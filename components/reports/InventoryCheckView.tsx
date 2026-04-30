@@ -22,8 +22,8 @@ const InventoryCheckView: React.FC<InventoryCheckViewProps> = ({ onBack }) => {
 
     const filteredProducts = useMemo(() => {
         return products.filter(p => 
-            p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-            p.sku.toLowerCase().includes(searchQuery.toLowerCase())
+            String(p.name || '').toLowerCase().includes(searchQuery.toLowerCase()) || 
+            String(p.sku || '').toLowerCase().includes(searchQuery.toLowerCase())
         );
     }, [products, searchQuery]);
 

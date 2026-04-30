@@ -44,7 +44,7 @@ const StockTransferModal: React.FC<StockTransferModalProps> = ({ isOpen, onClose
     }, [isOpen]);
 
     const filteredProducts = useMemo(() => 
-        searchTerm ? products.filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()) || p.sku.toLowerCase().includes(searchTerm.toLowerCase())).slice(0, 100) : [],
+        searchTerm ? products.filter(p => String(p.name || '').toLowerCase().includes(searchTerm.toLowerCase()) || String(p.sku || '').toLowerCase().includes(searchTerm.toLowerCase())).slice(0, 100) : [],
     [products, searchTerm]);
 
     const availableQuantity = selectedProduct ? selectedProduct.stock[fromBranch] : 0;

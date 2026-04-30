@@ -34,7 +34,7 @@ const StoreProducts: React.FC<StoreProductsProps> = ({ products, onProductClick,
     const filteredProducts = products.filter(p => {
         const matchesCategory = filters.category === 'all' || p.mainCategory === filters.category;
         const matchesBrand = filters.brand === 'all' || (p.compatibility && p.compatibility.some(c => c.toLowerCase().startsWith(filters.brand.toLowerCase())));
-        const matchesSearch = p.name.toLowerCase().includes(filters.search.toLowerCase()) || p.sku.toLowerCase().includes(filters.search.toLowerCase());
+        const matchesSearch = String(p.name || '').toLowerCase().includes(filters.search.toLowerCase()) || String(p.sku || '').toLowerCase().includes(filters.search.toLowerCase());
         return matchesCategory && matchesBrand && matchesSearch;
     });
 

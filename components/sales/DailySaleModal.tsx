@@ -245,7 +245,7 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
     const handleBarcodeScan = (scannedCode: string) => {
         setIsScannerOpen(false);
         // Find product by SKU or exact name match from store products directly
-        const product = products.find(p => p.sku.toLowerCase() === scannedCode.toLowerCase() || String(p.id) === scannedCode);
+        const product = products.find(p => String(p.sku || '').toLowerCase() === scannedCode.toLowerCase() || String(p.id) === scannedCode);
         if (product) {
             handleProductSelect(product);
         } else {

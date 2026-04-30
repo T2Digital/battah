@@ -30,7 +30,7 @@ const GlobalSearch: React.FC<GlobalSearchProps> = ({ isOpen, onClose }) => {
         }
         const lowercasedTerm = searchTerm.toLowerCase();
         return {
-            products: products.filter(p => p.name.toLowerCase().includes(lowercasedTerm) || p.sku.toLowerCase().includes(lowercasedTerm)).slice(0, 5),
+            products: products.filter(p => String(p.name || '').toLowerCase().includes(lowercasedTerm) || String(p.sku || '').toLowerCase().includes(lowercasedTerm)).slice(0, 5),
             employees: employees.filter(e => e.name.toLowerCase().includes(lowercasedTerm)).slice(0, 5),
             suppliers: suppliers.filter(s => s.name.toLowerCase().includes(lowercasedTerm)).slice(0, 5),
         };

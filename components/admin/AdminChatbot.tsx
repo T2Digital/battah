@@ -93,7 +93,7 @@ const AdminChatbot: React.FC = () => {
             const match = lowerText.match(/(سعر|عندنا كام|رصيد|منتج|قطعة) (.*)/);
             if (match && match[2]) {
                 const searchTerm = match[2].trim();
-                const foundProducts = products.filter(p => p.name.toLowerCase().includes(searchTerm) || p.sku.toLowerCase().includes(searchTerm));
+                const foundProducts = products.filter(p => String(p.name || '').toLowerCase().includes(searchTerm) || String(p.sku || '').toLowerCase().includes(searchTerm));
                 
                 if (foundProducts.length === 0) return `للأسف يا فندم، مفيش منتج بالاسم ده "${searchTerm}" في المخزن.`;
                 

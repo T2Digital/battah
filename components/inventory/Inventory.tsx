@@ -281,7 +281,7 @@ const Inventory: React.FC = () => {
             const totalStock = p.stock.main + p.stock.branch1 + p.stock.branch2 + p.stock.branch3;
             // Search is handled server-side now, but we keep this for local filtering if needed
             const matchesSearch = filters.search 
-                ? (p.name.toLowerCase().includes(filters.search.toLowerCase()) || p.sku.toLowerCase().includes(filters.search.toLowerCase()))
+                ? (String(p.name || '').toLowerCase().includes(filters.search.toLowerCase()) || String(p.sku || '').toLowerCase().includes(filters.search.toLowerCase()))
                 : true;
             const matchesCategory = filters.category ? p.mainCategory === filters.category : true;
             const matchesStock = filters.stockStatus === 'all' || (filters.stockStatus === 'low' && totalStock <= (p.reorderPoint || 0)) || (filters.stockStatus === 'out' && totalStock === 0);
