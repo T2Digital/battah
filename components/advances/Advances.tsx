@@ -154,20 +154,24 @@ const Advances: React.FC<AdvancesProps> = ({ advances, addAdvance, updateAdvance
                 <table className="w-full text-sm text-right text-gray-500 dark:text-gray-400">
                     <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-300">
                         <tr>
+                            <th scope="col" className="px-6 py-3">م</th>
                             <th scope="col" className="px-6 py-3">التاريخ والوقت</th>
                             <th scope="col" className="px-6 py-3">اسم الموظف</th>
                             <th scope="col" className="px-6 py-3">مبلغ السلفة</th>
+                            <th scope="col" className="px-6 py-3">المبلغ المسدد</th>
                             <th scope="col" className="px-6 py-3">المبلغ المتبقي</th>
                             <th scope="col" className="px-6 py-3">ملاحظات</th>
                             <th scope="col" className="px-6 py-3">الإجراءات</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {advancesWithDetails.map(adv => (
+                        {advancesWithDetails.map((adv, index) => (
                             <tr key={adv.id} className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 even:bg-gray-50 dark:even:bg-gray-800 dark:even:bg-opacity-50 hover:bg-gray-100 dark:hover:bg-gray-700">
+                                <td className="px-6 py-4">{index + 1}</td>
                                 <td className="px-6 py-4 whitespace-nowrap" dir="ltr">{formatDateTime(adv.date, adv.timestamp)}</td>
                                 <td className="px-6 py-4 font-medium text-gray-900 whitespace-nowrap dark:text-white">{adv.employeeName}</td>
-                                <td className="px-6 py-4">{formatCurrency(adv.amount)}</td>
+                                <td className="px-6 py-4 text-red-500 font-bold">{formatCurrency(adv.amount)}</td>
+                                <td className="px-6 py-4 text-green-500 font-bold">{formatCurrency(adv.payment)}</td>
                                 <td className={`px-6 py-4 font-bold ${adv.remaining > 0 ? 'text-amber-500' : 'text-green-500'}`}>{formatCurrency(adv.remaining)}</td>
                                 <td className="px-6 py-4">{adv.notes || '-'}</td>
                                 <td className="px-6 py-4 flex gap-3">

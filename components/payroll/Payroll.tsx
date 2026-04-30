@@ -83,15 +83,21 @@ const PayrollModal: React.FC<{
         }
     }, [recordToEdit, isOpen, employees]);
 
-    // Auto-calculate deductions and days attended when employee or period changes
-    React.useEffect(() => {
-        if (recordToEdit) return; // Don't auto-calculate if editing an existing record
-
+    // Remove the old useEffect that auto calculated
+    const calculateDeductions = () => {
+        if (!formData.employeeId) {
+            alert('الرجاء اختيار الموظف أولاً');
+            return;
+        }
+        
         const empId = formData.employeeId;
         const pStart = formData.periodStart;
         const pEnd = formData.periodEnd;
         
-        if (!empId || !pStart || !pEnd) return;
+        if (!pStart || !pEnd) {
+             alert('الرجاء اختيار فترة الحساب كاملة (من وإلى)');
+             return;
+        }
 
         const start = new Date(pStart);
         const end = new Date(pEnd);
@@ -108,7 +114,7 @@ const PayrollModal: React.FC<{
             totalDays += (record.daysAttended || 0);
         });
 
-        // Calculate Deductions (Advances + Expenses linked to employee)
+        // Calculate Deductions (Advances unpaid amount + Expenses linked to employee)
         const employeeAdvances = advances.filter(a => {
             const advDate = new Date(a.date);
             return a.employeeId === empId && advDate >= start && advDate <= end;
@@ -119,11 +125,11 @@ const PayrollModal: React.FC<{
             return e.employeeId === empId && expDate >= start && expDate <= end;
         });
 
-        const totalTakenAdvances = employeeAdvances.reduce((sum, a) => sum + a.amount, 0);
+        const totalTakenAdvances = employeeAdvances.reduce((sum, a) => sum + (a.amount - (a.payment || 0)), 0);
         const totalExpenses = employeeExpenses.reduce((sum, e) => sum + e.amount, 0);
         const totalDeductions = totalTakenAdvances + totalExpenses;
 
-        const notes = `أيام الحضور: ${totalDays} يوم.\nالخصومات: سلف (${totalTakenAdvances}) + مصاريف (${totalExpenses})`;
+        const notes = `أيام الحضور: ${totalDays} يوم.\nالخصومات: متبقي سلف (${totalTakenAdvances}) + مصاريف (${totalExpenses})`;
         setAutoNotes(notes);
 
         setFormData(prev => ({
@@ -133,7 +139,7 @@ const PayrollModal: React.FC<{
             advanceDeductions: totalTakenAdvances,
             expenseDeductions: totalExpenses
         }));
-    }, [formData.employeeId, formData.periodStart, formData.periodEnd, attendance, advances, expenses, recordToEdit]);
+    };
 
     // Auto-calculate disbursed amount when salary, incentives, or deductions change
     React.useEffect(() => {
@@ -189,10 +195,10 @@ const PayrollModal: React.FC<{
                 <div className="md:col-span-2 grid grid-cols-2 gap-4 border p-3 rounded-lg bg-gray-50 dark:bg-gray-700/30">
                     <div className="col-span-2 flex justify-between items-center">
                         <span className="text-sm font-bold text-gray-700 dark:text-gray-300">فترة الحساب</span>
-                        <span className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
-                            <i className="fas fa-magic"></i>
-                            يتم حساب الخصومات تلقائياً
-                        </span>
+                        <button type="button" onClick={calculateDeductions} className="text-xs text-primary hover:text-primary-dark dark:text-primary-light flex items-center gap-1 hover:underline">
+                            <i className="fas fa-calculator"></i>
+                            حساب الخصومات والحضور تلقائياً
+                        </button>
                     </div>
                     <div>
                         <label className="block text-xs text-gray-500">من</label>
@@ -354,6 +360,7 @@ const Payroll: React.FC<PayrollProps> = ({ payroll, addPayroll, updatePayroll, d
                 <table className="w-full text-sm text-right text-gray-500 dark:text-gray-400">
                     <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-300">
                         <tr>
+                            <th scope="col" className="px-6 py-3">م</th>
                             <th scope="col" className="px-6 py-3">التاريخ والوقت</th>
                             <th scope="col" className="px-6 py-3">اسم الموظف</th>
                             <th scope="col" className="px-6 py-3">الراتب الأساسي</th>
@@ -365,8 +372,9 @@ const Payroll: React.FC<PayrollProps> = ({ payroll, addPayroll, updatePayroll, d
                         </tr>
                     </thead>
                     <tbody>
-                        {payrollWithDetails.map(p => (
+                        {payrollWithDetails.map((p, index) => (
                             <tr key={p.id} className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
+                                <td className="px-6 py-4">{index + 1}</td>
                                 <td className="px-6 py-4 whitespace-nowrap" dir="ltr">{formatDateTime(p.date, p.timestamp)}</td>
                                 <td className="px-6 py-4 font-medium text-gray-900 whitespace-nowrap dark:text-white">{p.employeeName}</td>
                                 <td className="px-6 py-4">{formatCurrency(p.basicSalary)}</td>

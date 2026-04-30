@@ -249,8 +249,10 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, ex
                                                         <style>
                                                             body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; }
                                                             .barcode-container { text-align: center; border: 1px solid #ccc; padding: 20px; border-radius: 8px; width: fit-content; }
-                                                            h3 { margin: 0 0 10px 0; font-size: 16px; font-weight: bold; }
-                                                            p { margin: 0 0 15px 0; font-size: 14px; color: #555; }
+                                                            h3 { margin: 0 0 5px 0; font-size: 16px; font-weight: bold; }
+                                                            p { margin: 0 0 10px 0; font-size: 14px; color: #555; }
+                                                            .price { font-size: 18px; font-weight: bold; color: #000; margin-bottom: 5px; }
+                                                            .desc { font-size: 12px; color: #666; margin-bottom: 10px; max-width: 200px; margin-left: auto; margin-right: auto; }
                                                             #qrcode { display: flex; justify-content: center; margin-bottom: 15px; }
                                                             @media print {
                                                                 body { justify-content: flex-start; margin-top: 2cm; }
@@ -264,6 +266,8 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, ex
                                                         <div class="barcode-container">
                                                             <h3>${formData.name}</h3>
                                                             <p>${formData.brand || 'بدون ماركة'} - ${formData.mainCategory}</p>
+                                                            <div class="price">السعر: ${formData.sellingPrice} ج.م</div>
+                                                            ${formData.description ? `<div class="desc">${formData.description}</div>` : ''}
                                                             <!-- QR Code for smart scanning -->
                                                             <div id="qrcode"></div>
                                                             <!-- Standard Barcode -->

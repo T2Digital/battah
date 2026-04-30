@@ -354,6 +354,7 @@ const Inventory: React.FC = () => {
                                 <tr>
                                     <th className="px-6 py-3">المنتج</th>
                                     <th className="px-6 py-3">الكود</th>
+                                    <th className="px-6 py-3">يتطلب سيريال</th>
                                     {currentUser?.role === 'admin' && <th className="px-6 py-3">سعر الشراء</th>}
                                     <th className="px-6 py-3">سعر البيع</th>
                                     <th className="px-6 py-3">{currentUser?.role === 'admin' ? 'الرصيد الكلي' : 'رصيد الفرع'}</th>
@@ -371,6 +372,7 @@ const Inventory: React.FC = () => {
                                                 {p.name}
                                             </td>
                                             <td className="px-6 py-4">{p.sku}</td>
+                                            <td className="px-6 py-4">{p.hasSerialNumber ? <span className="text-blue-500 font-bold"><i className="fas fa-check-circle"></i> نعم</span> : <span className="text-gray-400">لا</span>}</td>
                                             {currentUser?.role === 'admin' && <td className="px-6 py-4">{formatCurrency(p.purchasePrice)}</td>}
                                             <td className="px-6 py-4">{formatCurrency(p.sellingPrice)}</td>
                                             <td className={`px-6 py-4 font-bold ${displayStock <= (p.reorderPoint || 0) ? 'text-red-500' : ''}`}>{displayStock}</td>
