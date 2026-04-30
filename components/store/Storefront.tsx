@@ -95,7 +95,7 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
                 // To fetch exact product by sku we can search for it
                 // and find the one that exactly matches
                 const results = await searchProducts(sku);
-                const exactMatch = results.find(p => p.sku === sku || String(p.id) === sku);
+                const exactMatch = results.find(p => String(p.sku || '').toLowerCase() === sku.toLowerCase() || String(p.id) === sku);
                 if (exactMatch) {
                     setSelectedProduct(exactMatch);
                 } else {

@@ -779,17 +779,30 @@ const useStore = create<AppState & AppActions>((set, get) => ({
     searchProducts: async (searchQuery: string) => {
         if (!searchQuery.trim()) return [];
         try {
-            // Simple search by name (requires exact start match or client-side filtering of a larger set)
-            // For true full-text search, Algolia/Typesense is recommended.
-            // Here we use a simple range query for "starts with" logic on 'name'
-            const q = query(
+            // Search by name
+            const nameQuery = query(
                 collection(db, 'products'), 
                 where('name', '>=', searchQuery), 
                 where('name', '<=', searchQuery + '\uf8ff'),
                 limit(50)
             );
-            const snapshot = await getDocs(q);
-            const fetchedProducts = snapshot.docs.map(d => ({ ...(d.data() as Product), id: d.data().id ?? d.id }));
+            
+            // Search by SKU
+            const skuQuery = query(
+                collection(db, 'products'),
+                where('sku', '==', searchQuery),
+                limit(5)
+            );
+
+            const [nameSnapshot, skuSnapshot] = await Promise.all([getDocs(nameQuery), getDocs(skuQuery)]);
+            
+            const fetchedProductsMap = new Map<string, Product>();
+            
+            [...nameSnapshot.docs, ...skuSnapshot.docs].forEach(d => {
+                fetchedProductsMap.set(d.id, { ...(d.data() as Product), id: d.data().id ?? d.id });
+            });
+            
+            const fetchedProducts = Array.from(fetchedProductsMap.values());
             
             if (fetchedProducts.length > 0) {
                 set(state => {

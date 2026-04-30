@@ -242,10 +242,20 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
         setShowSuggestions(false);
     };
 
-    const handleBarcodeScan = (scannedCode: string) => {
+    const handleBarcodeScan = async (scannedCode: string) => {
         setIsScannerOpen(false);
         // Find product by SKU or exact name match from store products directly
-        const product = products.find(p => String(p.sku || '').toLowerCase() === scannedCode.toLowerCase() || String(p.id) === scannedCode);
+        let product = products.find(p => String(p.sku || '').toLowerCase() === scannedCode.toLowerCase() || String(p.id) === scannedCode);
+        
+        if (!product) {
+            try {
+                const results = await useStore.getState().searchProducts(scannedCode);
+                product = results.find(p => String(p.sku || '').toLowerCase() === scannedCode.toLowerCase() || String(p.id) === scannedCode);
+            } catch (error) {
+                console.error("Failed to fetch product by barcode:", error);
+            }
+        }
+
         if (product) {
             handleProductSelect(product);
         } else {
