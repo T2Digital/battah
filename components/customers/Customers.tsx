@@ -155,24 +155,25 @@ const Customers: React.FC = () => {
         
         // Process Orders
         orders.forEach(order => {
-            const phone = order.customerPhone;
-            if (!phone) return;
+            const key = `${order.customerName || 'عميل غير معروف'}-${order.customerPhone || ''}`;
+            if (key === 'عميل غير معروف-') return;
             
-            const existing = customerMap.get(phone);
+            const existing = customerMap.get(key);
             if (existing) {
                 existing.orderCount++;
                 existing.totalSpent += order.totalAmount;
                 if (new Date(order.date) > new Date(existing.lastOrderDate)) {
                     existing.lastOrderDate = order.date;
-                    existing.name = order.customerName; // Update to latest name/address
-                    existing.address = order.customerAddress;
+                    existing.name = order.customerName || existing.name; // Update to latest name/address
+                    existing.address = order.customerAddress || existing.address;
+                    existing.phone = order.customerPhone || existing.phone;
                 }
                 existing.orders.push(order);
             } else {
-                customerMap.set(phone, {
-                    phone,
-                    name: order.customerName,
-                    address: order.customerAddress,
+                customerMap.set(key, {
+                    phone: order.customerPhone || '',
+                    name: order.customerName || 'عميل غير معروف',
+                    address: order.customerAddress || '',
                     orderCount: 1,
                     totalSpent: order.totalAmount,
                     totalDebt: 0,
@@ -185,10 +186,11 @@ const Customers: React.FC = () => {
 
         // Process Daily Sales for Debts and History
         dailySales.forEach(sale => {
-            const phone = sale.customerPhone;
-            if (!phone) return;
+            const key = `${sale.customerName || 'عميل غير معروف'}-${sale.customerPhone || ''}`;
+            if (key === 'عميل غير معروف-' && !sale.remainingDebt) return; // Only process 'Unknown' if they have debt, else skip to avoid noise. Actually, if they have debt, we want to know. If not, maybe skip. But to be safe, let's include if key !== 'عميل غير معروف-' or if they have debt. 
+            if (key === 'عميل غير معروف-' && (!sale.remainingDebt || sale.remainingDebt <= 0)) return;
 
-            const existing = customerMap.get(phone);
+            const existing = customerMap.get(key);
             if (existing) {
                 existing.orderCount++;
                 existing.totalSpent += sale.totalAmount;
@@ -196,11 +198,12 @@ const Customers: React.FC = () => {
                 if (new Date(sale.date) > new Date(existing.lastOrderDate)) {
                     existing.lastOrderDate = sale.date;
                     if (sale.customerName) existing.name = sale.customerName;
+                    if (sale.customerPhone) existing.phone = sale.customerPhone;
                 }
                 existing.sales.push(sale);
             } else {
-                customerMap.set(phone, {
-                    phone,
+                customerMap.set(key, {
+                    phone: sale.customerPhone || '',
                     name: sale.customerName || 'عميل غير معروف',
                     address: '',
                     orderCount: 1,

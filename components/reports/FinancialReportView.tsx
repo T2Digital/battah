@@ -88,10 +88,10 @@ const FinancialReportView: React.FC<FinancialReportViewProps> = ({ setActiveRepo
     const customerDebts = useMemo(() => {
         const debts = new Map<string, { name: string, phone: string, totalDebt: number, invoices: string[] }>();
         filteredSales.forEach(sale => {
-            if (sale.remainingDebt && sale.remainingDebt > 0 && sale.customerName) {
-                const key = sale.customerPhone || sale.customerName;
+            if (sale.remainingDebt && sale.remainingDebt > 0) {
+                const key = `${sale.customerName || 'عميل غير معروف'}-${sale.customerPhone || ''}`;
                 if (!debts.has(key)) {
-                    debts.set(key, { name: sale.customerName, phone: sale.customerPhone || '', totalDebt: 0, invoices: [] });
+                    debts.set(key, { name: sale.customerName || 'عميل غير معروف', phone: sale.customerPhone || '', totalDebt: 0, invoices: [] });
                 }
                 const debt = debts.get(key)!;
                 debt.totalDebt += sale.remainingDebt;

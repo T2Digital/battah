@@ -197,10 +197,10 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveSection }) => {
 
         const cDebtMap = new Map<string, number>();
         (dailySales || []).forEach(sale => {
-            const phone = sale.customerPhone || 'بدون رقم';
-            if (phone === 'بدون رقم' && !sale.customerName) return;
-            const currentDebt = cDebtMap.get(phone) || 0;
-            cDebtMap.set(phone, currentDebt + (sale.remainingDebt || 0));
+            if (!sale.remainingDebt || sale.remainingDebt <= 0) return;
+            const key = `${sale.customerName || 'عميل غير معروف'}-${sale.customerPhone || ''}`;
+            const currentDebt = cDebtMap.get(key) || 0;
+            cDebtMap.set(key, currentDebt + sale.remainingDebt);
         });
         const cDebt = Array.from(cDebtMap.values()).reduce((sum, debt) => sum + (debt > 0 ? debt : 0), 0);
 
