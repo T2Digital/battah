@@ -186,10 +186,19 @@ const Advances: React.FC<AdvancesProps> = ({ advances, addAdvance, updateAdvance
             filtered = advances.filter(a => a.payment > 0 && a.amount === 0);
         }
         
+        // Calculate total remaining per employee
+        const employeeBalances = employees.reduce((acc, emp) => {
+            const empAdvances = advances.filter(a => a.employeeId === emp.id);
+            const totalAmount = empAdvances.reduce((sum, a) => sum + (a.amount || 0), 0);
+            const totalPayment = empAdvances.reduce((sum, a) => sum + (a.payment || 0), 0);
+            acc[emp.id] = totalAmount - totalPayment;
+            return acc;
+        }, {} as Record<number, number>);
+        
         return filtered.map(adv => ({
             ...adv,
             employeeName: getEmployeeName(adv.employeeId),
-            remaining: adv.amount - adv.payment
+            remaining: employeeBalances[adv.employeeId] || 0
         })).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     }, [advances, employees, activeTab]);
 
@@ -226,7 +235,7 @@ const Advances: React.FC<AdvancesProps> = ({ advances, addAdvance, updateAdvance
                             <th scope="col" className="px-6 py-3">اسم الموظف</th>
                             {activeTab === 'advances' && <th scope="col" className="px-6 py-3">مبلغ السلفة</th>}
                             <th scope="col" className="px-6 py-3">{activeTab === 'payments' ? 'مبلغ السداد' : 'المبلغ المسدد'}</th>
-                            {activeTab === 'advances' && <th scope="col" className="px-6 py-3">المبلغ المتبقي</th>}
+                            {activeTab === 'advances' && <th scope="col" className="px-6 py-3">إجمالي المتبقي للموظف</th>}
                             <th scope="col" className="px-6 py-3">ملاحظات</th>
                             <th scope="col" className="px-6 py-3">الإجراءات</th>
                         </tr>

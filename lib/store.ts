@@ -852,23 +852,31 @@ const useStore = create<AppState & AppActions>((set, get) => ({
         const maxId = Math.max(0, ...(get().appData?.advances.map(a => Number(a.id) || 0) || []));
         const newAdvance = { ...advance, id: maxId + 1, timestamp: new Date().toISOString() };
         await setDoc(doc(db, "advances", String(newAdvance.id)), newAdvance);
-        if (newAdvance.amount > 0) {
+        if (newAdvance.amount > 0 || newAdvance.payment > 0) {
             const employeeName = get().appData?.employees.find(e => e.id === newAdvance.employeeId)?.name || 'موظف';
+            const isRepayment = newAdvance.amount === 0 && newAdvance.payment > 0;
+            
             await get().addTreasuryTransaction({
-                date: newAdvance.date, type: 'سلفة', description: `سلفة لـ ${employeeName}`,
-                amountIn: 0, amountOut: newAdvance.amount, relatedId: newAdvance.id
+                date: newAdvance.date, 
+                type: 'سلفة', 
+                description: isRepayment ? `سداد سلفة من ${employeeName}` : `سلفة لـ ${employeeName}`,
+                amountIn: isRepayment ? newAdvance.payment : 0, 
+                amountOut: isRepayment ? 0 : newAdvance.amount, 
+                relatedId: newAdvance.id
             });
         }
     },
     updateAdvance: async (advanceId, updates) => {
         const batch = writeBatch(db);
         batch.update(doc(db, "advances", String(advanceId)), updates);
-        if (updates.amount !== undefined || updates.date !== undefined) {
+        if (updates.amount !== undefined || updates.payment !== undefined || updates.date !== undefined) {
             const state = get();
             const relatedTx = state.appData?.treasury.find(t => String(t.relatedId) === String(advanceId) && t.type === 'سلفة');
             if (relatedTx) {
                 const txUpdates: any = {};
+                // Repayments update amountIn, Advances update amountOut
                 if (updates.amount !== undefined) txUpdates.amountOut = updates.amount;
+                if (updates.payment !== undefined) txUpdates.amountIn = updates.payment;
                 if (updates.date !== undefined) txUpdates.date = updates.date;
                 batch.update(doc(db, "treasury", String(relatedTx.id)), txUpdates);
             }
