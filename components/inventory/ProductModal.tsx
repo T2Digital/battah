@@ -254,17 +254,26 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, ex
                                             printWindow.document.write(`
                                                 <html dir="rtl">
                                                     <head>
-                                                        <title>طباعة</title>
+                                                        <title></title>
                                                         <style>
-                                                            @page { size: 5cm 3cm; margin: 0; }
-                                                            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 5cm; height: 3cm; margin: 0; padding: 0; overflow: hidden; background: white; }
-                                                            .barcode-container { text-align: center; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 4px 2px; box-sizing: border-box; }
-                                                            .header-row { display: flex; flex-direction: row; align-items: center; justify-content: center; gap: 4px; font-size: 11px; font-weight: bold; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: black; }
-                                                            #qrcode { display: flex; justify-content: center; transform: scale(0.85); transform-origin: center; margin-top: -5px; }
-                                                            #qrcode img { width: 45px; height: 45px; }
-                                                            #barcode { max-width: 100%; height: 25px; margin-top: -5px; }
+                                                            @media print {
+                                                                @page { size: 50mm 30mm; margin: 0 !important; }
+                                                                html, body { margin: 0 !important; padding: 0 !important; width: 50mm; height: 30mm; overflow: hidden; }
+                                                            }
+                                                            html, body { 
+                                                                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+                                                                display: flex; flex-direction: column; align-items: center; justify-content: center; 
+                                                                width: 50mm; height: 30mm; margin: 0; padding: 0; 
+                                                                overflow: hidden; background: white; color: black;
+                                                            }
+                                                            .barcode-container { text-align: center; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: space-evenly; padding: 1mm; box-sizing: border-box; }
+                                                            .header-row { display: flex; flex-direction: row; align-items: center; justify-content: center; gap: 3px; font-size: 10px; font-weight: bold; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+                                                            #qrcode { display: flex; justify-content: center; align-items: center; margin: 0; }
+                                                            #qrcode img { width: 13mm; height: 13mm; }
+                                                            #barcode { max-width: 95%; height: 7mm; margin: 0; }
                                                         </style>
                                                         <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.0/dist/JsBarcode.all.min.js"></script>
+
                                                         <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
                                                     </head>
                                                     <body>
