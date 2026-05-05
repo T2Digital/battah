@@ -254,49 +254,42 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, ex
                                             printWindow.document.write(`
                                                 <html dir="rtl">
                                                     <head>
-                                                        <title>طباعة باركود</title>
+                                                        <title>طباعة</title>
                                                         <style>
-                                                            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; }
-                                                            .barcode-container { text-align: center; border: 1px solid #ccc; padding: 20px; border-radius: 8px; width: fit-content; }
-                                                            h3 { margin: 0 0 5px 0; font-size: 16px; font-weight: bold; }
-                                                            p { margin: 0 0 10px 0; font-size: 14px; color: #555; }
-                                                            .price { font-size: 18px; font-weight: bold; color: #000; margin-bottom: 5px; }
-                                                            .desc { font-size: 12px; color: #666; margin-bottom: 10px; max-width: 200px; margin-left: auto; margin-right: auto; }
-                                                            #qrcode { display: flex; justify-content: center; margin-bottom: 15px; }
-                                                            @media print {
-                                                                body { justify-content: flex-start; margin-top: 2cm; }
-                                                                .barcode-container { border: none; }
-                                                            }
+                                                            @page { size: 5cm 3cm; margin: 0; }
+                                                            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 5cm; height: 3cm; margin: 0; padding: 0; overflow: hidden; background: white; }
+                                                            .barcode-container { text-align: center; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 4px 2px; box-sizing: border-box; }
+                                                            .header-row { display: flex; flex-direction: row; align-items: center; justify-content: center; gap: 4px; font-size: 11px; font-weight: bold; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: black; }
+                                                            #qrcode { display: flex; justify-content: center; transform: scale(0.85); transform-origin: center; margin-top: -5px; }
+                                                            #qrcode img { width: 45px; height: 45px; }
+                                                            #barcode { max-width: 100%; height: 25px; margin-top: -5px; }
                                                         </style>
                                                         <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.0/dist/JsBarcode.all.min.js"></script>
                                                         <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
                                                     </head>
                                                     <body>
                                                         <div class="barcode-container">
-                                                            <h3>${formData.name}</h3>
-                                                            <p>${formData.brand || 'بدون ماركة'} - ${formData.mainCategory}</p>
-                                                            <div class="price">السعر: ${formData.sellingPrice} ج.م</div>
-                                                            ${formData.description ? `<div class="desc">${formData.description}</div>` : ''}
-                                                            <!-- QR Code for smart scanning -->
+                                                            <div class="header-row">
+                                                                <span>${formData.name}</span>
+                                                                <span>-</span>
+                                                                <span>${formData.sellingPrice} ج.م</span>
+                                                            </div>
                                                             <div id="qrcode"></div>
-                                                            <!-- Standard Barcode -->
                                                             <svg id="barcode"></svg>
-                                                            <p style="margin-top: 10px; font-weight: bold; font-size: 12px;">${formData.hasSerialNumber ? 'رقم السيريال: ' + formData.sku : 'باركود: ' + formData.sku}</p>
                                                         </div>
                                                         <script>
-                                                            // Generate QR Code
                                                             new QRCode(document.getElementById("qrcode"), {
                                                                 text: "${scanUrl}",
-                                                                width: 100,
-                                                                height: 100
+                                                                width: 45,
+                                                                height: 45
                                                             });
                                                             
-                                                            // Generate Barcode
                                                             JsBarcode("#barcode", "${formData.sku}", {
                                                                 format: "CODE128",
-                                                                width: 2,
-                                                                height: 50,
-                                                                displayValue: false
+                                                                width: 1.5,
+                                                                height: 25,
+                                                                displayValue: false,
+                                                                margin: 0
                                                             });
                                                             
                                                             setTimeout(() => {
