@@ -6,6 +6,7 @@ import { Product, MainCategory } from '../../types';
 import Modal from '../shared/Modal';
 import BarcodeScannerModal from '../shared/BarcodeScannerModal';
 import AdminPasswordModal from '../shared/AdminPasswordModal';
+import CameraCaptureModal from '../shared/CameraCaptureModal';
 import useStore from '../../lib/store';
 
 interface ProductModalProps {
@@ -41,6 +42,7 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, ex
     const [showSecurityCheck, setShowSecurityCheck] = useState(false);
     const [securityError, setSecurityError] = useState('');
     const [showScanner, setShowScanner] = useState(false);
+    const [showCamera, setShowCamera] = useState(false);
 
     const mainCategories: MainCategory[] = [
         'قطع غيار',
@@ -143,7 +145,7 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, ex
             existingProduct.retailPrice !== formData.retailPrice
         );
 
-        if (priceChanged && storefrontSettings?.adminPassword) {
+        if (priceChanged && storefrontSettings?.adminPassword && currentUser?.role !== 'admin') {
             setShowSecurityCheck(true);
         } else {
             handleSubmit();
@@ -153,6 +155,15 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, ex
     const handleSecuritySuccess = () => {
         setShowSecurityCheck(false);
         handleSubmit();
+    };
+
+    const handleCameraCapture = (file: File) => {
+        setImageFile(file);
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            setImagePreview(reader.result as string);
+        };
+        reader.readAsDataURL(file);
     };
 
     const handleSubmit = async () => {
@@ -191,17 +202,10 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, ex
     }
 
     return (
-        <Modal isOpen={isOpen} onClose={onClose} title={existingProduct ? 'تعديل بيانات المنتج' : 'إضافة منتج جديد'} onSave={handlePreSubmit} isLoading={isUploading}>
-            <BarcodeScannerModal 
-                isOpen={showScanner} 
-                onClose={() => setShowScanner(false)} 
-                onScan={(code) => {
-                    setFormData(prev => ({ ...prev, sku: code }));
-                    setShowScanner(false);
-                }} 
-            />
-             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {/* Image Section */}
+        <>
+            <Modal isOpen={isOpen} onClose={onClose} title={existingProduct ? 'تعديل بيانات المنتج' : 'إضافة منتج جديد'} onSave={handlePreSubmit} isLoading={isUploading}>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {/* Image Section */}
                 <div className="md:col-span-1 space-y-3">
                     <label className="block text-sm font-medium">صورة المنتج</label>
                     <div className="w-full h-40 bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-center">
@@ -210,7 +214,12 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, ex
                             <i className="fas fa-image text-4xl text-gray-400"></i>
                         }
                     </div>
-                    <input type="file" accept="image/*" onChange={handleImageChange} className="text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"/>
+                    <div className="flex gap-2">
+                        <input type="file" accept="image/*" onChange={handleImageChange} className="w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"/>
+                        <button type="button" onClick={() => setShowCamera(true)} className="px-4 py-2 bg-gray-200 dark:bg-gray-600 rounded-full hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors" title="التقاط صورة باستخدام الكاميرا">
+                            <i className="fas fa-camera"></i>
+                        </button>
+                    </div>
                 </div>
 
                 {/* Form Section */}
@@ -359,13 +368,13 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, ex
                         <input type="text" name="countryOfOrigin" value={formData.countryOfOrigin} onChange={handleChange} className="mt-1 w-full input-base" />
                     </div>
                     <div>
-                        <label>سعر الشراء *</label>
-                        <input type="number" name="purchasePrice" value={formData.purchasePrice === 0 ? '' : formData.purchasePrice} onChange={handleChange} required min="0" step="0.01" className="mt-1 w-full input-base" />
+                        <label>سعر الشراء {currentUser?.role !== 'admin' && '*'}</label>
+                        <input type="number" name="purchasePrice" value={formData.purchasePrice === 0 ? '' : formData.purchasePrice} onChange={handleChange} required={currentUser?.role !== 'admin'} min="0" step="0.01" className="mt-1 w-full input-base" />
                     </div>
                     <div className="sm:col-span-2">
-                        <label className="block mb-1">سعر البيع (قطاعي) *</label>
+                        <label className="block mb-1">سعر البيع (قطاعي) {currentUser?.role !== 'admin' && '*'}</label>
                         <div className="flex gap-2 items-center">
-                            <input type="number" name="sellingPrice" value={formData.sellingPrice === 0 ? '' : formData.sellingPrice} onChange={handleChange} required min="0" step="0.01" className="flex-grow input-base" />
+                            <input type="number" name="sellingPrice" value={formData.sellingPrice === 0 ? '' : formData.sellingPrice} onChange={handleChange} required={currentUser?.role !== 'admin'} min="0" step="0.01" className="flex-grow input-base" />
                             <div className="flex gap-1">
                                 <button type="button" onClick={() => calculatePrice(25)} className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200">25%</button>
                                 <button type="button" onClick={() => calculatePrice(30)} className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200">30%</button>
@@ -426,6 +435,20 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, ex
             </div>
             {isUploading && <p className="text-center mt-2 text-blue-500">جاري رفع الصورة...</p>}
         </Modal>
+        <BarcodeScannerModal 
+                isOpen={showScanner} 
+                onClose={() => setShowScanner(false)} 
+                onScan={(code) => {
+                    setFormData(prev => ({ ...prev, sku: code }));
+                    setShowScanner(false);
+                }} 
+            />
+        <CameraCaptureModal 
+                isOpen={showCamera} 
+                onClose={() => setShowCamera(false)} 
+                onCapture={handleCameraCapture} 
+        />
+        </>
     );
 };
 
