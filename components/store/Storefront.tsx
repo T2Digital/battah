@@ -90,7 +90,10 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
     const globalLoading = useStore(state => state.isLoading);
     useEffect(() => {
         const handleScan = async (sku: string) => {
-            const finalSku = sku.trim();
+            let finalSku = sku.trim();
+            if (finalSku.includes('#scan/')) {
+                finalSku = decodeURIComponent(finalSku.split('#scan/')[1]);
+            }
             if (!finalSku) return;
             setLoading(true);
             try {

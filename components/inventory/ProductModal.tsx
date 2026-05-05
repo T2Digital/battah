@@ -255,7 +255,7 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, ex
                                                 <html dir="rtl">
                                                     <head>
                                                         <title></title>
-                                                        <style>
+                                                        <style id="page-style">
                                                             @media print {
                                                                 @page { size: 50mm 30mm; margin: 0; }
                                                                 html, body { margin: 0 !important; padding: 0 !important; width: 50mm; height: 30mm; overflow: hidden; }
@@ -275,8 +275,19 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, ex
                                                             }
                                                             .instructions { font-size: 12px; color: #dc2626; margin-top: 5px; }
                                                             
-                                                            .barcode-container { 
-                                                                text-align: center; width: 50mm; height: 30mm; 
+                                                            /* The outer limits that the browser understands */
+                                                            #paper {
+                                                                position: relative;
+                                                                width: 50mm; height: 30mm;
+                                                                overflow: hidden;
+                                                            }
+
+                                                            /* The actual content that can be rotated inside paper */
+                                                            #canvas {
+                                                                position: absolute;
+                                                                top: 50%; left: 50%;
+                                                                width: 50mm; height: 30mm;
+                                                                transform: translate(-50%, -50%);
                                                                 display: flex; flex-direction: column; align-items: center; justify-content: space-evenly; 
                                                                 padding: 1mm; box-sizing: border-box; overflow: hidden;
                                                             }
@@ -292,22 +303,68 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, ex
                                                     <body>
                                                         <div class="controls no-print">
                                                             <button onclick="window.print()">🖨️ طباعة</button>
+                                                            <button onclick="setLayout('landscape')">عرضي (50x30)</button>
+                                                            <button onclick="setLayout('portrait')">طولي (30x50)</button>
                                                             <div class="instructions">
-                                                                هام: من إعدادات الطباعة، اختر "بدون هوامش" (Margins: None)<br>
-                                                                وألغِ تحديد "الرؤوس والتذييلات" (Headers and footers).<br>
-                                                                تأكد أن المستند (50x30mm)
+                                                                هام: اختر "بدون هوامش" وألغِ تحديد "الرؤوس والتذييلات".<br>
+                                                                إذا كانت الطابعة تقطع الورق لنصفين، جرب "طولي" واطبع.
                                                             </div>
                                                         </div>
-                                                        <div class="barcode-container" id="printable-area">
-                                                            <div class="header-row">
-                                                                <span>${formData.name}</span>
-                                                                <span>-</span>
-                                                                <span>${formData.sellingPrice} ج.م</span>
+                                                        <div id="paper">
+                                                            <div id="canvas">
+                                                                <div class="header-row">
+                                                                    <span>${formData.name}</span>
+                                                                    <span>-</span>
+                                                                    <span>${formData.sellingPrice} ج.م</span>
+                                                                </div>
+                                                                <div id="qrcode"></div>
+                                                                <svg id="barcode"></svg>
                                                             </div>
-                                                            <div id="qrcode"></div>
-                                                            <svg id="barcode"></svg>
                                                         </div>
                                                         <script>
+                                                            function setLayout(mode) {
+                                                                const style = document.getElementById('page-style');
+                                                                const paper = document.getElementById('paper');
+                                                                const canvas = document.getElementById('canvas');
+                                                                if (mode === 'portrait') {
+                                                                    style.innerHTML = \`
+                                                                        @media print {
+                                                                            @page { size: 30mm 50mm; margin: 0; }
+                                                                            html, body { margin: 0 !important; padding: 0 !important; width: 30mm; height: 50mm; overflow: hidden; }
+                                                                            .no-print { display: none !important; }
+                                                                        }
+                                                                        html, body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; background: white; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; }
+                                                                        .controls { padding: 10px; background: #f3f4f6; width: 100%; text-align: center; margin-bottom: 5px; }
+                                                                        .controls button { padding: 8px 16px; margin: 0 5px; background: #2563eb; color: white; border: none; border-radius: 4px; cursor: pointer; }
+                                                                        .instructions { font-size: 12px; color: #dc2626; margin-top: 5px; }
+                                                                        #paper { position: relative; width: 30mm; height: 50mm; overflow: hidden; }
+                                                                        #canvas { position: absolute; top: 50%; left: 50%; width: 50mm; height: 30mm; transform: translate(-50%, -50%) rotate(-90deg); display: flex; flex-direction: column; align-items: center; justify-content: space-evenly; padding: 1mm; box-sizing: border-box; overflow: hidden; }
+                                                                        .header-row { display: flex; flex-direction: row; align-items: center; justify-content: center; gap: 3px; font-size: 10px; font-weight: bold; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1; }
+                                                                        #qrcode { display: flex; justify-content: center; align-items: center; margin: 0; }
+                                                                        #qrcode img { width: 12mm; height: 12mm; }
+                                                                        #barcode { max-width: 95%; height: 7mm; margin: 0; }
+                                                                    \`;
+                                                                } else {
+                                                                    style.innerHTML = \`
+                                                                        @media print {
+                                                                            @page { size: 50mm 30mm; margin: 0; }
+                                                                            html, body { margin: 0 !important; padding: 0 !important; width: 50mm; height: 30mm; overflow: hidden; }
+                                                                            .no-print { display: none !important; }
+                                                                        }
+                                                                        html, body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; background: white; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; }
+                                                                        .controls { padding: 10px; background: #f3f4f6; width: 100%; text-align: center; margin-bottom: 5px; }
+                                                                        .controls button { padding: 8px 16px; margin: 0 5px; background: #2563eb; color: white; border: none; border-radius: 4px; cursor: pointer; }
+                                                                        .instructions { font-size: 12px; color: #dc2626; margin-top: 5px; }
+                                                                        #paper { position: relative; width: 50mm; height: 30mm; overflow: hidden; }
+                                                                        #canvas { position: absolute; top: 50%; left: 50%; width: 50mm; height: 30mm; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; justify-content: space-evenly; padding: 1mm; box-sizing: border-box; overflow: hidden; }
+                                                                        .header-row { display: flex; flex-direction: row; align-items: center; justify-content: center; gap: 3px; font-size: 10px; font-weight: bold; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1; }
+                                                                        #qrcode { display: flex; justify-content: center; align-items: center; margin: 0; }
+                                                                        #qrcode img { width: 12mm; height: 12mm; }
+                                                                        #barcode { max-width: 95%; height: 7mm; margin: 0; }
+                                                                    \`;
+                                                                }
+                                                            }
+
                                                             new QRCode(document.getElementById("qrcode"), {
                                                                 text: "${scanUrl}",
                                                                 width: 160,
@@ -326,8 +383,6 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, ex
                                                                 textMargin: 1,
                                                                 margin: 0
                                                             });
-                                                            
-                                                            setTimeout(() => window.print(), 800);
                                                         </script>
                                                     </body>
                                                 </html>

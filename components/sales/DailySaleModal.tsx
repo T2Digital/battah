@@ -244,7 +244,13 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
 
     const handleBarcodeScan = async (scannedCode: string) => {
         setIsScannerOpen(false);
-        const trimmedCode = scannedCode.trim();
+        let trimmedCode = scannedCode.trim();
+        
+        // If a 2D scanner reads the QR code URL instead of the 1D barcode
+        if (trimmedCode.includes('#scan/')) {
+            trimmedCode = decodeURIComponent(trimmedCode.split('#scan/')[1]);
+        }
+
         // Find product by SKU or exact name match from store products directly
         let product = products.find(p => String(p.sku || '').toLowerCase() === trimmedCode.toLowerCase() || String(p.id) === trimmedCode);
         
@@ -260,7 +266,7 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
         if (product) {
             handleProductSelect(product);
         } else {
-            alert(`لم يتم العثور على صنف بالباركود: ${scannedCode}`);
+            alert(`لم يتم العثور على صنف بالباركود: ${trimmedCode}`);
         }
     };
 
