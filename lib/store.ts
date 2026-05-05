@@ -858,20 +858,22 @@ const useStore = create<AppState & AppActions>((set, get) => ({
             
             await get().addTreasuryTransaction({
                 date: newAdvance.date, 
-                type: 'سلفة', 
+                type: isRepayment ? 'سداد سلفة' : 'سلفة', 
                 description: isRepayment ? `سداد سلفة من ${employeeName}` : `سلفة لـ ${employeeName}`,
                 amountIn: isRepayment ? newAdvance.payment : 0, 
                 amountOut: isRepayment ? 0 : newAdvance.amount, 
-                relatedId: newAdvance.id
+                relatedId: newAdvance.id,
+                paymentMethod: 'cash'
             });
         }
     },
     updateAdvance: async (advanceId, updates) => {
         const batch = writeBatch(db);
         batch.update(doc(db, "advances", String(advanceId)), updates);
+        
         if (updates.amount !== undefined || updates.payment !== undefined || updates.date !== undefined) {
             const state = get();
-            const relatedTx = state.appData?.treasury.find(t => String(t.relatedId) === String(advanceId) && t.type === 'سلفة');
+            const relatedTx = state.appData?.treasury.find(t => String(t.relatedId) === String(advanceId) && (t.type === 'سلفة' || t.type === 'سداد سلفة'));
             if (relatedTx) {
                 const txUpdates: any = {};
                 // Repayments update amountIn, Advances update amountOut
@@ -879,6 +881,28 @@ const useStore = create<AppState & AppActions>((set, get) => ({
                 if (updates.payment !== undefined) txUpdates.amountIn = updates.payment;
                 if (updates.date !== undefined) txUpdates.date = updates.date;
                 batch.update(doc(db, "treasury", String(relatedTx.id)), txUpdates);
+            } else {
+                const advance = state.appData?.advances.find(a => String(a.id) === String(advanceId));
+                if (advance) {
+                    const finalAmount = updates.amount !== undefined ? updates.amount : advance.amount;
+                    const finalPayment = updates.payment !== undefined ? updates.payment : (advance.payment || 0);
+                    const finalDate = updates.date !== undefined ? updates.date : advance.date;
+                    
+                    if (finalAmount > 0 || finalPayment > 0) {
+                        const employeeName = state.appData?.employees.find(e => e.id === advance.employeeId)?.name || 'موظف';
+                        const isRepayment = finalAmount === 0 && finalPayment > 0;
+                        
+                        await get().addTreasuryTransaction({
+                            date: finalDate, 
+                            type: isRepayment ? 'سداد سلفة' : 'سلفة', 
+                            description: isRepayment ? `سداد سلفة من ${employeeName}` : `سلفة لـ ${employeeName}`,
+                            amountIn: isRepayment ? finalPayment : 0, 
+                            amountOut: isRepayment ? 0 : finalAmount, 
+                            relatedId: advance.id,
+                            paymentMethod: 'cash'
+                        });
+                    }
+                }
             }
         }
         await batch.commit();
@@ -889,7 +913,7 @@ const useStore = create<AppState & AppActions>((set, get) => ({
             const batch = writeBatch(db);
             batch.delete(doc(db, "advances", String(advanceId)));
             const state = get();
-            const relatedTx = state.appData?.treasury.find(t => String(t.relatedId) === String(advanceId) && t.type === 'سلفة');
+            const relatedTx = state.appData?.treasury.find(t => String(t.relatedId) === String(advanceId) && (t.type === 'سلفة' || t.type === 'سداد سلفة'));
             if (relatedTx) {
                 batch.delete(doc(db, "treasury", String(relatedTx.id)));
             }

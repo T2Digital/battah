@@ -238,6 +238,7 @@ const Treasury: React.FC<TreasuryProps> = ({ treasury }) => {
                     <option value="راتب">راتب</option>
                     <option value="دفعة لمورد">دفعة لمورد</option>
                     <option value="سلفة">سلفة</option>
+                    <option value="سداد سلفة">سداد سلفة</option>
                     <option value="إيراد آخر">إيراد آخر</option>
                     <option value="مصروف آخر">مصروف آخر</option>
                 </select>
