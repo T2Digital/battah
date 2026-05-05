@@ -264,20 +264,18 @@ const App: React.FC = () => {
             // Handle Smart Scanning
             if (hash.startsWith('scan/')) {
                 const sku = decodeURIComponent(hash.split('/')[1]);
+                useStore.getState().setPendingScan(sku);
+                
+                // Clear the hash without triggering another immediate handleHashChange if not needed
+                // But replacing hash will trigger it, which is fine, it will fall into normal routing.
+                window.history.replaceState(null, '', window.location.pathname);
                 
                 if (useStore.getState().currentUser) {
-                    // Logged in user: Redirect to DailySales and dispatch product scan event
                     setViewMode('admin');
-                    window.location.hash = Section.DailySales;
-                    setTimeout(() => {
-                        window.dispatchEvent(new CustomEvent('scan-product', { detail: sku }));
-                    }, 800); // give time for app and component to load
+                    setActiveSection(Section.DailySales);
                 } else {
-                    // Guest user: Redirect to Store and dispatch store product scan event
-                    window.location.hash = ''; // Back to store front
-                    setTimeout(() => {
-                        window.dispatchEvent(new CustomEvent('scan-store-product', { detail: sku }));
-                    }, 800);
+                    setViewMode('store');
+                    setActiveSection(Section.Dashboard);
                 }
                 return;
             }

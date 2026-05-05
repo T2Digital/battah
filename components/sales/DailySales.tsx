@@ -51,14 +51,21 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
     const [isOnline, setIsOnline] = useState(navigator.onLine);
 
     useEffect(() => {
-        const handleScan = (e: CustomEvent<string>) => {
-            const sku = e.detail;
+        const handleScan = (sku: string) => {
             setScannedSku(sku);
             setEditingSale(null);
             setModalOpen(true);
         };
-        window.addEventListener('scan-product', handleScan as EventListener);
-        return () => window.removeEventListener('scan-product', handleScan as EventListener);
+        const scanEventObj = (e: CustomEvent<string>) => handleScan(e.detail);
+        window.addEventListener('scan-product', scanEventObj as EventListener);
+        
+        const state = useStore.getState();
+        if (state.pendingScan) {
+            handleScan(state.pendingScan);
+            state.setPendingScan(null);
+        }
+
+        return () => window.removeEventListener('scan-product', scanEventObj as EventListener);
     }, []);
 
     useEffect(() => {

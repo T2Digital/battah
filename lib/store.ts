@@ -71,9 +71,11 @@ type AppState = {
     isLoading: boolean;
     appData: AppData | null;
     pendingOrderIdToOpen: string | null;
+    pendingScan: string | null;
 };
 
 type AppActions = {
+    setPendingScan: (sku: string | null) => void;
     setPendingOrderIdToOpen: (id: string | null) => void;
     initPublicListeners: () => Promise<void>;
     initAdminListeners: () => Promise<void>;
@@ -184,6 +186,9 @@ const useStore = create<AppState & AppActions>((set, get) => ({
             workStartTime: "09:00",
             workEndTime: "23:00"
         }
+    },
+    setPendingScan: (sku: string | null) => {
+        set({ pendingScan: sku });
     },
     setPendingOrderIdToOpen: (id: string | null) => {
         set({ pendingOrderIdToOpen: id });

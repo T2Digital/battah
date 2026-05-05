@@ -86,20 +86,19 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
         return () => clearTimeout(timer);
     }, [filters.category, filters.search]);
 
-    // Handle Smart Scanning from Hash
+    // Handle Smart Scanning from Hash or pendingScan
     useEffect(() => {
-        const handleScan = async (e: CustomEvent<string>) => {
-            const sku = e.detail.trim();
+        const handleScan = async (sku: string) => {
+            const finalSku = sku.trim();
+            if (!finalSku) return;
             setLoading(true);
             try {
-                // To fetch exact product by sku we can search for it
-                // and find the one that exactly matches
-                const results = await searchProducts(sku);
-                const exactMatch = results.find(p => String(p.sku || '').toLowerCase() === sku.toLowerCase() || String(p.id) === sku);
+                const results = await searchProducts(finalSku);
+                const exactMatch = results.find(p => String(p.sku || '').toLowerCase() === finalSku.toLowerCase() || String(p.id) === finalSku);
                 if (exactMatch) {
                     setSelectedProduct(exactMatch);
                 } else {
-                    alert(`لم يتم العثور على المنتج: ${sku}`);
+                    alert(`لم يتم العثور على المنتج: ${finalSku}`);
                 }
             } catch (error) {
                 console.error("Error finding scanned product:", error);
@@ -107,8 +106,18 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
                 setLoading(false);
             }
         };
-        window.addEventListener('scan-store-product', handleScan as EventListener);
-        return () => window.removeEventListener('scan-store-product', handleScan as EventListener);
+
+        const scanEventObj = (e: CustomEvent<string>) => handleScan(e.detail);
+        
+        window.addEventListener('scan-store-product', scanEventObj as EventListener);
+        
+        const state = useStore.getState();
+        if (state.pendingScan) {
+            handleScan(state.pendingScan);
+            state.setPendingScan(null); // clear it
+        }
+
+        return () => window.removeEventListener('scan-store-product', scanEventObj as EventListener);
     }, [searchProducts]);
 
     // Broadcast Logic

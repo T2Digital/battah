@@ -257,27 +257,57 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, ex
                                                         <title></title>
                                                         <style>
                                                             @media print {
-                                                                @page { size: 50mm 30mm; margin: 0 !important; }
-                                                                html, body { margin: 0 !important; padding: 0 !important; width: 50mm; height: 30mm; overflow: hidden; }
+                                                                @page { size: 50mm 30mm; margin: 0; }
+                                                                html, body { margin: 0 !important; padding: 0 !important; }
+                                                                .no-print { display: none !important; }
+                                                                .barcode-container { height: 30mm !important; overflow: hidden; }
                                                             }
                                                             html, body { 
                                                                 font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-                                                                display: flex; flex-direction: column; align-items: center; justify-content: center; 
-                                                                width: 50mm; height: 30mm; margin: 0; padding: 0; 
-                                                                overflow: hidden; background: white; color: black;
+                                                                margin: 0; padding: 0; 
+                                                                background: white; color: black;
+                                                                display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
                                                             }
-                                                            .barcode-container { text-align: center; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: space-evenly; padding: 1mm; box-sizing: border-box; }
-                                                            .header-row { display: flex; flex-direction: row; align-items: center; justify-content: center; gap: 3px; font-size: 10px; font-weight: bold; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+                                                            .controls {
+                                                                padding: 10px; background: #f3f4f6; width: 100%; text-align: center; margin-bottom: 5px;
+                                                            }
+                                                            .controls button {
+                                                                padding: 8px 16px; margin: 0 5px; background: #2563eb; color: white; border: none; border-radius: 4px; cursor: pointer;
+                                                            }
+                                                            .instructions { font-size: 12px; color: #dc2626; margin-top: 5px; }
+                                                            
+                                                            .barcode-container { 
+                                                                text-align: center; width: 50mm; height: 30mm; 
+                                                                display: flex; flex-direction: column; align-items: center; justify-content: space-evenly; 
+                                                                padding: 1mm; box-sizing: border-box; 
+                                                                transition: transform 0.3s;
+                                                            }
+                                                            
+                                                            .rotated-90 {
+                                                                transform: rotate(-90deg);
+                                                                width: 30mm !important;
+                                                                height: 50mm !important;
+                                                                transform-origin: center center;
+                                                            }
+
+                                                            .header-row { display: flex; flex-direction: row; align-items: center; justify-content: center; gap: 3px; font-size: 10px; font-weight: bold; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1; }
                                                             #qrcode { display: flex; justify-content: center; align-items: center; margin: 0; }
-                                                            #qrcode img { width: 13mm; height: 13mm; }
-                                                            #barcode { max-width: 95%; height: 7mm; margin: 0; }
+                                                            #qrcode img { width: 12mm; height: 12mm; }
+                                                            #barcode { max-width: 95%; height: 8mm; margin: 0; }
                                                         </style>
                                                         <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.0/dist/JsBarcode.all.min.js"></script>
-
                                                         <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
                                                     </head>
                                                     <body>
-                                                        <div class="barcode-container">
+                                                        <div class="controls no-print">
+                                                            <button onclick="window.print()">🖨️ طباعة</button>
+                                                            <button onclick="toggleRotate()">🔄 تدوير 90 درجة</button>
+                                                            <div class="instructions">
+                                                                هام: من إعدادات الطباعة، اختر "بدون هوامش" (Margins: None)<br>
+                                                                وألغِ تحديد "الرؤوس والتذييلات" (Headers and footers) لمسح كلمة طباعة والتاريخ.
+                                                            </div>
+                                                        </div>
+                                                        <div class="barcode-container" id="printable-area">
                                                             <div class="header-row">
                                                                 <span>${formData.name}</span>
                                                                 <span>-</span>
@@ -287,6 +317,11 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, ex
                                                             <svg id="barcode"></svg>
                                                         </div>
                                                         <script>
+                                                            function toggleRotate() {
+                                                                const area = document.getElementById('printable-area');
+                                                                area.classList.toggle('rotated-90');
+                                                            }
+
                                                             new QRCode(document.getElementById("qrcode"), {
                                                                 text: "${scanUrl}",
                                                                 width: 45,
@@ -301,10 +336,7 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, ex
                                                                 margin: 0
                                                             });
                                                             
-                                                            setTimeout(() => {
-                                                                window.print();
-                                                                window.close();
-                                                            }, 800);
+                                                            // Removed auto-print and auto-close so user can adjust settings
                                                         </script>
                                                     </body>
                                                 </html>
