@@ -50,6 +50,7 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
     const [isDeleting, setIsDeleting] = useState(false);
     const [isOnline, setIsOnline] = useState(navigator.onLine);
 
+    const globalLoading = useStore(state => state.isLoading);
     useEffect(() => {
         const handleScan = (sku: string) => {
             setScannedSku(sku);
@@ -60,13 +61,13 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
         window.addEventListener('scan-product', scanEventObj as EventListener);
         
         const state = useStore.getState();
-        if (state.pendingScan) {
+        if (!globalLoading && state.pendingScan) {
             handleScan(state.pendingScan);
             state.setPendingScan(null);
         }
 
         return () => window.removeEventListener('scan-product', scanEventObj as EventListener);
-    }, []);
+    }, [globalLoading]);
 
     useEffect(() => {
         const handleOnline = () => setIsOnline(true);

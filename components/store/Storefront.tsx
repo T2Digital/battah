@@ -87,6 +87,7 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
     }, [filters.category, filters.search]);
 
     // Handle Smart Scanning from Hash or pendingScan
+    const globalLoading = useStore(state => state.isLoading);
     useEffect(() => {
         const handleScan = async (sku: string) => {
             const finalSku = sku.trim();
@@ -112,13 +113,13 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
         window.addEventListener('scan-store-product', scanEventObj as EventListener);
         
         const state = useStore.getState();
-        if (state.pendingScan) {
+        if (!globalLoading && state.pendingScan) {
             handleScan(state.pendingScan);
             state.setPendingScan(null); // clear it
         }
 
         return () => window.removeEventListener('scan-store-product', scanEventObj as EventListener);
-    }, [searchProducts]);
+    }, [searchProducts, globalLoading]);
 
     // Broadcast Logic
     useEffect(() => {
