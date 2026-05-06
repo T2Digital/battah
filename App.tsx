@@ -5,6 +5,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import { auth, setupMessageListener, requestNotificationPermission } from './lib/firebase';
 import { Section, Role } from './types';
 import useStore from './lib/store';
+import { useBarcodeScanner } from './hooks/useBarcodeScanner';
 
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
@@ -134,6 +135,33 @@ const App: React.FC = () => {
     const [activeReport, setActiveReport] = useState<string | null>(null);
     const [accessDenied, setAccessDenied] = useState<{ reason: 'time' | 'ip', details?: string } | null>(null);
     
+    // Global barcode scanner handling
+    useBarcodeScanner((barcode) => {
+        let trimmedCode = barcode.trim();
+        // Decode if it contains the URL hash part
+        if (trimmedCode.includes('#scan/')) {
+            trimmedCode = decodeURIComponent(trimmedCode.split('#scan/')[1]);
+        }
+        
+        console.log("Global physical scanner detected:", trimmedCode);
+        
+        // Dispatch event that both store and admin screens listen to
+        if (viewMode === 'store') {
+            window.dispatchEvent(new CustomEvent('scan-store-product', { detail: trimmedCode }));
+        } else {
+            // For admin views, ensure we are on the DailySales section
+            if (activeSection !== Section.DailySales) {
+                setActiveSection(Section.DailySales);
+                // Give it a tiny delay to mount before dispatching
+                setTimeout(() => {
+                    window.dispatchEvent(new CustomEvent('scan-product', { detail: trimmedCode }));
+                }, 100);
+            } else {
+                window.dispatchEvent(new CustomEvent('scan-product', { detail: trimmedCode }));
+            }
+        }
+    });
+
     // Auto Daily Review Generator
     useEffect(() => {
         if (currentUser?.role === Role.Admin && appData) {

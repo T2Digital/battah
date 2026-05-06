@@ -53,7 +53,10 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
     const globalLoading = useStore(state => state.isLoading);
     useEffect(() => {
         const handleScan = (sku: string) => {
-            setScannedSku(sku);
+            setScannedSku(null); // Clear first to force a state change even if same SKU
+            setTimeout(() => {
+                setScannedSku(sku);
+            }, 10);
             setEditingSale(null);
             setModalOpen(true);
         };

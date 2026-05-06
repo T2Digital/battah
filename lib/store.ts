@@ -806,6 +806,19 @@ const useStore = create<AppState & AppActions>((set, get) => ({
             [...nameSnapshot.docs, ...skuSnapshot.docs].forEach(d => {
                 fetchedProductsMap.set(d.id, { ...(d.data() as Product), id: d.data().id ?? d.id });
             });
+
+            // If empty, maybe the query is the actual document ID?
+            if (fetchedProductsMap.size === 0 && searchQuery.length < 30) {
+                 try {
+                     const docRef = doc(db, 'products', searchQuery);
+                     const docSnap = await getDoc(docRef);
+                     if (docSnap.exists()) {
+                         fetchedProductsMap.set(docSnap.id, { ...(docSnap.data() as Product), id: docSnap.data().id ?? docSnap.id });
+                     }
+                 } catch (e) {
+                     // ignore if ID format is invalid
+                 }
+            }
             
             const fetchedProducts = Array.from(fetchedProductsMap.values());
             
