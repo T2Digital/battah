@@ -20,6 +20,7 @@ export function useBarcodeScanner(onScan: (barcode: string) => void) {
                 // To prevent the Enter key from triggering unintended actions (like submitting a focused form)
                 // if we just intercepted a barcode.
                 if (barcodeBuffer.current.length >= 3) {
+                    e.preventDefault(); // Stop Enter from triggering form submission or clicks
                     const scannedCode = barcodeBuffer.current;
                     barcodeBuffer.current = '';
                     
@@ -27,11 +28,10 @@ export function useBarcodeScanner(onScan: (barcode: string) => void) {
                     const activeTag = document.activeElement?.tagName.toLowerCase();
                     const isInputFocus = activeTag === 'input' || activeTag === 'textarea';
                     
-                    // But some setups focus an input before scanning. 
-                    // Usually we want to handle generic global scans.
-                    // If you want it to trigger regardless of focus, we can just call it.
-                    // For now, if they are not typing in a specific input, or even if they are, 
-                    // we'll trigger it because sometimes scanners are used while an input is focused.
+                    if (isInputFocus) {
+                        return; // Let the input keep the value, prevent default stops form submit 
+                    }
+                    
                     onScan(scannedCode);
                     return; // Enter event might still propagate, but we captured the barcode.
                 }

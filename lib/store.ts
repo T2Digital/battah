@@ -300,7 +300,7 @@ const useStore = create<AppState & AppActions>((set, get) => ({
             const collectionsToListen: (keyof AppData)[] = [
                 'users', 'dailySales', 'employees', 'advances', 'attendance', 'payroll', 'suppliers', 
                 'purchaseOrders', 'payments', 'expenses', 'treasury', 'dailyReview', 
-                'notifications', 'stockTransfers', 'orders', 'broadcasts'
+                'notifications', 'stockTransfers', 'orders', 'broadcasts', 'products'
             ];
             
             const largeCollections = ['dailySales', 'expenses', 'treasury', 'purchaseOrders', 'payments', 'attendance', 'payroll', 'stockTransfers', 'dailyReview', 'orders'];
