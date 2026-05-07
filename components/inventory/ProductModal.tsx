@@ -303,12 +303,6 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, ex
                                                     <body>
                                                         <div class="controls no-print">
                                                             <button onclick="window.print()">🖨️ طباعة</button>
-                                                            <button onclick="setLayout('landscape')">عرضي (55x40)</button>
-                                                            <button onclick="setLayout('portrait')">طولي (40x55)</button>
-                                                            <div class="instructions">
-                                                                هام: اختر "بدون هوامش" وألغِ تحديد "الرؤوس والتذييلات".<br>
-                                                                إذا كانت الطابعة تقطع الورق لنصفين، جرب "طولي" واطبع.
-                                                            </div>
                                                         </div>
                                                         <div id="paper">
                                                             <div id="canvas">
@@ -322,49 +316,6 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, ex
                                                             </div>
                                                         </div>
                                                         <script>
-                                                            function setLayout(mode) {
-                                                                const style = document.getElementById('page-style');
-                                                                const paper = document.getElementById('paper');
-                                                                const canvas = document.getElementById('canvas');
-                                                                if (mode === 'portrait') {
-                                                                    style.innerHTML = \`
-                                                                        @media print {
-                                                                            @page { size: 40mm 55mm; margin: 0; }
-                                                                            html, body { margin: 0 !important; padding: 0 !important; width: 40mm; height: 55mm; overflow: hidden; }
-                                                                            .no-print { display: none !important; }
-                                                                        }
-                                                                        html, body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; background: white; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; }
-                                                                        .controls { padding: 10px; background: #f3f4f6; width: 100%; text-align: center; margin-bottom: 5px; }
-                                                                        .controls button { padding: 8px 16px; margin: 0 5px; background: #2563eb; color: white; border: none; border-radius: 4px; cursor: pointer; }
-                                                                        .instructions { font-size: 12px; color: #dc2626; margin-top: 5px; }
-                                                                        #paper { position: relative; width: 40mm; height: 55mm; overflow: hidden; }
-                                                                        #canvas { position: absolute; top: 50%; left: 50%; width: 55mm; height: 40mm; transform: translate(-50%, -50%) rotate(-90deg); display: flex; flex-direction: column; align-items: center; justify-content: space-evenly; padding: 1mm; box-sizing: border-box; overflow: hidden; }
-                                                                        .header-row { display: flex; flex-direction: row; align-items: center; justify-content: center; gap: 3px; font-size: 10px; font-weight: bold; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1; }
-                                                                        #qrcode { display: flex; justify-content: center; align-items: center; margin: 0; }
-                                                                        #qrcode img { width: 12mm; height: 12mm; }
-                                                                        #barcode { max-width: 95%; height: 7mm; margin: 0; }
-                                                                    \`;
-                                                                } else {
-                                                                    style.innerHTML = \`
-                                                                        @media print {
-                                                                            @page { size: 55mm 40mm; margin: 0; }
-                                                                            html, body { margin: 0 !important; padding: 0 !important; width: 55mm; height: 40mm; overflow: hidden; }
-                                                                            .no-print { display: none !important; }
-                                                                        }
-                                                                        html, body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; background: white; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; }
-                                                                        .controls { padding: 10px; background: #f3f4f6; width: 100%; text-align: center; margin-bottom: 5px; }
-                                                                        .controls button { padding: 8px 16px; margin: 0 5px; background: #2563eb; color: white; border: none; border-radius: 4px; cursor: pointer; }
-                                                                        .instructions { font-size: 12px; color: #dc2626; margin-top: 5px; }
-                                                                        #paper { position: relative; width: 55mm; height: 40mm; overflow: hidden; }
-                                                                        #canvas { position: absolute; top: 50%; left: 50%; width: 55mm; height: 40mm; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; justify-content: space-evenly; padding: 1mm; box-sizing: border-box; overflow: hidden; }
-                                                                        .header-row { display: flex; flex-direction: row; align-items: center; justify-content: center; gap: 3px; font-size: 10px; font-weight: bold; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1; }
-                                                                        #qrcode { display: flex; justify-content: center; align-items: center; margin: 0; }
-                                                                        #qrcode img { width: 12mm; height: 12mm; }
-                                                                        #barcode { max-width: 95%; height: 7mm; margin: 0; }
-                                                                    \`;
-                                                                }
-                                                            }
-
                                                             new QRCode(document.getElementById("qrcode"), {
                                                                 text: "${scanUrl}",
                                                                 width: 160,

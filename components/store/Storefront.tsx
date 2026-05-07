@@ -26,13 +26,15 @@ interface StorefrontProps {
 }
 
 const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
-    const { storefrontSettings, createOrder, broadcasts, fetchProducts, searchProducts, fetchProductsByIds } = useStore(state => ({
+    const { storefrontSettings, createOrder, broadcasts, fetchProducts, searchProducts, fetchProductsByIds, pendingScan, setPendingScan } = useStore(state => ({
         storefrontSettings: state.appData?.storefrontSettings,
         createOrder: state.createOrder,
         broadcasts: state.appData?.broadcasts || [],
         fetchProducts: state.fetchProducts,
         searchProducts: state.searchProducts,
-        fetchProductsByIds: state.fetchProductsByIds
+        fetchProductsByIds: state.fetchProductsByIds,
+        pendingScan: state.pendingScan,
+        setPendingScan: state.setPendingScan
     }));
 
     const [products, setProducts] = useState<Product[]>([]);
@@ -115,14 +117,13 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
         
         window.addEventListener('scan-store-product', scanEventObj as EventListener);
         
-        const state = useStore.getState();
-        if (!globalLoading && state.pendingScan) {
-            handleScan(state.pendingScan);
-            state.setPendingScan(null); // clear it
+        if (!globalLoading && pendingScan) {
+            handleScan(pendingScan);
+            setPendingScan(null); // clear it
         }
 
         return () => window.removeEventListener('scan-store-product', scanEventObj as EventListener);
-    }, [searchProducts, globalLoading]);
+    }, [searchProducts, globalLoading, pendingScan, setPendingScan]);
 
     // Broadcast Logic
     useEffect(() => {

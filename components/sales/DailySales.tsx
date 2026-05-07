@@ -22,7 +22,9 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
         updateProduct,
         updateProductStock,
         addExpense,
-        fetchDataByDateRange
+        fetchDataByDateRange,
+        pendingScan,
+        setPendingScan
     } = useStore(state => ({
         dailySales: state.appData?.dailySales || [],
         products: state.appData?.products || [],
@@ -34,7 +36,9 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
         updateProduct: state.updateProduct,
         updateProductStock: state.updateProductStock,
         addExpense: state.addExpense,
-        fetchDataByDateRange: state.fetchDataByDateRange
+        fetchDataByDateRange: state.fetchDataByDateRange,
+        pendingScan: state.pendingScan,
+        setPendingScan: state.setPendingScan
     }));
     
     const [filterDate, setFilterDate] = useState(new Date().toISOString().split('T')[0]);
@@ -63,14 +67,13 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
         const scanEventObj = (e: CustomEvent<string>) => handleScan(e.detail);
         window.addEventListener('scan-product', scanEventObj as EventListener);
         
-        const state = useStore.getState();
-        if (!globalLoading && state.pendingScan) {
-            handleScan(state.pendingScan);
-            state.setPendingScan(null);
+        if (!globalLoading && pendingScan) {
+            handleScan(pendingScan);
+            setPendingScan(null);
         }
 
         return () => window.removeEventListener('scan-product', scanEventObj as EventListener);
-    }, [globalLoading]);
+    }, [globalLoading, pendingScan, setPendingScan]);
 
     useEffect(() => {
         const handleOnline = () => setIsOnline(true);

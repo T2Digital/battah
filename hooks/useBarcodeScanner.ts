@@ -24,12 +24,17 @@ export function useBarcodeScanner(onScan: (barcode: string) => void) {
                     const scannedCode = barcodeBuffer.current;
                     barcodeBuffer.current = '';
                     
-                    // Don't intercept if user is explicitly typing into an input field
-                    const activeTag = document.activeElement?.tagName.toLowerCase();
-                    const isInputFocus = activeTag === 'input' || activeTag === 'textarea';
-                    
-                    if (isInputFocus) {
-                        return; // Let the input keep the value, prevent default stops form submit 
+                    // Don't intercept if user is explicitly typing into an input field,
+                    // BUT if they scanned something incredibly fast (which we detect),
+                    // it is a scanner. We should clear the input if it received the scanner's text.
+                    const activeElement = document.activeElement as HTMLInputElement | HTMLTextAreaElement;
+                    if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA')) {
+                        // The scanner typed the barcode into the input. We should remove it.
+                        if (activeElement.value && activeElement.value.endsWith(scannedCode)) {
+                            activeElement.value = activeElement.value.slice(0, -scannedCode.length);
+                            // Trigger React's onChange if needed by dispatching an input event
+                            activeElement.dispatchEvent(new Event('input', { bubbles: true }));
+                        }
                     }
                     
                     onScan(scannedCode);
