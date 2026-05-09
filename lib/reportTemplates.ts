@@ -136,8 +136,8 @@ const generateReportHTML = (title: string, themeColor: string, content: string, 
     ${isInvoice ? `
     <style>
         @page { margin: 0; size: 80mm auto; }
-        body { margin: 0; padding: 0; background: #fff; width: 80mm; font-family: 'Cairo', sans-serif; font-size: 12px; color: #000; }
-        .invoice-box { width: 100%; max-width: 80mm; margin: 0 auto; padding: 5mm; box-sizing: border-box; }
+        body { margin: 0; padding: 0; background: #fff; width: 100%; max-width: 78mm; margin: 0 auto; font-family: 'Cairo', sans-serif; font-size: 12px; color: #000; }
+        .invoice-box { width: 100%; margin: 0 auto; padding: 2mm; box-sizing: border-box; overflow: hidden; }
         .invoice-box table { width: 100%; line-height: 1.2; text-align: right; border-collapse: collapse; }
         .invoice-box table td { padding: 2px 0; vertical-align: top; font-size: 12px; }
         .invoice-box table tr.top table td { padding-bottom: 5px; text-align: center; }
@@ -154,8 +154,8 @@ const generateReportHTML = (title: string, themeColor: string, content: string, 
         .invoice-box .mt-4 { margin-top: 10px; }
         .invoice-box hr { border: none; border-top: 1px dashed #000; margin: 10px 0; }
         @media print {
-            body { width: 80mm; }
-            .invoice-box { padding: 0; }
+            body { max-width: 78mm; }
+            .invoice-box { padding: 2mm; }
             .no-print { display: none; }
         }
     </style>
@@ -208,7 +208,7 @@ export const generateInvoiceContent = (sale: DailySale, products: Product[]) => 
             ${sale.warrantyPeriod ? `<div><strong>الضمان:</strong> ${sale.warrantyPeriod}</div>` : ''}
         </div>
         <hr>
-        <table cellpadding="0" cellspacing="0">
+        <table cellpadding="0" cellspacing="0" style="table-layout: fixed; width: 100%; word-wrap: break-word;">
             <tr class="heading">
                 <td style="width: 40%;">الصنف</td>
                 <td style="text-align:center; width: 15%;">الكمية</td>
@@ -218,7 +218,7 @@ export const generateInvoiceContent = (sale: DailySale, products: Product[]) => 
             ${itemsRows}
         </table>
         <hr>
-        <table cellpadding="0" cellspacing="0">
+        <table cellpadding="0" cellspacing="0" style="table-layout: fixed; width: 100%; word-wrap: break-word;">
             <tr class="total">
                 <td colspan="3" style="text-align:right;">الإجمالي:</td>
                 <td style="text-align:left;">${formatCurrency(sale.totalAmount)}</td>
