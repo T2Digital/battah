@@ -135,6 +135,28 @@ const App: React.FC = () => {
     const [activeReport, setActiveReport] = useState<string | null>(null);
     const [accessDenied, setAccessDenied] = useState<{ reason: 'time' | 'ip', details?: string } | null>(null);
     
+    useEffect(() => {
+        (window as any).printInvoiceFromCardex = async (saleId: number) => {
+            const state = useStore.getState();
+            if(!state.appData) return;
+            const sale = state.appData.dailySales.find(s => s.id === saleId);
+            if(sale) {
+                const { generateInvoiceContent } = await import('./lib/reportTemplates');
+                const content = generateInvoiceContent(sale, state.appData.products);
+                const reportWindow = window.open('', '_blank');
+                if (reportWindow) {
+                    reportWindow.document.write(content);
+                    reportWindow.document.close();
+                }
+            } else {
+                alert('عذراً، لم يتم العثور على الفاتورة.');
+            }
+        };
+        return () => {
+             delete (window as any).printInvoiceFromCardex;
+        };
+    }, []);
+
     // Global barcode scanner handling
     useBarcodeScanner((barcode) => {
         let trimmedCode = barcode.trim();
@@ -294,8 +316,7 @@ const App: React.FC = () => {
                 const sku = decodeURIComponent(hash.split('/')[1]);
                 useStore.getState().setPendingScan(sku);
                 
-                // Clear the hash without triggering another immediate handleHashChange if not needed
-                // But replacing hash will trigger it, which is fine, it will fall into normal routing.
+                // Keep the hash without triggering another immediate handleHashChange if not needed
                 window.history.replaceState(null, '', window.location.pathname);
                 
                 if (useStore.getState().currentUser) {

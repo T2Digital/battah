@@ -36,6 +36,42 @@ const LoginModal: React.FC<LoginModalProps> = ({ setViewMode }) => {
         }
     };
 
+    const handleBiometricLogin = async () => {
+        if (!window.PublicKeyCredential) {
+            setError('متصفحك لا يدعم تسجيل الدخول بالبصمة');
+            return;
+        }
+        try {
+            setIsLoading(true);
+            setError('');
+            // Simple mock of WebAuthn for demonstration purposes
+            const challenge = new Uint8Array(32);
+            window.crypto.getRandomValues(challenge);
+            
+            const assertion = await navigator.credentials.get({
+                publicKey: {
+                    challenge: challenge,
+                    rpId: window.location.hostname,
+                    userVerification: "preferred",
+                }
+            });
+            
+            if (assertion) {
+                // In a complete implementation, this would be validated by the server and login user
+                alert('هذا المتصفح يدعم البصمة وتم التحقق. لتفعيل تسجيل الدخول بها، يرجى ربطها بحسابك من الإعدادات لاحقاً.');
+            }
+        } catch (err: any) {
+            // Provide a user friendly error
+            if (err.name === 'NotAllowedError') {
+                setError('تم إلغاء عملية قراءة البصمة أو غير مصرح بها.');
+            } else {
+                setError('لم يتم التعرف على البصمة أو غير مسجلة.');
+            }
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     return (
         <div className="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-50 backdrop-blur-sm">
             <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-sm p-8 m-4 animate-fade-in-down">
@@ -76,11 +112,23 @@ const LoginModal: React.FC<LoginModalProps> = ({ setViewMode }) => {
                         </div>
                     </div>
                     {error && <p className="text-red-500 text-sm text-center">{error}</p>}
-                    <div>
+                    <div className="space-y-3">
                         <button type="submit" disabled={isLoading} className="w-full flex justify-center items-center gap-2 px-4 py-3 text-white bg-gradient-to-r from-primary to-primary-light rounded-lg hover:from-primary-dark hover:to-primary transition-transform transform hover:scale-105 shadow-md disabled:opacity-50 disabled:cursor-not-allowed">
                             {isLoading ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-sign-in-alt"></i>}
-                            <span>{isLoading ? 'جاري الدخول...' : 'دخول'}</span>
+                            <span>{isLoading ? 'جاري الدخول...' : 'تسجيل الدخول'}</span>
                         </button>
+                        
+                        {window.PublicKeyCredential && (
+                            <button 
+                                type="button" 
+                                onClick={handleBiometricLogin}
+                                disabled={isLoading} 
+                                className="w-full flex justify-center items-center gap-2 px-4 py-3 text-primary border border-primary bg-white dark:bg-gray-800 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition"
+                            >
+                                <i className="fas fa-fingerprint text-xl"></i>
+                                <span>تسجيل الدخول بالبصمة</span>
+                            </button>
+                        )}
                     </div>
                     {setViewMode && (
                         <div className="mt-4 text-center">

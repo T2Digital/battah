@@ -22,6 +22,9 @@ const InventoryReports: React.FC<InventoryReportsProps> = ({ setActiveReport }) 
     const [isProductSelectorOpen, setProductSelectorOpen] = useState(false);
     const [isJardViewOpen, setIsJardViewOpen] = useState(false);
 
+    const [analysisStartDate, setAnalysisStartDate] = useState('');
+    const [analysisEndDate, setAnalysisEndDate] = useState('');
+
     if (!appData) return <div>Loading report data...</div>;
 
     if (isJardViewOpen) {
@@ -67,7 +70,43 @@ const InventoryReports: React.FC<InventoryReportsProps> = ({ setActiveReport }) 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <ReportCard icon="fa-exchange-alt" title="تقرير حركة صنف" description="تتبع كل الحركات على صنف معين (كارت الصنف)" onClick={() => setProductSelectorOpen(true)} />
                 <ReportCard icon="fa-exclamation-triangle" title="تقرير حد الطلب" description="عرض الأصناف التي وصلت لكمية إعادة الطلب" onClick={() => openReportWindow('تقرير حد الطلب', generateReorderPointReportContent(appData))} />
-                <ReportCard icon="fa-chart-bar" title="تحليل المبيعات" description="عرض الأصناف الأكثر والأقل مبيعاً" onClick={() => openReportWindow('تحليل المبيعات', generateSalesAnalysisReportContent(appData))} />
+                <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg flex flex-col justify-between">
+                    <div>
+                        <div className="w-16 h-16 bg-gradient-to-br from-primary to-primary-light text-white rounded-2xl flex justify-center items-center text-3xl shadow-md mb-4">
+                            <i className="fas fa-chart-bar"></i>
+                        </div>
+                        <h3 className="text-lg font-bold text-gray-800 dark:text-white">تحليل المبيعات</h3>
+                        <p className="text-gray-500 dark:text-gray-400 text-sm mb-4">عرض الأصناف الأكثر والأقل مبيعاً</p>
+                    </div>
+                    
+                    <div className="space-y-4">
+                        <div className="flex flex-col gap-2">
+                            <label className="text-sm font-medium text-gray-600 dark:text-gray-300">تاريخ البداية:</label>
+                            <input 
+                                type="date" 
+                                value={analysisStartDate}
+                                onChange={e => setAnalysisStartDate(e.target.value)}
+                                className="p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white text-sm"
+                            />
+                        </div>
+                        <div className="flex flex-col gap-2">
+                           <label className="text-sm font-medium text-gray-600 dark:text-gray-300">تاريخ النهاية:</label>
+                           <input 
+                                type="date" 
+                                value={analysisEndDate}
+                                onChange={e => setAnalysisEndDate(e.target.value)}
+                                className="p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white text-sm"
+                            />
+                        </div>
+                        <button 
+                             onClick={() => openReportWindow('تحليل المبيعات', generateSalesAnalysisReportContent(appData, analysisStartDate, analysisEndDate))}
+                             className="w-full mt-2 bg-primary text-white py-2 rounded-lg hover:bg-primary-dark transition text-sm flex items-center justify-center gap-2"
+                        >
+                            <i className="fas fa-chart-line"></i>
+                            عرض التقرير
+                        </button>
+                    </div>
+                </div>
                 <ReportCard icon="fa-clipboard-check" title="جرد المخزون الفعلي" description="إدخال الجرد الفعلي ومطابقته مع الدفتري" onClick={() => setIsJardViewOpen(true)} />
             </div>
 

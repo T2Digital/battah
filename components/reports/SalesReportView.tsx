@@ -1,13 +1,13 @@
 
 
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import useStore from '../../lib/store';
 import { DailySale, Product } from '../../types';
 import { normalizeSaleItems, formatCurrency, formatDate, calculateSaleProfit, getActualSaleRevenue } from '../../lib/utils';
 import SectionHeader from '../shared/SectionHeader';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
-import { generateSalesReportContent } from '../../lib/reportTemplates';
+import { generateSalesReportContent, generateInvoiceContent } from '../../lib/reportTemplates';
 
 interface SalesReportViewProps {
     setActiveReport: (report: string | null) => void;
@@ -25,6 +25,7 @@ const SalesReportView: React.FC<SalesReportViewProps> = ({ setActiveReport }) =>
     const [customStartDate, setCustomStartDate] = React.useState('');
     const [customEndDate, setCustomEndDate] = React.useState('');
     const [isLoadingData, setIsLoadingData] = React.useState(false);
+    const [viewMode, setViewMode] = React.useState<'summary' | 'detailed'>('summary');
 
     const handleFetchCustomData = async () => {
         if (!customStartDate || !customEndDate) return;
@@ -33,7 +34,7 @@ const SalesReportView: React.FC<SalesReportViewProps> = ({ setActiveReport }) =>
         setIsLoadingData(false);
     };
 
-    const salesByDate = useMemo(() => {
+    const filteredSalesList = useMemo(() => {
         let filteredSales = currentUser?.role === 'admin' 
             ? dailySales 
             : dailySales.filter(sale => sale.branchSoldFrom === currentUser?.branch);
@@ -68,8 +69,12 @@ const SalesReportView: React.FC<SalesReportViewProps> = ({ setActiveReport }) =>
                 return sale.date >= customStartDate && sale.date <= customEndDate;
             });
         }
+        
+        return filteredSales.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    }, [dailySales, currentUser, dateFilter, customStartDate, customEndDate]);
 
-        const data = filteredSales.reduce((acc: Record<string, { revenue: number; profit: number }>, sale) => {
+    const salesByDate = useMemo(() => {
+        const data = filteredSalesList.reduce((acc: Record<string, { revenue: number; profit: number }>, sale) => {
             const date = sale.date;
             if (!acc[date]) {
                 acc[date] = { revenue: 0, profit: 0 };
@@ -82,7 +87,6 @@ const SalesReportView: React.FC<SalesReportViewProps> = ({ setActiveReport }) =>
             return acc;
         }, {} as Record<string, { revenue: number; profit: number }>);
         
-        // FIX: Replaced Object.entries with Object.keys to fix type inference issue.
         return Object.keys(data).map((date) => {
             const values = data[date];
             return {
@@ -91,7 +95,7 @@ const SalesReportView: React.FC<SalesReportViewProps> = ({ setActiveReport }) =>
                 cost: values.revenue - values.profit,
             };
         }).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    }, [dailySales, products, currentUser, dateFilter]);
+    }, [filteredSalesList, products]);
     
     const chartData = useMemo(() => {
         return salesByDate.slice(0, 15).reverse(); // Show last 15 days
@@ -107,10 +111,34 @@ const SalesReportView: React.FC<SalesReportViewProps> = ({ setActiveReport }) =>
         }
     };
 
+    const handlePrintInvoice = (sale: DailySale) => {
+        const content = generateInvoiceContent(sale, products);
+        const reportWindow = window.open('', '_blank');
+        if (reportWindow) {
+            reportWindow.document.write(content);
+            reportWindow.document.close();
+        }
+    };
+
     return (
         <div className="animate-fade-in space-y-6">
             <SectionHeader icon="fa-dollar-sign" title="تقرير المبيعات التفصيلي">
                 <div className="flex flex-wrap items-center gap-4">
+                    <div className="flex bg-gray-200 dark:bg-gray-700 rounded-lg p-1">
+                        <button 
+                            onClick={() => setViewMode('summary')}
+                            className={`px-4 py-1 text-sm rounded-md transition ${viewMode === 'summary' ? 'bg-white dark:bg-gray-600 shadow text-primary font-bold' : 'text-gray-600 dark:text-gray-300'}`}
+                        >
+                            ملخص يومي
+                        </button>
+                        <button 
+                            onClick={() => setViewMode('detailed')}
+                            className={`px-4 py-1 text-sm rounded-md transition ${viewMode === 'detailed' ? 'bg-white dark:bg-gray-600 shadow text-primary font-bold' : 'text-gray-600 dark:text-gray-300'}`}
+                        >
+                            فواتير مفصلة
+                        </button>
+                    </div>
+
                     <select
                         value={dateFilter}
                         onChange={(e) => setDateFilter(e.target.value as any)}
@@ -159,50 +187,90 @@ const SalesReportView: React.FC<SalesReportViewProps> = ({ setActiveReport }) =>
                 </div>
             </SectionHeader>
 
-            <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg">
-                <h3 className="text-xl font-bold mb-4 text-gray-800 dark:text-white">أداء المبيعات (آخر 15 يوم)</h3>
-                <div className="h-96">
-                    <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={chartData} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(128, 128, 128, 0.2)" />
-                            <XAxis dataKey="date" tickFormatter={formatDate} angle={-45} textAnchor="end" height={80} tick={{ fill: 'currentColor', fontSize: 12 }} />
-                            <YAxis tickFormatter={(value) => `${value / 1000}k`} tick={{ fill: 'currentColor', fontSize: 12 }} />
-                            <Tooltip 
-                                contentStyle={{ backgroundColor: 'rgba(31, 41, 55, 0.9)', borderColor: '#4b5563', borderRadius: '0.75rem' }}
-                                labelStyle={{ color: '#f9fafb' }}
-                                formatter={(value: number) => [formatCurrency(value), '']}
-                                labelFormatter={formatDate}
-                            />
-                            <Legend />
-                            <Bar dataKey="revenue" fill="#3b82f6" name="المبيعات" />
-                            <Bar dataKey="profit" fill="#10b981" name="الربح" />
-                        </BarChart>
-                    </ResponsiveContainer>
-                </div>
-            </div>
+            {viewMode === 'summary' ? (
+                <>
+                    <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg">
+                        <h3 className="text-xl font-bold mb-4 text-gray-800 dark:text-white">أداء المبيعات (آخر 15 يوم)</h3>
+                        <div className="h-96">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={chartData} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(128, 128, 128, 0.2)" />
+                                    <XAxis dataKey="date" tickFormatter={formatDate} angle={-45} textAnchor="end" height={80} tick={{ fill: 'currentColor', fontSize: 12 }} />
+                                    <YAxis tickFormatter={(value) => `${value / 1000}k`} tick={{ fill: 'currentColor', fontSize: 12 }} />
+                                    <Tooltip 
+                                        contentStyle={{ backgroundColor: 'rgba(31, 41, 55, 0.9)', borderColor: '#4b5563', borderRadius: '0.75rem' }}
+                                        labelStyle={{ color: '#f9fafb' }}
+                                        formatter={(value: number) => [formatCurrency(value), '']}
+                                        labelFormatter={formatDate}
+                                    />
+                                    <Legend />
+                                    <Bar dataKey="revenue" fill="#3b82f6" name="المبيعات" />
+                                    <Bar dataKey="profit" fill="#10b981" name="الربح" />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </div>
 
-            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-x-auto">
-                <table className="w-full text-sm text-right text-gray-500 dark:text-gray-400">
-                    <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-300">
-                        <tr>
-                            <th className="px-6 py-3">التاريخ</th>
-                            <th className="px-6 py-3">إجمالي المبيعات</th>
-                            <th className="px-6 py-3">تكلفة البضاعة</th>
-                            <th className="px-6 py-3">صافي الربح</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {salesByDate.map(day => (
-                            <tr key={day.date} className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
-                                <td className="px-6 py-4">{formatDate(day.date)}</td>
-                                <td className="px-6 py-4">{formatCurrency(day.revenue)}</td>
-                                <td className="px-6 py-4">{formatCurrency(day.cost)}</td>
-                                <td className={`px-6 py-4 font-bold ${day.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>{formatCurrency(day.profit)}</td>
+                    <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-x-auto">
+                        <table className="w-full text-sm text-right text-gray-500 dark:text-gray-400">
+                            <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-300">
+                                <tr>
+                                    <th className="px-6 py-3">التاريخ</th>
+                                    <th className="px-6 py-3">إجمالي المبيعات</th>
+                                    <th className="px-6 py-3">تكلفة البضاعة</th>
+                                    <th className="px-6 py-3">صافي الربح</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {salesByDate.map(day => (
+                                    <tr key={day.date} className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
+                                        <td className="px-6 py-4">{formatDate(day.date)}</td>
+                                        <td className="px-6 py-4">{formatCurrency(day.revenue)}</td>
+                                        <td className="px-6 py-4">{formatCurrency(day.cost)}</td>
+                                        <td className={`px-6 py-4 font-bold ${day.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>{formatCurrency(day.profit)}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </>
+            ) : (
+                <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-x-auto">
+                    <table className="w-full text-sm text-right text-gray-500 dark:text-gray-400">
+                        <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-300">
+                            <tr>
+                                <th className="px-6 py-3">رقم الفاتورة</th>
+                                <th className="px-6 py-3">التاريخ</th>
+                                <th className="px-6 py-3">النوع</th>
+                                <th className="px-6 py-3">البائع</th>
+                                <th className="px-6 py-3">الإجمالي</th>
+                                <th className="px-6 py-3">الإجراءات</th>
                             </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
+                        </thead>
+                        <tbody>
+                            {filteredSalesList.map(sale => (
+                                <tr key={sale.id} className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 cursor-pointer" onClick={() => handlePrintInvoice(sale)}>
+                                    <td className="px-6 py-4 font-bold text-gray-900 dark:text-white">#{sale.invoiceNumber}</td>
+                                    <td className="px-6 py-4">{formatDate(sale.date)}</td>
+                                    <td className="px-6 py-4">{sale.direction}</td>
+                                    <td className="px-6 py-4">{sale.sellerName}</td>
+                                    <td className="px-6 py-4 font-bold text-blue-600">{formatCurrency(sale.totalAmount)}</td>
+                                    <td className="px-6 py-4">
+                                        <button onClick={(e) => { e.stopPropagation(); handlePrintInvoice(sale); }} className="text-gray-500 hover:text-primary transition" title="عرض الفاتورة">
+                                            <i className="fas fa-eye text-lg"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))}
+                            {filteredSalesList.length === 0 && (
+                                <tr>
+                                    <td colSpan={6} className="px-6 py-8 text-center text-gray-500">لا توجد مبيعات في هذه الفترة</td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            )}
         </div>
     );
 };

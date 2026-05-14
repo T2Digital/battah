@@ -56,7 +56,18 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
 
     const globalLoading = useStore(state => state.isLoading);
     useEffect(() => {
+        let lastScanTime = 0;
+        let lastScannedSku = '';
+
         const handleScan = (sku: string) => {
+            const now = Date.now();
+            if (sku === lastScannedSku && now - lastScanTime < 2000) {
+                // Prevent duplicate rapid scans of the same item within 2 seconds
+                return;
+            }
+            lastScanTime = now;
+            lastScannedSku = sku;
+
             setScannedSku(null); // Clear first to force a state change even if same SKU
             setTimeout(() => {
                 setScannedSku(sku);

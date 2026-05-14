@@ -136,10 +136,10 @@ const generateReportHTML = (title: string, themeColor: string, content: string, 
     ${isInvoice ? `
     <style>
         @page { margin: 0; size: 80mm auto; }
-        body { margin: 0; padding: 0; background: #fff; width: 100%; max-width: 78mm; margin: 0 auto; font-family: 'Cairo', sans-serif; font-size: 12px; color: #000; }
-        .invoice-box { width: 100%; margin: 0 auto; padding: 2mm; box-sizing: border-box; overflow: hidden; }
+        body { margin: 0; padding: 0; background: #fff; width: 72mm; max-width: 72mm; margin: 0 auto; font-family: 'Cairo', sans-serif; font-size: 12px; color: #000; direction: rtl; }
+        .invoice-box { width: 100%; margin: 0; padding: 0 2mm; box-sizing: border-box; overflow: hidden; }
         .invoice-box table { width: 100%; line-height: 1.2; text-align: right; border-collapse: collapse; }
-        .invoice-box table td { padding: 2px 0; vertical-align: top; font-size: 12px; }
+        .invoice-box table td { padding: 2px 0; vertical-align: top; font-size: 12px; word-wrap: break-word; }
         .invoice-box table tr.top table td { padding-bottom: 5px; text-align: center; }
         .invoice-box table tr.top table td.title { font-size: 20px; line-height: 24px; color: #000; font-weight: bold; }
         .invoice-box table tr.information table td { padding-bottom: 10px; text-align: center; border-bottom: 1px dashed #000; }
@@ -154,8 +154,9 @@ const generateReportHTML = (title: string, themeColor: string, content: string, 
         .invoice-box .mt-4 { margin-top: 10px; }
         .invoice-box hr { border: none; border-top: 1px dashed #000; margin: 10px 0; }
         @media print {
-            body { max-width: 78mm; }
-            .invoice-box { padding: 2mm; }
+            @page { margin: 0; size: 80mm auto; }
+            body { width: 72mm; max-width: 72mm; margin: 0 auto; padding: 0; }
+            .invoice-box { padding: 2mm; width: 100%; box-sizing: border-box; }
             .no-print { display: none; }
         }
     </style>
@@ -189,19 +190,25 @@ export const generateInvoiceContent = (sale: DailySale, products: Product[]) => 
         </tr>
     `}).join('');
 
-    const content = `
+    const branchAddressHtml = sale.branchSoldFrom === 'branch1' ? `
+        <p style="margin: 0; font-size: 10px;">1 شارع البورصة ناصية التوفيقية امام دار القضاء العالى</p>
+    ` : `
+        <p style="margin: 0; font-size: 10px;">79 شارع رمسيس ناصية التوفيقية</p>
+        <p style="margin: 0; font-size: 10px;">تليفون: 01080444447</p>
+    `;
+
+    const singleInvoiceHtml = `
     <div class="invoice-box">
         <div class="text-center mb-2">
             <h1 style="margin: 0; font-size: 20px; font-weight: bold;">بطاح الأصلي</h1>
             <p style="margin: 0; font-size: 12px;">لقطع غيار السيارات</p>
-            <p style="margin: 0; font-size: 10px;">79 شارع رمسيس ناصية التوفيقية</p>
-            <p style="margin: 0; font-size: 10px;">تليفون: 01080444447</p>
+            ${branchAddressHtml}
         </div>
         <hr>
         <div style="font-size: 12px; margin-bottom: 5px;">
             <div><strong>رقم الفاتورة:</strong> ${sale.invoiceNumber}</div>
             <div><strong>التاريخ والوقت:</strong> ${formatDateTime(sale.date, sale.timestamp)}</div>
-            <div><strong>الفرع:</strong> ${sale.branchSoldFrom === 'main' ? 'الرئيسي' : sale.branchSoldFrom}</div>
+            <div><strong>الفرع:</strong> ${sale.branchSoldFrom === 'main' ? 'الرئيسي' : sale.branchSoldFrom === 'branch1' ? 'فرع التوفيقية' : sale.branchSoldFrom}</div>
             <div><strong>البائع:</strong> ${sale.sellerName}</div>
             ${sale.customerName ? `<div><strong>العميل:</strong> ${sale.customerName}</div>` : ''}
             ${sale.customerPhone ? `<div><strong>تليفون العميل:</strong> ${sale.customerPhone}</div>` : ''}
@@ -273,9 +280,19 @@ export const generateInvoiceContent = (sale: DailySale, products: Product[]) => 
                     <li>يشترط الحفاظ على حالة المنتج الأصلية (الكرتونة والمحتويات).</li>
                 </ul>
             </div>
+            <div style="margin-top: 5px; font-size: 9px; color: #555;">(نسخة العميل)</div>
         </div>
     </div>
     `;
+
+    const singleInvoiceHtmlCopy2 = singleInvoiceHtml.replace('(نسخة العميل)', '(نسخة المحل)');
+
+    const content = `
+        ${singleInvoiceHtml}
+        <div style="page-break-after: always; margin-top: 20px;"></div>
+        ${singleInvoiceHtmlCopy2}
+    `;
+
     return generateReportHTML(`فاتورة ${sale.invoiceNumber}`, '#3b82f6', content, true);
 };
 
@@ -722,6 +739,7 @@ export const generateProductCardexReportContent = (appData: AppData, productId: 
                     timestamp: sale.timestamp,
                     type: isReturn ? 'مرتجع مبيعات' : 'مبيعات',
                     invoiceNumber: sale.invoiceNumber,
+                    saleId: sale.id,
                     branch: sale.branchSoldFrom,
                     quantityChange: isReturn ? item.quantity : -item.quantity,
                     notes: sale.notes || '',
@@ -859,9 +877,10 @@ export const generateProductCardexReportContent = (appData: AppData, productId: 
                 ${filteredMovements.length > 0 ? filteredMovements.map(m => {
                     const quantityChangeStr = m.quantityChange > 0 ? `+${m.quantityChange}` : `${m.quantityChange}`;
                     const rowClass = m.quantityChange > 0 ? 'text-green-600' : 'text-red-600';
+                    const invoiceLink = m.saleId ? `<a href="#" onclick="if(window.opener && window.opener.printInvoiceFromCardex) { window.opener.printInvoiceFromCardex(${m.saleId}); } return false;" style="color: #3b82f6; text-decoration: underline; cursor: pointer;">${m.invoiceNumber}</a>` : m.invoiceNumber;
                     return `<tr>
                         <td dir="ltr">${formatDateTime(m.date, m.timestamp)}</td>
-                        <td>${m.invoiceNumber}</td>
+                        <td>${invoiceLink}</td>
                         <td>${m.type}</td>
                         <td>${m.branch}</td>
                         <td class="${rowClass} font-bold" dir="ltr">${quantityChangeStr}</td>
@@ -910,11 +929,17 @@ export const generateReorderPointReportContent = (appData: AppData) => {
 };
 
 
-export const generateSalesAnalysisReportContent = (appData: AppData) => {
+export const generateSalesAnalysisReportContent = (appData: AppData, startDate?: string, endDate?: string) => {
     const { dailySales, products } = appData;
+    let filteredSales = dailySales;
+    
+    if (startDate && endDate) {
+        filteredSales = dailySales.filter(sale => sale.date >= startDate && sale.date <= endDate);
+    }
+
     const salesData = new Map<number, { name: string; sku: string; quantity: number; value: number }>();
 
-    dailySales.forEach(sale => {
+    filteredSales.forEach(sale => {
         normalizeSaleItems(sale).forEach(item => {
             const product = products.find(p => p.id === item.productId);
             if (!product) return;

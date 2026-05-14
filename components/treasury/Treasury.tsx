@@ -12,16 +12,15 @@ interface TreasuryProps {
 }
 
 const Treasury: React.FC<TreasuryProps> = ({ treasury }) => {
-    const { resetTreasury, clearTreasury, deleteTreasuryTransaction, appData, fetchDataByDateRange } = useStore();
+    const { addTreasuryTransaction, clearTreasury, deleteTreasuryTransaction, appData, fetchDataByDateRange } = useStore();
     const [filters, setFilters] = useState({ dateFrom: '', dateTo: '', type: '' });
     const [filterPeriod, setFilterPeriod] = useState<'daily' | 'monthly' | 'yearly'>('daily');
     
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [isClearModalOpen, setIsClearModalOpen] = useState(false);
-    const [newBalance, setNewBalance] = useState<string>('');
+    const [withdrawAmount, setWithdrawAmount] = useState<string>('');
     const [error, setError] = useState('');
     const [showSecurityCheck, setShowSecurityCheck] = useState(false);
-    const [securityAction, setSecurityAction] = useState<'setBalance' | 'clearTreasury' | 'deleteTransaction' | null>(null);
+    const [securityAction, setSecurityAction] = useState<'setBalance' | 'deleteTransaction' | null>(null);
     const [transactionToDelete, setTransactionToDelete] = useState<number | string | null>(null);
 
     const processedTransactions = useMemo(() => {
@@ -75,9 +74,9 @@ const Treasury: React.FC<TreasuryProps> = ({ treasury }) => {
 
     const handleSetBalance = async (e?: React.FormEvent) => {
         if (e) e.preventDefault();
-        const balanceValue = parseFloat(newBalance);
-        if (isNaN(balanceValue)) {
-             setError('يرجى إدخال مبلغ صحيح');
+        const amount = parseFloat(withdrawAmount);
+        if (isNaN(amount) || amount <= 0 || amount > finalBalance) {
+             setError('يرجى إدخال مبلغ صحيح للسحب، بحيث لا يتجاوز الرصيد الحالي.');
              return;
         }
         setSecurityAction('setBalance');
@@ -85,15 +84,22 @@ const Treasury: React.FC<TreasuryProps> = ({ treasury }) => {
     };
 
     const executeSetBalance = async () => {
-        const balanceValue = parseFloat(newBalance);
+        const amount = parseFloat(withdrawAmount);
         try {
-            await resetTreasury(balanceValue);
+            await addTreasuryTransaction({
+                date: new Date().toISOString(),
+                type: 'مصروف آخر',
+                description: 'سحب من الرصيد',
+                amountIn: 0,
+                amountOut: amount,
+                paymentMethod: 'cash'
+            });
             setIsModalOpen(false);
-            setNewBalance('');
+            setWithdrawAmount('');
             setError('');
         } catch (e) {
             console.error(e);
-            setError('حدث خطأ أثناء ضبط الرصيد');
+            setError('حدث خطأ أثناء إجراء السحب');
         }
     };
 
@@ -118,29 +124,10 @@ const Treasury: React.FC<TreasuryProps> = ({ treasury }) => {
         }
     };
 
-    const handleClearTreasury = async (e?: React.FormEvent) => {
-        if (e) e.preventDefault();
-        setSecurityAction('clearTreasury');
-        setShowSecurityCheck(true);
-    };
-
-    const executeClearTreasury = async () => {
-        try {
-            await clearTreasury();
-            setIsClearModalOpen(false);
-            setError('');
-        } catch (e) {
-            console.error(e);
-            setError('حدث خطأ أثناء مسح المعاملات');
-        }
-    };
-
     const handleSecuritySuccess = () => {
         setShowSecurityCheck(false);
         if (securityAction === 'setBalance') {
             executeSetBalance();
-        } else if (securityAction === 'clearTreasury') {
-            executeClearTreasury();
         } else if (securityAction === 'deleteTransaction') {
             executeDeleteTransaction();
         }
@@ -174,18 +161,11 @@ const Treasury: React.FC<TreasuryProps> = ({ treasury }) => {
                 </div>
                 <div className="flex gap-2">
                     <button 
-                        onClick={() => setIsClearModalOpen(true)}
-                        className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 transition shadow-md flex items-center gap-2"
-                    >
-                        <i className="fas fa-trash-alt"></i>
-                        مسح جميع المعاملات
-                    </button>
-                    <button 
                         onClick={() => setIsModalOpen(true)}
                         className="bg-primary text-white px-4 py-2 rounded hover:bg-primary-dark transition shadow-md flex items-center gap-2"
                     >
-                        <i className="fas fa-edit"></i>
-                        ضبط الرصيد / تصفير
+                        <i className="fas fa-hand-holding-usd"></i>
+                        سحب الرصيد
                     </button>
                 </div>
             </div>
@@ -278,33 +258,28 @@ const Treasury: React.FC<TreasuryProps> = ({ treasury }) => {
             </div>
 
             {isModalOpen && (
-                <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="ضبط رصيد الخزينة" onSave={handleSetBalance} saveLabel="تأكيد">
+                <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="سحب الرصيد" onSave={handleSetBalance} saveLabel="تأكيد السحب">
                     <div className="space-y-4">
                         <p className="text-gray-600 dark:text-gray-300">
-                            سيتم إضافة معاملة تسوية لضبط رصيد الخزينة إلى المبلغ المحدد.
+                            أدخل المبلغ الذي تود سحبه من الخزينة. سيتم تسجيل كمعاملة سحب/مصروف.
                         </p>
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">الرصيد الجديد المطلوب</label>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">المبلغ المراد سحبه</label>
                             <input 
                                 type="number" 
-                                value={newBalance} 
-                                onChange={e => setNewBalance(e.target.value)}
+                                value={withdrawAmount} 
+                                onChange={e => setWithdrawAmount(e.target.value)}
                                 className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
                                 placeholder="0"
                             />
                         </div>
-                        {error && <p className="text-red-500 text-sm">{error}</p>}
-                    </div>
-                </Modal>
-            )}
-
-            {isClearModalOpen && (
-                <Modal isOpen={isClearModalOpen} onClose={() => setIsClearModalOpen(false)} title="مسح جميع المعاملات" onSave={handleClearTreasury} saveLabel="تأكيد الحذف">
-                    <div className="space-y-4">
-                        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
-                            <strong className="font-bold">تحذير! </strong>
-                            <span className="block sm:inline">سيتم مسح جميع معاملات الخزينة بشكل نهائي. لا يمكن التراجع عن هذا الإجراء.</span>
-                        </div>
+                        <button 
+                            type="button" 
+                            onClick={() => setWithdrawAmount(finalBalance.toString())}
+                            className="bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 px-4 py-2 rounded hover:bg-gray-300 dark:hover:bg-gray-600 transition text-sm"
+                        >
+                            سحب كل الرصيد ({formatCurrency(finalBalance)})
+                        </button>
                         {error && <p className="text-red-500 text-sm">{error}</p>}
                     </div>
                 </Modal>
@@ -318,7 +293,7 @@ const Treasury: React.FC<TreasuryProps> = ({ treasury }) => {
                         setSecurityAction(null);
                     }}
                     onSuccess={handleSecuritySuccess}
-                    actionDescription={securityAction === 'setBalance' ? 'ضبط رصيد الخزينة' : securityAction === 'clearTreasury' ? 'مسح جميع المعاملات' : 'حذف معاملة'}
+                    actionDescription={securityAction === 'setBalance' ? 'ضبط رصيد الخزينة' : 'حذف معاملة'}
                 />
             )}
         </div>

@@ -172,6 +172,7 @@ const useStore = create<AppState & AppActions>((set, get) => ({
     isInitialized: false,
     isPublicInitialized: false,
     isLoading: false,
+    pendingScan: null,
     pendingOrderIdToOpen: null,
     appData: {
         users: [], products: [], dailySales: [], employees: [], advances: [],

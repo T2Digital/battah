@@ -99,12 +99,18 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
             if (!finalSku) return;
             setLoading(true);
             try {
-                const results = await searchProducts(finalSku);
-                const exactMatch = results.find(p => String(p.sku || '').toLowerCase() === finalSku.toLowerCase() || String(p.id) === finalSku);
+                // Try to find in local products first to speed up
+                let exactMatch = useStore.getState().appData?.products?.find(p => String(p.sku || '').toLowerCase() === finalSku.toLowerCase() || String(p.id) === finalSku);
+                
+                if (!exactMatch) {
+                    const results = await searchProducts(finalSku);
+                    exactMatch = results.find(p => String(p.sku || '').toLowerCase() === finalSku.toLowerCase() || String(p.id) === finalSku);
+                }
+                
                 if (exactMatch) {
                     setSelectedProduct(exactMatch);
                 } else {
-                    alert(`لم يتم العثور على المنتج: ${finalSku}`);
+                    alert(`لم يتم العثور على المنتج بالباركود: ${finalSku}`);
                 }
             } catch (error) {
                 console.error("Error finding scanned product:", error);
