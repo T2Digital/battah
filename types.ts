@@ -126,6 +126,7 @@ export interface Employee {
     address?: string;
     email?: string; // Added for linking to auth
     idCardUrl?: string; // Added
+    biometricId?: string; // Added for fingerprint device alignment
 }
 
 export interface Advance {

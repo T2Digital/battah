@@ -86,6 +86,7 @@ const AttendanceModal: React.FC<{
 const Attendance: React.FC<AttendanceProps> = ({ attendance, setAttendance, employees }) => {
     const { fetchDataByDateRange } = useStore();
     const [isModalOpen, setModalOpen] = useState(false);
+    const [isBiometricSetupOpen, setBiometricSetupOpen] = useState(false);
     const [recordToEdit, setRecordToEdit] = useState<AttendanceType | null>(null);
     const [filters, setFilters] = useState({ dateFrom: '', dateTo: '' });
     const [filterPeriod, setFilterPeriod] = useState<'daily' | 'monthly' | 'yearly'>('daily');
@@ -195,6 +196,10 @@ const Attendance: React.FC<AttendanceProps> = ({ attendance, setAttendance, empl
         <div className="animate-fade-in space-y-6">
             <SectionHeader icon="fa-clock" title="الحضور والانصراف">
                 <div className="flex gap-2">
+                    <button onClick={() => setBiometricSetupOpen(true)} className="px-4 py-2 bg-blue-600 text-white rounded-lg flex items-center gap-2 hover:bg-blue-700 transition shadow-md">
+                        <i className="fas fa-fingerprint"></i>
+                        ربط جهاز البصمة
+                    </button>
                     <label className="px-4 py-2 bg-green-600 text-white rounded-lg flex items-center gap-2 hover:bg-green-700 transition shadow-md cursor-pointer">
                         <i className="fas fa-file-excel"></i>
                         استيراد ملف
@@ -283,6 +288,100 @@ const Attendance: React.FC<AttendanceProps> = ({ attendance, setAttendance, empl
                 recordToEdit={recordToEdit}
                 employees={employees}
             />
+
+            <Modal 
+                isOpen={isBiometricSetupOpen} 
+                onClose={() => setBiometricSetupOpen(false)} 
+                title="إعدادات الربط المباشر مع جهاز البصمة (ZKTeco/Online)"
+                saveLabel="حسناً، فهمت"
+                onSave={(e) => { e.preventDefault(); setBiometricSetupOpen(false); }}
+            >
+                <div className="space-y-4 text-gray-800 dark:text-gray-200 leading-relaxed text-sm md:text-base">
+                    <p className="font-semibold text-primary">
+                        نحن جاهزون تماماً للربط مع جميع أنواع أجهزة البصمة (الحديثة والقديمة).
+                    </p>
+                    
+                    <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-gray-50 dark:bg-gray-800/50">
+                        <h3 className="font-bold mb-2 flex items-center gap-2">
+                            <i className="fas fa-wifi text-green-500"></i>
+                            أولاً: إذا كان الجهاز حديثاً (يدعم ADMS / Cloud Server)
+                        </h3>
+                        <p className="mb-2 text-gray-700 dark:text-gray-300">
+                            في أجهزة <strong>ZKTeco</strong> الحديثة، ادخل إلى (إعدادات الشبكة) ثم (إعدادات الخادم السحابي / ADMS) واضبط الآتي:
+                        </p>
+                        <ul className="list-disc list-inside mb-3 space-y-1 text-sm text-gray-600 dark:text-gray-400">
+                            <li><strong>عنوان الخادم (Server Address):</strong> ضع رابط التطبيق <strong>بدون</strong> (https://) <br/>
+                                <code className="bg-gray-200 dark:bg-gray-700 p-1 px-2 rounded ml-1 text-blue-600 dark:text-blue-400 font-mono inline-block mt-1" dir="ltr">
+                                    {window.location.host}
+                                </code>
+                            </li>
+                            <li><strong>منفذ الخادم (Server Port):</strong> 443</li>
+                            <li><strong>تفعيل HTTPS:</strong> نعم (Yes)</li>
+                        </ul>
+                        <p className="text-sm text-gray-500">
+                            *الجهاز تلقائياً سيقوم بإرسال البصمات إلى مسار <code dir="ltr">/iclock/cdata</code> وقد قمنا بتجهيز النظام لاستقبالها فوراً. 
+                            (إذا كان جهازك يطلب Webhook URL صريح، استخدم: <code dir="ltr">{window.location.origin}/api/biometric-webhook</code>).
+                        </p>
+                    </div>
+
+                    <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-gray-50 dark:bg-gray-800/50">
+                        <h3 className="font-bold mb-2 flex items-center gap-2">
+                            <i className="fas fa-network-wired text-blue-500"></i>
+                            ثانياً: إذا كان الجهاز عادياً (شبكة داخلية LAN / وايفاي محلي فقط)
+                        </h3>
+                        <p className="mb-2">جهزنا لك سكربت وسيط (Bridge Agent) يتم تشغيله على أي كمبيوتر في المحل بنفس شبكة جهاز البصمة، حيث يقوم بسحب بصمات الموظفين لحظياً وإرسالها للنظام.</p>
+                        <div className="flex flex-col sm:flex-row gap-2 mt-2">
+                            <a 
+                                href="/bridge-agent.js" 
+                                download="bridge-agent.js" 
+                                className="inline-flex items-center justify-center gap-2 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400 px-4 py-2 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-800/60 transition"
+                            >
+                                <i className="fas fa-file-code"></i>
+                                1. تحميل السكربت (Bridge Agent)
+                            </a>
+                            <a 
+                                href="/install-service.js" 
+                                download="install-service.js" 
+                                className="inline-flex items-center justify-center gap-2 bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-400 px-4 py-2 rounded-lg hover:bg-purple-200 dark:hover:bg-purple-800/60 transition"
+                            >
+                                <i className="fas fa-cogs"></i>
+                                2. أداة التثبيت في الخلفية
+                            </a>
+                        </div>
+                        
+                        <details className="text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded p-3 mt-3">
+                            <summary className="font-semibold cursor-pointer text-blue-600 dark:text-blue-400">خطوات التشغيل الدائم والمخفي لمعالجة البصمة (اضغط للفتح):</summary>
+                            <p className="mt-2 text-green-700 dark:text-green-400 font-medium">حتى لا يتم فتح أي شاشة سوداء للموظف، الأداة سيتم تشغيلها كـ (Windows Service) خدمة تابعة للويندوز تعمل في الخلفية فور تشغيل الحاسوب تلقائياً.</p>
+                            <ol className="list-decimal list-inside mt-2 space-y-2 text-gray-700 dark:text-gray-300">
+                                <li>قم بتثبيت برنامج <strong>Node.js</strong> على أي كمبيوتر متصل بنفس شبكة المحل.</li>
+                                <li>ضع ملف <code>bridge-agent.js</code> وملف <code>install-service.js</code> معاً في مجلد واحد (مثلاً على الـ C).</li>
+                                <li>قم بإنشاء ملف نصي في نفس المجلد باسم <code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">.env</code> وضع فيه الإعدادات الآتية لحفظ رابط النظام وIP البصمة:
+                                    <pre className="bg-gray-100 dark:bg-gray-900 p-2 mt-1 rounded text-left text-xs" dir="ltr">
+DEVICE_IP=192.168.1.201{'\n'}
+DEVICE_PORT=4370{'\n'}
+SYSTEM_WEBHOOK_URL={window.location.origin}/api/biometric-webhook
+                                    </pre>
+                                </li>
+                                <li>افتح موجة الأوامر كمسؤول (Run as Administrator) داخل هذا المجلد.</li>
+                                <li>اكتب الأمر الآتي لتحميل الحزم المطلوبة: <br/> <code className="bg-gray-100 dark:bg-gray-700 px-2 py-1 mt-1 inline-block rounded text-red-500" dir="ltr">npm install node-zklib axios dotenv node-windows</code></li>
+                                <li>اكتب أمر التنصيب الآتي مرة واحدة فقط: <br/> <code className="bg-gray-100 dark:bg-gray-700 px-2 py-1 mt-1 inline-block rounded text-red-500" dir="ltr">node install-service.js</code></li>
+                            </ol>
+                            <p className="mt-3 text-xs font-semibold text-gray-500 bg-gray-50 dark:bg-gray-900 p-2 rounded">
+                                * مبروك! الآن البرنامج تم تنصيبه في نظام الويندوز، وسيعمل في الخلفية تلقائياً للأبد ويقوم بسحب البصمات وإلقائها في النظام لحظياً دون أن يرى الموظف أي شيء.
+                            </p>
+                        </details>
+                        <p className="text-xs text-gray-500 mt-2">
+                            *يجب تنصيب Node.js وتشغيل السكربت حسب التعليمات المكتوبة بداخل الملف.
+                        </p>
+                    </div>
+
+                    <div className="bg-yellow-50 dark:bg-yellow-900/30 p-4 rounded-lg mt-4 border border-yellow-200 dark:border-yellow-700">
+                        <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                            <strong>ملاحظة هامة:</strong> لكي يتم التعرف على الموظف بشكل صحيح، يجب الدخول إلى شاشة (الموظفين) والتأكد من إدخال <strong>"رقم البصمة"</strong> لكل موظف ليتطابق تماماً مع رقمه المبرمج داخل جهاز البصمة.
+                        </p>
+                    </div>
+                </div>
+            </Modal>
         </div>
     );
 };

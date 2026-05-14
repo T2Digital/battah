@@ -21,7 +21,8 @@ const EmployeeModal: React.FC<{
         hireDate: new Date().toISOString().split('T')[0],
         phone: '',
         address: '',
-        email: ''
+        email: '',
+        biometricId: ''
     });
 
     const { uploadImage, appData } = useStore(state => ({
@@ -34,7 +35,7 @@ const EmployeeModal: React.FC<{
 
     React.useEffect(() => {
         if (employeeToEdit) {
-            setFormData({ ...employeeToEdit, email: employeeToEdit.email || '', idCardUrl: employeeToEdit.idCardUrl || '' });
+            setFormData({ ...employeeToEdit, email: employeeToEdit.email || '', idCardUrl: employeeToEdit.idCardUrl || '', biometricId: employeeToEdit.biometricId || '' });
         } else {
             setFormData({
                 name: '',
@@ -44,7 +45,8 @@ const EmployeeModal: React.FC<{
                 phone: '',
                 address: '',
                 email: '',
-                idCardUrl: ''
+                idCardUrl: '',
+                biometricId: ''
             });
         }
         setShowSecurityCheck(false);
@@ -137,6 +139,10 @@ const EmployeeModal: React.FC<{
                 <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">تاريخ التوظيف *</label>
                     <input type="date" name="hireDate" value={formData.hireDate} onChange={handleChange} required className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700" />
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">رقم البصمة في جهاز الحضور</label>
+                    <input type="text" name="biometricId" value={formData.biometricId || ''} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700" placeholder="مثال: 12" />
                 </div>
                 <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">رقم الهاتف</label>

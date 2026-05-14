@@ -422,7 +422,7 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
 
     return (
         <>
-        <Modal isOpen={isOpen} onClose={onClose} title={existingSale ? 'تعديل فاتورة' : 'فاتورة جديدة'} onSave={handlePreSubmit}>
+        <Modal isOpen={isOpen} onClose={onClose} title={existingSale ? 'تعديل فاتورة' : 'فاتورة جديدة'} onSave={handlePreSubmit} saveLabel="حفظ وطباعة">
             <div className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div><label>التاريخ</label><input type="date" value={date} readOnly className="w-full mt-1 p-2 border rounded dark:bg-gray-700 dark:border-gray-600 bg-gray-100" /></div>
