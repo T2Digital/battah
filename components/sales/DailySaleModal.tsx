@@ -10,7 +10,7 @@ type EditableSaleItem = SaleItem & { productName: string; stock: number; hasSeri
 interface DailySaleModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onSave: (sale: Omit<DailySale, 'id'> & { id?: number }) => void;
+    onSave: (sale: Omit<DailySale, 'id'> & { id?: number }, shouldPrint?: boolean) => void;
     currentUser: User;
     existingSale: DailySale | null;
     dailySales: DailySale[];
@@ -386,7 +386,7 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
                 itemType: rest.itemType || 'أخرى' // Ensure string
             })), 
         };
-        onSave(existingSale ? { ...saleData, id: existingSale.id } : saleData);
+        onSave(existingSale ? { ...saleData, id: existingSale.id } : saleData, true);
     };
 
     const [showSecurityPassword, setShowSecurityPassword] = useState(false);

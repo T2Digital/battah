@@ -165,7 +165,12 @@ const generateReportHTML = (title: string, themeColor: string, content: string, 
 <body>
     ${content}
     <script>
-        setTimeout(() => window.print(), 500);
+        window.onafterprint = function() {
+            window.close();
+        };
+        setTimeout(() => {
+            window.print();
+        }, 500);
     </script>
 </body>
 </html>`;
@@ -289,7 +294,9 @@ export const generateInvoiceContent = (sale: DailySale, products: Product[]) => 
 
     const content = `
         ${singleInvoiceHtml}
-        <div style="page-break-after: always; margin-top: 20px;"></div>
+        
+        <div style="page-break-after: always;"></div>
+        
         ${singleInvoiceHtmlCopy2}
     `;
 

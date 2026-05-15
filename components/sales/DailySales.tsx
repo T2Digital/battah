@@ -170,7 +170,7 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
         }
     };
     
-    const handleSaveSale = async (saleData: Omit<DailySale, 'id'> & { id?: number }) => {
+    const handleSaveSale = async (saleData: Omit<DailySale, 'id'> & { id?: number }, shouldPrint?: boolean) => {
         const isEditing = saleData.id !== undefined;
         let finalSaleData: Omit<DailySale, 'id'> = saleData;
 
@@ -215,10 +215,13 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
             await updateProductStock(productId, finalSaleData.branchSoldFrom, change);
         }
 
+        let savedSale: DailySale;
         if (isEditing && saleData.id) {
             await updateDailySale(saleData.id, saleData);
+            savedSale = { ...saleData, id: saleData.id } as DailySale;
         } else {
             const newSale = await addDailySale(finalSaleData);
+            savedSale = newSale;
             
             if (newSale.direction === 'هدية') {
                 // Add to expenses without deducting from treasury
@@ -286,6 +289,9 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
         }
         
         setModalOpen(false);
+        if (shouldPrint) {
+            handlePrintInvoice(savedSale);
+        }
     };
 
     const handlePrintInvoice = (sale: DailySale) => {
