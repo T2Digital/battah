@@ -34,6 +34,7 @@ const Users: React.FC = () => {
                 name: userData.name,
                 role: userData.role,
                 branch: userData.branch,
+                allowedBranches: userData.allowedBranches,
                 permissions: userData.permissions,
                 ...(userData.password ? { password: userData.password } : {})
             });
@@ -44,7 +45,8 @@ const Users: React.FC = () => {
                 userData.role,
                 userData.branch,
                 userData.name,
-                userData.permissions
+                userData.permissions,
+                userData.allowedBranches
             );
         }
     };

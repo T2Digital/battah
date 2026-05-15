@@ -40,6 +40,7 @@ export interface User {
     name: string;
     role: Role;
     branch: Branch;
+    allowedBranches?: Branch[];
     permissions: Section[];
     password?: string; // Added to store password for display (Admin only)
 }

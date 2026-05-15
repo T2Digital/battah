@@ -85,6 +85,7 @@ type AppActions = {
     setCurrentUser: (user: User) => void;
     setCurrentUserByEmail: (email: string) => Promise<void>;
     clearCurrentUser: () => void;
+    switchActiveBranch: (branch: Branch) => void;
     addToast: (message: string, type?: Toast['type']) => void;
     removeToast: (toastId: number) => void;
     
@@ -156,7 +157,7 @@ type AppActions = {
     deleteDiscountCode: (codeId: string) => Promise<void>;
     addAttendanceRecord: (record: Attendance) => Promise<void>;
     updateAttendanceRecord: (id: number, updates: Partial<Attendance>) => Promise<void>;
-    createUser: (email: string, pass: string, role: Role, branch: Branch, name: string, permissions?: Section[]) => Promise<void>;
+    createUser: (email: string, pass: string, role: Role, branch: Branch, name: string, permissions?: Section[], allowedBranches?: Branch[]) => Promise<void>;
     updateUser: (userId: string, updates: Partial<User>) => Promise<void>;
     deleteUser: (userId: string) => Promise<void>;
     updateSettings: (settings: Partial<Settings>) => Promise<void>;
@@ -383,6 +384,12 @@ const useStore = create<AppState & AppActions>((set, get) => ({
         window.location.hash = '';
     },
     setCurrentUser: (user) => set({ currentUser: user }),
+    switchActiveBranch: (branch) => set((state) => {
+        if (state.currentUser) {
+            return { currentUser: { ...state.currentUser, branch } };
+        }
+        return state;
+    }),
     setCurrentUserByEmail: async (email) => {
         try {
             const q = query(collection(db, "users"), where("username", "==", email.toLowerCase()));
@@ -1641,7 +1648,7 @@ const useStore = create<AppState & AppActions>((set, get) => ({
     updateAttendanceRecord: async (id, updates) => {
         await updateDoc(doc(db, "attendance", String(id)), updates);
     },
-    createUser: async (email, pass, role, branch, name, permissions = []) => {
+    createUser: async (email, pass, role, branch, name, permissions = [], allowedBranches = []) => {
         // Use a secondary app to create user without logging out the current admin
         const secondaryApp = initializeApp(firebaseConfig, "Secondary");
         const secondaryAuth = getAuth(secondaryApp);
@@ -1657,7 +1664,9 @@ const useStore = create<AppState & AppActions>((set, get) => ({
                 username: email,
                 role: role,
                 branch: branch,
-                permissions: permissions
+                allowedBranches: Array.from(new Set([...allowedBranches, branch])),
+                permissions: permissions,
+                password: pass
             };
             
             await setDoc(doc(db, "users", user.uid), newUser);

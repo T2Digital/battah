@@ -15,6 +15,7 @@ const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose, onSave, existing
     const [password, setPassword] = useState('');
     const [role, setRole] = useState<Role>(Role.Seller);
     const [branch, setBranch] = useState<Branch>('main');
+    const [allowedBranches, setAllowedBranches] = useState<Branch[]>(['main']);
     const [permissions, setPermissions] = useState<Section[]>([]);
     const [loading, setLoading] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
@@ -25,6 +26,7 @@ const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose, onSave, existing
             setEmail(existingUser.username);
             setRole(existingUser.role);
             setBranch(existingUser.branch);
+            setAllowedBranches(existingUser.allowedBranches || [existingUser.branch]);
             setPermissions(existingUser.permissions || []);
         } else {
             setName('');
@@ -32,12 +34,17 @@ const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose, onSave, existing
             setPassword('');
             setRole(Role.Seller);
             setBranch('main');
+            setAllowedBranches(['main']);
             setPermissions([]);
         }
     }, [existingUser]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        
+        // Ensure default branch is in allowed branches
+        const uniqueAllowedBranches = Array.from(new Set([...allowedBranches, branch]));
+        
         setLoading(true);
         try {
             await onSave({
@@ -47,6 +54,7 @@ const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose, onSave, existing
                 password,
                 role,
                 branch,
+                allowedBranches: uniqueAllowedBranches,
                 permissions
             });
             onClose();
@@ -174,7 +182,7 @@ const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose, onSave, existing
                                 </select>
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">الفرع</label>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">الفرع الافتراضي</label>
                                 <select 
                                     value={branch} 
                                     onChange={e => setBranch(e.target.value as Branch)}
@@ -185,6 +193,27 @@ const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose, onSave, existing
                                     <option value="branch2">فرع 1</option>
                                     <option value="branch3">فرع 2</option>
                                 </select>
+                            </div>
+                            <div className="md:col-span-2">
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">الفروع المتاحة للمستخدم (يستطيع التبديل بينها)</label>
+                                <div className="flex flex-wrap gap-3 p-3 border rounded-lg dark:border-gray-600 bg-gray-50 dark:bg-gray-800">
+                                    {(['main', 'branch1', 'branch2', 'branch3'] as Branch[]).map(b => (
+                                        <label key={b} className="flex items-center gap-2 cursor-pointer">
+                                            <input 
+                                                type="checkbox"
+                                                checked={allowedBranches.includes(b)}
+                                                onChange={(e) => {
+                                                    if (e.target.checked) setAllowedBranches([...allowedBranches, b]);
+                                                    else setAllowedBranches(allowedBranches.filter(br => br !== b));
+                                                }}
+                                                className="w-4 h-4 text-primary focus:ring-primary rounded"
+                                            />
+                                            <span className="text-sm dark:text-gray-300">
+                                                {b === 'main' ? 'المخزن' : b === 'branch1' ? 'الرئيسي' : b === 'branch2' ? 'فرع 1' : 'فرع 2'}
+                                            </span>
+                                        </label>
+                                    ))}
+                                </div>
                             </div>
                         </div>
 

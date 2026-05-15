@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import useStore from '../lib/store';
+import { Branch } from '../types';
 import NotificationsDropdown from './shared/NotificationsDropdown';
 import GlobalSearch from './shared/GlobalSearch';
 
@@ -11,7 +12,7 @@ interface HeaderProps {
 }
 
 const Header: React.FC<HeaderProps> = ({ toggleSidebar, setViewMode }) => {
-    const { currentUser, logout } = useStore();
+    const { currentUser, switchActiveBranch, logout } = useStore();
     const [isSearchOpen, setSearchOpen] = useState(false);
     const [isDarkMode, setIsDarkMode] = useState(false);
 
@@ -43,6 +44,15 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar, setViewMode }) => {
 
     if (!currentUser) return null;
 
+    const branchLabels: Record<Branch, string> = {
+        'main': 'المخزن',
+        'branch1': 'الرئيسي',
+        'branch2': 'فرع 1',
+        'branch3': 'فرع 2'
+    };
+
+    const hasMultipleBranches = currentUser.allowedBranches && currentUser.allowedBranches.length > 1;
+
     return (
         <>
             <header className="fixed top-0 left-0 right-0 bg-white dark:bg-gray-800 shadow-md h-20 flex items-center justify-between px-6 z-40" style={{ right: 0 }}>
@@ -59,6 +69,20 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar, setViewMode }) => {
                         <i className="fas fa-search"></i>
                         <span className="hidden lg:inline">بحث سريع...</span>
                     </button>
+                    {hasMultipleBranches && (
+                        <div className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 mr-2 sm:mr-4 bg-gray-100 dark:bg-gray-700 rounded-lg px-2 sm:px-3 py-1">
+                            <i className="fas fa-map-marker-alt text-primary dark:text-primary-light hidden sm:block"></i>
+                            <select 
+                                value={currentUser.branch}
+                                onChange={(e) => switchActiveBranch(e.target.value as Branch)}
+                                className="bg-transparent border-none text-xs sm:text-sm text-gray-700 dark:text-gray-200 focus:ring-0 cursor-pointer outline-none w-auto max-w-[80px] sm:max-w-max p-0"
+                            >
+                                {currentUser.allowedBranches?.map(b => (
+                                    <option key={b} value={b} className="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100">{branchLabels[b]}</option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
                 </div>
                 <div className="flex items-center gap-4 sm:gap-6">
                     <button 
