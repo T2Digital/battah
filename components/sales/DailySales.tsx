@@ -305,6 +305,25 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
 
     const [saleToView, setSaleToView] = useState<DailySale | null>(null);
 
+    useEffect(() => {
+        const checkHashForView = () => {
+            let fullHash = window.location.hash.replace('#', '');
+            const [baseHash, query] = fullHash.split('?');
+            if (baseHash === 'sales' && query && query.startsWith('view=')) {
+                const saleIdStr = query.split('=')[1];
+                const saleId = Number(saleIdStr);
+                const sale = dailySales.find(s => s.id === saleId);
+                if (sale) {
+                    setSaleToView(sale);
+                }
+            }
+        };
+
+        checkHashForView();
+        window.addEventListener('hashchange', checkHashForView);
+        return () => window.removeEventListener('hashchange', checkHashForView);
+    }, [dailySales]);
+
     const handleViewInvoice = (sale: DailySale) => {
         setSaleToView(sale);
     };

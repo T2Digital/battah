@@ -308,7 +308,8 @@ const App: React.FC = () => {
 
     useEffect(() => {
         const handleHashChange = () => {
-            const hash = window.location.hash.replace('#', '');
+            let fullHash = window.location.hash.replace('#', '');
+            const [hash, query] = fullHash.split('?');
             console.log('Hash changed to:', hash);
 
             // Handle Smart Scanning
@@ -336,10 +337,20 @@ const App: React.FC = () => {
             }
         };
 
+        const handleMessage = (event: MessageEvent) => {
+            if (event.data && event.data.type === 'OPEN_INVOICE' && event.data.saleId) {
+                window.location.hash = 'sales?view=' + event.data.saleId;
+            }
+        };
+
         window.addEventListener('hashchange', handleHashChange);
+        window.addEventListener('message', handleMessage);
         handleHashChange();
 
-        return () => window.removeEventListener('hashchange', handleHashChange);
+        return () => {
+            window.removeEventListener('hashchange', handleHashChange);
+            window.removeEventListener('message', handleMessage);
+        };
     }, []);
 
     const updateActiveSection = (section: Section) => {

@@ -164,6 +164,7 @@ const generateReportHTML = (title: string, themeColor: string, content: string, 
 </head>
 <body>
     ${content}
+    ${isInvoice ? `
     <script>
         window.onafterprint = function() {
             window.close();
@@ -172,6 +173,11 @@ const generateReportHTML = (title: string, themeColor: string, content: string, 
             window.print();
         }, 500);
     </script>
+    ` : `
+    <div class="no-print" style="text-align: left; margin: 20px;">
+        <button onclick="window.print()" style="padding: 10px 20px; background: ${themeColor}; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; font-family: 'Cairo', sans-serif;">طباعة التقرير</button>
+    </div>
+    `}
 </body>
 </html>`;
 
@@ -833,7 +839,7 @@ export const generateProductCardexReportContent = (appData: AppData, productId: 
         const isAfterStart = !startDate || mDate >= new Date(startDate);
         const isBeforeEnd = !endDate || mDate <= new Date(endDate);
         
-        if (!startDate || mDate < new Date(startDate)) {
+        if (startDate && mDate < new Date(startDate)) {
             openingBalanceForPeriod += m.quantityChange;
         }
 
@@ -871,7 +877,7 @@ export const generateProductCardexReportContent = (appData: AppData, productId: 
                     <th>نوع الحركة</th>
                     <th>الفرع</th>
                     <th>الكمية</th>
-                    <th>الرصيد التراكمي</th>
+                    <th>الرصيد</th>
                     <th>ملاحظات</th>
                 </tr>
             </thead>
@@ -884,7 +890,7 @@ export const generateProductCardexReportContent = (appData: AppData, productId: 
                 ${filteredMovements.length > 0 ? filteredMovements.map(m => {
                     const quantityChangeStr = m.quantityChange > 0 ? `+${m.quantityChange}` : `${m.quantityChange}`;
                     const rowClass = m.quantityChange > 0 ? 'text-green-600' : 'text-red-600';
-                    const invoiceLink = m.saleId ? `<a href="#" onclick="if(window.opener && window.opener.printInvoiceFromCardex) { window.opener.printInvoiceFromCardex(${m.saleId}); } return false;" style="color: #3b82f6; text-decoration: underline; cursor: pointer;">${m.invoiceNumber}</a>` : m.invoiceNumber;
+                    const invoiceLink = m.saleId ? `<a href="#" onclick="if(window.opener) { try { window.opener.location.hash = 'sales?view=${m.saleId}'; window.opener.postMessage({ type: 'OPEN_INVOICE', saleId: ${m.saleId} }, '*'); window.opener.focus(); alert('تم فتح تفاصيل الفاتورة في النافذة الرئيسية للنظام.\\nيرجى الرجوع للنافذة السابقة لمشاهدتها.'); } catch(e) { console.error(e); } } else { alert('لا يمكن الوصول للنافذة الرئيسية للنظام.'); } return false;" style="color: #3b82f6; text-decoration: underline; cursor: pointer;">${m.invoiceNumber}</a>` : m.invoiceNumber;
                     return `<tr>
                         <td dir="ltr">${formatDateTime(m.date, m.timestamp)}</td>
                         <td>${invoiceLink}</td>
