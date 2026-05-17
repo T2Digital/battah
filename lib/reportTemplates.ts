@@ -890,7 +890,12 @@ export const generateProductCardexReportContent = (appData: AppData, productId: 
                 ${filteredMovements.length > 0 ? filteredMovements.map(m => {
                     const quantityChangeStr = m.quantityChange > 0 ? `+${m.quantityChange}` : `${m.quantityChange}`;
                     const rowClass = m.quantityChange > 0 ? 'text-green-600' : 'text-red-600';
-                    const invoiceLink = m.saleId ? `<a href="#" onclick="if(window.opener) { try { window.opener.location.hash = 'sales?view=${m.saleId}'; window.opener.postMessage({ type: 'OPEN_INVOICE', saleId: ${m.saleId} }, '*'); window.opener.focus(); alert('تم فتح تفاصيل الفاتورة في النافذة الرئيسية للنظام.\\nيرجى الرجوع للنافذة السابقة لمشاهدتها.'); } catch(e) { console.error(e); } } else { alert('لا يمكن الوصول للنافذة الرئيسية للنظام.'); } return false;" style="color: #3b82f6; text-decoration: underline; cursor: pointer;">${m.invoiceNumber}</a>` : m.invoiceNumber;
+                    const invoiceLink = m.saleId ? `<div style="display: flex; align-items: center; justify-content: center; gap: 5px;">
+                        <a href="#" onclick="if(window.opener) { try { window.opener.location.hash = 'sales?view=${m.saleId}'; window.opener.postMessage({ type: 'OPEN_INVOICE', saleId: ${m.saleId} }, '*'); window.opener.focus(); alert('تم فتح تفاصيل الفاتورة في النافذة الرئيسية للنظام.\\nيرجى الرجوع للنافذة السابقة لمشاهدتها.'); } catch(e) { console.error(e); } } else { alert('لا يمكن الوصول للنافذة الرئيسية للنظام.'); } return false;" style="color: #3b82f6; text-decoration: underline; cursor: pointer;">${m.invoiceNumber}</a>
+                        <button onclick="navigator.clipboard.writeText('${m.invoiceNumber}').then(() => alert('تم نسخ رقم الفاتورة: ${m.invoiceNumber}')); return false;" style="background: none; border: none; cursor: pointer; color: #6b7280; padding: 2px;" title="نسخ رقم الفاتورة">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+                        </button>
+                    </div>` : m.invoiceNumber;
                     return `<tr>
                         <td dir="ltr">${formatDateTime(m.date, m.timestamp)}</td>
                         <td>${invoiceLink}</td>

@@ -46,6 +46,7 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
     const [filterSeller, setFilterSeller] = useState<string>('all');
     const [filterBranch, setFilterBranch] = useState<string>(currentUser?.role === 'admin' ? 'all' : (currentUser?.branch || 'all'));
     const [filterSource, setFilterSource] = useState<'all' | 'المحل' | 'أونلاين'>('all');
+    const [searchInvoice, setSearchInvoice] = useState('');
     
     const [isModalOpen, setModalOpen] = useState(false);
     const [editingSale, setEditingSale] = useState<DailySale | null>(null);
@@ -127,14 +128,22 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
                 const sellerMatch = filterSeller === 'all' || sale.sellerId === filterSeller;
                 const branchMatch = filterBranch === 'all' || sale.branchSoldFrom === filterBranch;
                 const sourceMatch = filterSource === 'all' || sale.source === filterSource;
+                const invoiceMatch = !searchInvoice || sale.invoiceNumber.toLowerCase().includes(searchInvoice.toLowerCase());
                 
+                if (searchInvoice) {
+                    if (currentUser.role === 'seller') {
+                        return sale.sellerId === currentUser.id && invoiceMatch;
+                    }
+                    return invoiceMatch;
+                }
+
                 if (currentUser.role === 'seller') {
                     return dateMatch && sale.sellerId === currentUser.id && branchMatch && sourceMatch;
                 }
                 return dateMatch && sellerMatch && branchMatch && sourceMatch;
             })
             .sort((a,b) => b.id - a.id);
-    }, [dailySales, filterDate, filterPeriod, filterSeller, filterBranch, filterSource, currentUser]);
+    }, [dailySales, filterDate, filterPeriod, filterSeller, filterBranch, filterSource, currentUser, searchInvoice]);
 
     const { totalSales, transactionsCount } = useMemo(() => {
         const total = todaySales.reduce((sum, sale) => {
@@ -468,6 +477,19 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
                         <option value="المحل">المحل</option>
                         <option value="أونلاين">أونلاين</option>
                     </select>
+                </div>
+                <div className="flex-grow">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">بحث برقم الفاتورة</label>
+                    <div className="relative">
+                        <input 
+                            type="text" 
+                            value={searchInvoice} 
+                            onChange={(e) => setSearchInvoice(e.target.value)} 
+                            placeholder="بحث برقم الفاتورة..."
+                            className="w-full p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 pl-10"
+                        />
+                        <i className="fas fa-search absolute left-3 top-3 text-gray-400"></i>
+                    </div>
                 </div>
             </div>
 
