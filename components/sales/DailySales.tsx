@@ -24,7 +24,9 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
         addExpense,
         fetchDataByDateRange,
         pendingScan,
-        setPendingScan
+        setPendingScan,
+        dailyReviews,
+        setDailyReviews
     } = useStore(state => ({
         dailySales: state.appData?.dailySales || [],
         products: state.appData?.products || [],
@@ -38,13 +40,17 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
         addExpense: state.addExpense,
         fetchDataByDateRange: state.fetchDataByDateRange,
         pendingScan: state.pendingScan,
-        setPendingScan: state.setPendingScan
+        setPendingScan: state.setPendingScan,
+        dailyReviews: state.appData?.dailyReview || [],
+        setDailyReviews: state.setDailyReviews
     }));
     
     const [filterDate, setFilterDate] = useState(new Date().toISOString().split('T')[0]);
     const [filterPeriod, setFilterPeriod] = useState<'daily' | 'weekly' | 'monthly' | 'yearly'>('daily');
     const [filterSeller, setFilterSeller] = useState<string>('all');
-    const [filterBranch, setFilterBranch] = useState<string>(currentUser?.role === 'admin' ? 'all' : (currentUser?.branch || 'all'));
+    const [filterBranch, setFilterBranch] = useState<string>(
+        currentUser?.role === 'admin' ? 'all' : (currentUser?.branch || 'all')
+    );
     const [filterSource, setFilterSource] = useState<'all' | 'المحل' | 'أونلاين'>('all');
     const [searchInvoice, setSearchInvoice] = useState('');
     
@@ -54,6 +60,117 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
     const [saleToDelete, setSaleToDelete] = useState<DailySale | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
     const [isOnline, setIsOnline] = useState(navigator.onLine);
+
+    // Daily closing states & hook
+    const [isCloseDayModalOpen, setCloseDayModalOpen] = useState(false);
+    const [closeDayFormData, setCloseDayFormData] = useState({
+        salesCash: 0,
+        salesElectronic: 0,
+        salesParts: 0,
+        salesAccessories: 0,
+        drawerBalance: 0,
+        notes: ''
+    });
+
+    const computedClosingSums = useMemo(() => {
+        const activeBranch = filterBranch === 'all' ? (currentUser.branch || 'main') : filterBranch;
+        const targetDateSales = dailySales.filter(sale => 
+            sale.date === filterDate && 
+            sale.branchSoldFrom === activeBranch
+        );
+
+        let cashSum = 0;
+        let electronicSum = 0;
+        let partsSum = 0;
+        let accessoriesSum = 0;
+
+        targetDateSales.forEach(sale => {
+            const isSale = sale.direction === 'بيع' || sale.direction === 'تبديل';
+            const isReturn = sale.direction === 'مرتجع';
+
+            const cashAmt = sale.cashAmount || 0;
+            const elecAmt = sale.electronicAmount || 0;
+
+            if (isSale) {
+                cashSum += cashAmt;
+                electronicSum += elecAmt;
+            } else if (isReturn) {
+                cashSum -= cashAmt;
+                electronicSum -= elecAmt;
+            }
+
+            const items = normalizeSaleItems(sale);
+            items.forEach(item => {
+                const prod = products.find(p => p.id === item.productId);
+                const itemTotal = item.quantity * item.unitPrice;
+                if (prod) {
+                    if (prod.category?.includes('غيار') || prod.category === 'parts') {
+                        if (isSale) partsSum += itemTotal;
+                        else if (isReturn) partsSum -= itemTotal;
+                    } else if (prod.category?.includes('كماليات') || prod.category?.includes('إكسسوار') || prod.category === 'accessories') {
+                        if (isSale) accessoriesSum += itemTotal;
+                        else if (isReturn) accessoriesSum -= itemTotal;
+                    }
+                }
+            });
+        });
+
+        return {
+            salesCash: Math.max(0, cashSum),
+            salesElectronic: Math.max(0, electronicSum),
+            salesParts: Math.max(0, partsSum),
+            salesAccessories: Math.max(0, accessoriesSum),
+            drawerBalance: Math.max(0, cashSum),
+        };
+    }, [dailySales, filterDate, filterBranch, products, currentUser]);
+
+    const handleOpenCloseDayModal = () => {
+        setCloseDayFormData({
+            salesCash: computedClosingSums.salesCash,
+            salesElectronic: computedClosingSums.salesElectronic,
+            salesParts: computedClosingSums.salesParts,
+            salesAccessories: computedClosingSums.salesAccessories,
+            drawerBalance: computedClosingSums.drawerBalance,
+            notes: ''
+        });
+        setCloseDayModalOpen(true);
+    };
+
+    const handleSaveCloseDay = async (e: React.FormEvent) => {
+        e.preventDefault();
+        try {
+            const activeBranch = filterBranch === 'all' ? (currentUser.branch || 'main') : filterBranch;
+            const existingReview = dailyReviews.find(r => r.date === filterDate && r.branch === activeBranch);
+
+            const totalSales = closeDayFormData.salesCash + closeDayFormData.salesElectronic;
+            const reviewData = {
+                date: filterDate,
+                branch: activeBranch,
+                salesCash: closeDayFormData.salesCash,
+                salesElectronic: closeDayFormData.salesElectronic,
+                salesParts: closeDayFormData.salesParts,
+                salesAccessories: closeDayFormData.salesAccessories,
+                drawerBalance: closeDayFormData.drawerBalance,
+                notes: closeDayFormData.notes,
+                totalSales
+            };
+
+            let updatedReviews;
+            if (existingReview) {
+                updatedReviews = dailyReviews.map(r => r.id === existingReview.id ? { ...r, ...reviewData } as any : r);
+            } else {
+                const newId = Math.max(0, ...dailyReviews.map(r => r.id)) + 1;
+                updatedReviews = [...dailyReviews, { id: newId, ...reviewData } as any];
+            }
+
+            await setDailyReviews(updatedReviews);
+            setCloseDayModalOpen(false);
+            alert('تم تقفيل اليومية وحفظ المراجعة بنجاح');
+        } catch (error) {
+            console.error('Error closing day:', error);
+            alert('حدث خطأ أثناء حفظ تقفيل اليومية');
+        }
+    };
 
     const globalLoading = useStore(state => state.isLoading);
     useEffect(() => {
@@ -365,6 +482,10 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
                             وضع عدم الاتصال (سيتم المزامنة لاحقاً)
                         </div>
                     )}
+                    <button onClick={handleOpenCloseDayModal} className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg flex items-center gap-2 transition shadow-md">
+                        <i className="fas fa-lock text-sm"></i>
+                        تقفيل اليومية
+                    </button>
                     <button onClick={handlePrintFilteredSales} className="px-4 py-2 bg-secondary text-white rounded-lg flex items-center gap-2 hover:bg-secondary-dark transition shadow-md">
                         <i className="fas fa-print"></i>
                         طباعة المبيعات
@@ -449,7 +570,7 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
                     </div>
                 )}
 
-                {currentUser?.role === 'admin' && (
+                {(currentUser?.role === 'admin' || (currentUser?.allowedBranches && currentUser.allowedBranches.length > 1)) && (
                     <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">الفرع</label>
                         <select 
@@ -457,11 +578,23 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
                             onChange={(e) => setFilterBranch(e.target.value)}
                             className="p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 min-w-[150px]"
                         >
-                            <option value="all">الكل</option>
-                            <option value="main">المخزن</option>
-                            <option value="branch1">الرئيسي</option>
-                            <option value="branch2">فرع 1</option>
-                            <option value="branch3">فرع 2</option>
+                            {currentUser.role === 'admin' ? (
+                                <>
+                                    <option value="all">الكل</option>
+                                    <option value="main">المخزن</option>
+                                    <option value="branch1">الرئيسي</option>
+                                    <option value="branch2">فرع 1</option>
+                                    <option value="branch3">فرع 2</option>
+                                </>
+                            ) : (
+                                <>
+                                    {currentUser.allowedBranches?.map(b => (
+                                        <option key={b} value={b}>
+                                            {b === 'main' ? 'المخزن' : b === 'branch1' ? 'الرئيسي' : b === 'branch2' ? 'فرع 1' : 'فرع 2'}
+                                        </option>
+                                    ))}
+                                </>
+                            )}
                         </select>
                     </div>
                 )}
@@ -659,6 +792,81 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
                                 <strong>ملاحظات:</strong> {saleToView.notes}
                             </div>
                         )}
+                    </div>
+                </Modal>
+            )}
+
+            {isCloseDayModalOpen && (
+                <Modal 
+                    isOpen={isCloseDayModalOpen} 
+                    onClose={() => setCloseDayModalOpen(false)} 
+                    title={`تقفيل يومية: ${filterDate} - فرع: ${filterBranch === 'all' ? (currentUser.branch === 'main' ? 'الرئيسي' : currentUser.branch === 'branch1' ? 'فرع التوفيقية' : currentUser.branch) : (filterBranch === 'main' ? 'الرئيسي' : filterBranch === 'branch1' ? 'فرع التوفيقية' : filterBranch)}`} 
+                    onSave={handleSaveCloseDay}
+                    saveLabel="حفظ التقفيل"
+                >
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="md:col-span-2 p-3 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg">
+                            <span className="text-sm font-semibold text-purple-800 dark:text-purple-300">
+                                تم احتساب مبيعات اليوم تلقائياً بناءً على فواتير المبيعات المفلترة. يمكنك تعديل القيم قبل الحفظ والمراجعة.
+                            </span>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">المبيعات النقدية *</label>
+                            <input 
+                                type="number" 
+                                required
+                                value={closeDayFormData.salesCash} 
+                                onChange={e => setCloseDayFormData(p => ({ ...p, salesCash: Number(e.target.value) }))}
+                                className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700 text-gray-900 dark:text-white" 
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">المبيعات الإلكترونية *</label>
+                            <input 
+                                type="number" 
+                                required
+                                value={closeDayFormData.salesElectronic} 
+                                onChange={e => setCloseDayFormData(p => ({ ...p, salesElectronic: Number(e.target.value) }))}
+                                className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700 text-gray-900 dark:text-white" 
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">مبيعات قطع غيار</label>
+                            <input 
+                                type="number" 
+                                value={closeDayFormData.salesParts} 
+                                onChange={e => setCloseDayFormData(p => ({ ...p, salesParts: Number(e.target.value) }))}
+                                className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700 text-gray-900 dark:text-white" 
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">كماليات وإكسسوارات</label>
+                            <input 
+                                type="number" 
+                                value={closeDayFormData.salesAccessories} 
+                                onChange={e => setCloseDayFormData(p => ({ ...p, salesAccessories: Number(e.target.value) }))}
+                                className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700 text-gray-900 dark:text-white" 
+                            />
+                        </div>
+                        <div className="md:col-span-2">
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">رصيد الدرج الفعلي في الصندوق *</label>
+                            <input 
+                                type="number" 
+                                required
+                                value={closeDayFormData.drawerBalance} 
+                                onChange={e => setCloseDayFormData(p => ({ ...p, drawerBalance: Number(e.target.value) }))}
+                                className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700 text-gray-900 dark:text-white text-lg font-bold text-green-600" 
+                            />
+                        </div>
+                        <div className="md:col-span-2">
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">ملاحظات التقفيل</label>
+                            <textarea 
+                                value={closeDayFormData.notes} 
+                                onChange={e => setCloseDayFormData(p => ({ ...p, notes: e.target.value }))}
+                                rows={2}
+                                className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700 text-gray-900 dark:text-white" 
+                            />
+                        </div>
                     </div>
                 </Modal>
             )}

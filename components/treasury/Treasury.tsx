@@ -19,6 +19,11 @@ const Treasury: React.FC<TreasuryProps> = ({ treasury }) => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [withdrawAmount, setWithdrawAmount] = useState<string>('');
     const [error, setError] = useState('');
+    
+    const [isLiquidateModalOpen, setIsLiquidateModalOpen] = useState(false);
+    const [liquidateAmount, setLiquidateAmount] = useState<string>('');
+    const [liquidateError, setLiquidateError] = useState('');
+
     const [showSecurityCheck, setShowSecurityCheck] = useState(false);
     const [securityAction, setSecurityAction] = useState<'setBalance' | 'deleteTransaction' | null>(null);
     const [transactionToDelete, setTransactionToDelete] = useState<number | string | null>(null);
@@ -71,6 +76,45 @@ const Treasury: React.FC<TreasuryProps> = ({ treasury }) => {
     const finalBalance = processedTransactions.length > 0 ? processedTransactions[processedTransactions.length - 1].balance : 0;
     const finalCashBalance = processedTransactions.length > 0 ? processedTransactions[processedTransactions.length - 1].cashBalance : 0;
     const finalElectronicBalance = processedTransactions.length > 0 ? processedTransactions[processedTransactions.length - 1].electronicBalance : 0;
+
+    const handleLiquidateSubmit = async (e?: React.FormEvent) => {
+        if (e) e.preventDefault();
+        const amount = parseFloat(liquidateAmount);
+        if (isNaN(amount) || amount <= 0 || amount > finalElectronicBalance) {
+             setLiquidateError('يرجى إدخال مبلغ صحيح للتسييل بحيث لا يتجاوز رصيد الدفع الإلكتروني الحالي.');
+             return;
+        }
+
+        try {
+            // Transaction 1: Out of electronic balance
+            await addTreasuryTransaction({
+                date: new Date().toISOString().split('T')[0],
+                type: 'تسييل الكتروني',
+                description: `تسييل رصيد إلكتروني إلى نقدي (خصم من الإلكتروني)`,
+                amountIn: 0,
+                amountOut: amount,
+                paymentMethod: 'electronic'
+            });
+
+            // Transaction 2: In to cash balance
+            await addTreasuryTransaction({
+                date: new Date().toISOString().split('T')[0],
+                type: 'تسييل الكتروني',
+                description: `تسييل رصيد إلكتروني إلى نقدي (إضافة للنقدي)`,
+                amountIn: amount,
+                amountOut: 0,
+                paymentMethod: 'cash'
+            });
+
+            setIsLiquidateModalOpen(false);
+            setLiquidateAmount('');
+            setLiquidateError('');
+            alert('تم عمل تسييل إلكتروني بنجاح وتحويل الرصيد إلى نقدي');
+        } catch (e) {
+            console.error(e);
+            setLiquidateError('حدث خطأ أثناء إجراء التسييل');
+        }
+    };
 
     const handleSetBalance = async (e?: React.FormEvent) => {
         if (e) e.preventDefault();
@@ -159,7 +203,14 @@ const Treasury: React.FC<TreasuryProps> = ({ treasury }) => {
                         </p>
                     </div>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap">
+                    <button 
+                        onClick={() => setIsLiquidateModalOpen(true)}
+                        className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700 transition shadow-md flex items-center gap-2"
+                    >
+                        <i className="fas fa-exchange-alt"></i>
+                        تسييل إلكتروني لنقدي
+                    </button>
                     <button 
                         onClick={() => setIsModalOpen(true)}
                         className="bg-primary text-white px-4 py-2 rounded hover:bg-primary-dark transition shadow-md flex items-center gap-2"
@@ -271,7 +322,7 @@ const Treasury: React.FC<TreasuryProps> = ({ treasury }) => {
                                 onChange={e => setWithdrawAmount(e.target.value)}
                                 className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
                                 placeholder="0"
-                            />
+                             />
                         </div>
                         <button 
                             type="button" 
@@ -281,6 +332,35 @@ const Treasury: React.FC<TreasuryProps> = ({ treasury }) => {
                             سحب كل الرصيد ({formatCurrency(finalBalance)})
                         </button>
                         {error && <p className="text-red-500 text-sm">{error}</p>}
+                    </div>
+                </Modal>
+            )}
+
+            {isLiquidateModalOpen && (
+                <Modal isOpen={isLiquidateModalOpen} onClose={() => setIsLiquidateModalOpen(false)} title="تسييل رصيد إلكتروني لنقدي" onSave={handleLiquidateSubmit} saveLabel="تأكيد التسييل">
+                    <div className="space-y-4">
+                        <p className="text-gray-600 dark:text-gray-300 font-medium">
+                            سيقوم هذا الإجراء بخصم مبلغ من رصيد الدفع الإلكتروني المتاح وإضافته مباشرة إلى رصيد الدفع النقدي في الخزينة.
+                        </p>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">المبلغ المراد تحويله لنقدي *</label>
+                            <input 
+                                type="number" 
+                                value={liquidateAmount} 
+                                onChange={e => setLiquidateAmount(e.target.value)}
+                                className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 text-lg font-bold"
+                                placeholder="0"
+                                required
+                            />
+                        </div>
+                        <button 
+                            type="button" 
+                            onClick={() => setLiquidateAmount(finalElectronicBalance.toString())}
+                            className="bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 px-4 py-2 rounded hover:bg-gray-300 dark:hover:bg-gray-600 transition text-sm"
+                        >
+                            تسييل كل الرصيد الإلكتروني ({formatCurrency(finalElectronicBalance)})
+                        </button>
+                        {liquidateError && <p className="text-red-500 text-sm font-semibold">{liquidateError}</p>}
                     </div>
                 </Modal>
             )}

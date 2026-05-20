@@ -97,6 +97,7 @@ const Inventory: React.FC = () => {
     const [isTransferModalOpen, setTransferModalOpen] = useState(false);
     const [isPriceIncreaseModalOpen, setPriceIncreaseModalOpen] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
+    const [filterBranch, setFilterBranch] = useState<string>(currentUser?.role === 'admin' ? 'all' : (currentUser?.branch || 'main'));
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const handleDownloadTemplate = () => {
@@ -337,6 +338,31 @@ const Inventory: React.FC = () => {
                                 <i className="fas fa-search"></i>
                             </button>
                         </form>
+                        
+                        {(currentUser?.role === 'admin' || (currentUser?.allowedBranches && currentUser.allowedBranches.length > 1)) && (
+                            <select 
+                                value={filterBranch} 
+                                onChange={(e) => setFilterBranch(e.target.value)}
+                                className="p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600"
+                            >
+                                {currentUser?.role === 'admin' ? (
+                                    <>
+                                        <option value="all">كل الفروع</option>
+                                        <option value="main">المخزن</option>
+                                        <option value="branch1">الرئيسي</option>
+                                        <option value="branch2">فرع 1</option>
+                                        <option value="branch3">فرع 2</option>
+                                    </>
+                                ) : (
+                                    currentUser?.allowedBranches?.map(b => (
+                                        <option key={b} value={b}>
+                                            {b === 'main' ? 'المخزن' : b === 'branch1' ? 'الرئيسي' : b === 'branch2' ? 'فرع 1' : 'فرع 2'}
+                                        </option>
+                                    ))
+                                )}
+                            </select>
+                        )}
+
                         <select value={filters.category} onChange={e => setFilters(f => ({ ...f, category: e.target.value }))} className="p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600">
                             <option value="">كل الفئات</option>
                             {(['قطع غيار', 'كماليات و إكسسوارات', 'زيوت وشحومات', 'بطاريات', 'إطارات'] as MainCategory[]).map(cat => <option key={cat} value={cat}>{cat}</option>)}
@@ -356,14 +382,19 @@ const Inventory: React.FC = () => {
                                     <th className="px-6 py-3">الكود</th>
                                     {currentUser?.role === 'admin' && <th className="px-6 py-3">سعر الشراء</th>}
                                     <th className="px-6 py-3">سعر البيع</th>
-                                    <th className="px-6 py-3">{currentUser?.role === 'admin' ? 'الرصيد الكلي' : 'رصيد الفرع'}</th>
+                                    <th className="px-6 py-3">
+                                        {filterBranch === 'all' ? 'الرصيد الكلي' : 
+                                         filterBranch === 'main' ? 'رصيد المخزن' : 
+                                         filterBranch === 'branch1' ? 'رصيد الرئيسي' : 
+                                         filterBranch === 'branch2' ? 'رصيد فرع 1' : 'رصيد فرع 2'}
+                                    </th>
                                     <th className="px-6 py-3">الإجراءات</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {filteredProducts.map(p => {
-                                    const totalStock = p.stock.main + p.stock.branch1 + p.stock.branch2 + p.stock.branch3;
-                                    const displayStock = currentUser?.role === 'admin' ? totalStock : (p.stock[currentUser?.branch as keyof typeof p.stock] || 0);
+                                    const totalStock = (p.stock?.main || 0) + (p.stock?.branch1 || 0) + (p.stock?.branch2 || 0) + (p.stock?.branch3 || 0);
+                                    const displayStock = filterBranch === 'all' ? totalStock : (p.stock?.[filterBranch as keyof typeof p.stock] || 0);
                                     return (
                                         <tr key={p.id} className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
                                             <td className="px-6 py-4 font-medium text-gray-900 dark:text-white flex items-center gap-3">

@@ -444,11 +444,17 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
                             value={branchSoldFrom} 
                             onChange={e => setBranchSoldFrom(e.target.value as Branch)} 
                             className="w-full mt-1 p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
-                            disabled={currentUser.role !== Role.Admin}
+                            disabled={currentUser.role !== Role.Admin && (!currentUser.allowedBranches || currentUser.allowedBranches.length <= 1)}
                         >
-                            {Object.entries(branchNames).map(([key, name]) => (
-                                <option key={key} value={key}>{name}</option>
-                            ))}
+                            {currentUser.role === Role.Admin ? (
+                                Object.entries(branchNames).map(([key, name]) => (
+                                    <option key={key} value={key}>{name}</option>
+                                ))
+                            ) : (
+                                currentUser.allowedBranches?.map(b => (
+                                    <option key={b} value={b}>{branchNames[b]}</option>
+                                )) || <option value={currentUser.branch}>{branchNames[currentUser.branch]}</option>
+                            )}
                         </select>
                     </div>
                     <div>

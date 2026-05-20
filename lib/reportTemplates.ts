@@ -217,6 +217,8 @@ export const generateInvoiceContent = (sale: DailySale, products: Product[]) => 
         </div>
         <hr>
         <div style="font-size: 12px; margin-bottom: 5px;">
+            <div><strong>نوع الفاتورة:</strong> <span style="font-weight: bold; ${sale.direction === 'مرتجع' ? 'color: #ef4444; font-size: 14px;' : ''}">${sale.direction === 'مرتجع' ? 'مرتجع 🔴' : sale.direction === 'بيع' ? 'بيع' : sale.direction === 'تبديل' ? 'تبديل' : sale.direction}</span></div>
+            ${sale.direction === 'مرتجع' && sale.notes ? `<div style="color: #ef4444; margin-bottom: 4px;"><strong>سبب المرتجع:</strong> ${sale.notes}</div>` : ''}
             <div><strong>رقم الفاتورة:</strong> ${sale.invoiceNumber}</div>
             <div><strong>التاريخ والوقت:</strong> ${formatDateTime(sale.date, sale.timestamp)}</div>
             <div><strong>الفرع:</strong> ${sale.branchSoldFrom === 'main' ? 'الرئيسي' : sale.branchSoldFrom === 'branch1' ? 'فرع التوفيقية' : sale.branchSoldFrom}</div>

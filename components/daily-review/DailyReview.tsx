@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import useStore from '../../lib/store';
-import { DailyReview as DailyReviewType } from '../../types';
+import { DailyReview as DailyReviewType, User } from '../../types';
 import SectionHeader from '../shared/SectionHeader';
 import Modal from '../shared/Modal';
 import ConfirmationModal from '../shared/ConfirmationModal';
@@ -8,16 +8,35 @@ import { formatDate, formatCurrency } from '../../lib/utils';
 
 const DailyReviewModal: React.FC<{
     isOpen: boolean; onClose: () => void; onSave: (r: Omit<DailyReviewType, 'id'> & { id?: number }) => void; reviewToEdit: DailyReviewType | null;
-}> = ({ isOpen, onClose, onSave, reviewToEdit }) => {
-    const [formData, setFormData] = useState<Omit<DailyReviewType, 'id' | 'totalSales'>>({ date: new Date().toISOString().split('T')[0], branch: 'branch1', salesCash: 0, salesElectronic: 0, salesParts: 0, salesAccessories: 0, drawerBalance: 0, notes: '' });
+    currentUser: User | null;
+}> = ({ isOpen, onClose, onSave, reviewToEdit, currentUser }) => {
+    const [formData, setFormData] = useState<Omit<DailyReviewType, 'id' | 'totalSales'>>({ 
+        date: new Date().toISOString().split('T')[0], 
+        branch: currentUser?.branch || 'main', 
+        salesCash: 0, 
+        salesElectronic: 0, 
+        salesParts: 0, 
+        salesAccessories: 0, 
+        drawerBalance: 0, 
+        notes: '' 
+    });
     
     React.useEffect(() => {
         if (reviewToEdit) {
             setFormData({ ...reviewToEdit, notes: reviewToEdit.notes || '' });
         } else {
-            setFormData({ date: new Date().toISOString().split('T')[0], branch: 'branch1', salesCash: 0, salesElectronic: 0, salesParts: 0, salesAccessories: 0, drawerBalance: 0, notes: '' });
+            setFormData({ 
+                date: new Date().toISOString().split('T')[0], 
+                branch: currentUser?.branch || 'main', 
+                salesCash: 0, 
+                salesElectronic: 0, 
+                salesParts: 0, 
+                salesAccessories: 0, 
+                drawerBalance: 0, 
+                notes: '' 
+            });
         }
-    }, [reviewToEdit, isOpen]);
+    }, [reviewToEdit, isOpen, currentUser]);
     
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
@@ -38,10 +57,20 @@ const DailyReviewModal: React.FC<{
                 <div>
                     <label>الفرع *</label>
                     <select name="branch" value={formData.branch} onChange={handleChange} required className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700">
-                        <option value="main">المخزن</option>
-                        <option value="branch1">الرئيسي</option>
-                        <option value="branch2">فرع 1</option>
-                        <option value="branch3">فرع 2</option>
+                        {currentUser?.role === 'admin' ? (
+                            <>
+                                <option value="main">المخزن</option>
+                                <option value="branch1">الرئيسي</option>
+                                <option value="branch2">فرع 1</option>
+                                <option value="branch3">فرع 2</option>
+                            </>
+                        ) : (
+                            currentUser?.allowedBranches?.map(b => (
+                                <option key={b} value={b}>
+                                    {b === 'main' ? 'المخزن' : b === 'branch1' ? 'الرئيسي' : b === 'branch2' ? 'فرع 1' : 'فرع 2'}
+                                </option>
+                            )) || <option value={currentUser?.branch}>{currentUser?.branch === 'main' ? 'المخزن' : currentUser?.branch === 'branch1' ? 'الرئيسي' : currentUser?.branch === 'branch2' ? 'فرع 1' : 'فرع 2'}</option>
+                        )}
                     </select>
                 </div>
                 <div><label>المبيعات النقدية *</label><input type="number" name="salesCash" value={formData.salesCash === 0 ? '' : formData.salesCash} onChange={handleChange} required className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700" /></div>
@@ -57,11 +86,12 @@ const DailyReviewModal: React.FC<{
 
 
 const DailyReview: React.FC = () => {
-    const { dailyReviews, setDailyReviews, deleteDailyReview, fetchDataByDateRange } = useStore(state => ({
+    const { dailyReviews, setDailyReviews, deleteDailyReview, fetchDataByDateRange, currentUser } = useStore(state => ({
         dailyReviews: state.appData?.dailyReview || [],
         setDailyReviews: state.setDailyReviews,
         deleteDailyReview: state.deleteDailyReview,
-        fetchDataByDateRange: state.fetchDataByDateRange
+        fetchDataByDateRange: state.fetchDataByDateRange,
+        currentUser: state.currentUser
     }));
     const [isModalOpen, setModalOpen] = useState(false);
     const [reviewToEdit, setReviewToEdit] = useState<DailyReviewType | null>(null);
@@ -224,7 +254,7 @@ const DailyReview: React.FC = () => {
                 </table>
             </div>
 
-            <DailyReviewModal isOpen={isModalOpen} onClose={() => setModalOpen(false)} onSave={handleSave} reviewToEdit={reviewToEdit} />
+            <DailyReviewModal isOpen={isModalOpen} onClose={() => setModalOpen(false)} onSave={handleSave} reviewToEdit={reviewToEdit} currentUser={currentUser} />
             
             {reviewToDelete && (
                 <ConfirmationModal

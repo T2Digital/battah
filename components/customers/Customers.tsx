@@ -18,12 +18,26 @@ interface Customer {
     sales: DailySale[];
 }
 
-const CustomerDetailsModal: React.FC<{ customer: Customer | null; onClose: () => void }> = ({ customer, onClose }) => {
+const CustomerDetails: React.FC<{
+    customer: Customer;
+    onBack: () => void;
+    treasury: any[];
+}> = ({ customer, onBack, treasury }) => {
     const { updateDailySale, addTreasuryTransaction } = useStore();
     const [payingSaleId, setPayingSaleId] = useState<number | null>(null);
     const [paymentAmount, setPaymentAmount] = useState<number | ''>('');
 
-    if (!customer) return null;
+    // Extract receipts from Treasury
+    const customerPayments = useMemo(() => {
+        return treasury.filter(t => 
+            t.description?.includes(customer.name) && 
+            t.amountIn > 0
+        ).sort((a, b) => {
+            const dateA = new Date(a.date).getTime();
+            const dateB = new Date(b.date).getTime();
+            return dateB - dateA;
+        });
+    }, [treasury, customer.name]);
 
     const handlePaymentSubmit = async (sale: DailySale) => {
         const amount = Number(paymentAmount);
@@ -58,99 +72,165 @@ const CustomerDetailsModal: React.FC<{ customer: Customer | null; onClose: () =>
         }
     };
 
-    return (
-        <Modal isOpen={!!customer} onClose={onClose} title={`سجل طلبات: ${customer.name}`}>
-            <div className="space-y-4 max-h-[60vh] overflow-y-auto custom-scrollbar pr-2">
-                {customer.totalDebt > 0 && (
-                    <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg mb-4">
-                        <h3 className="text-red-800 dark:text-red-300 font-bold text-lg mb-2">إجمالي المديونية: {formatCurrency(customer.totalDebt)}</h3>
-                        <p className="text-sm text-red-600 dark:text-red-400">هذه المديونية ناتجة عن فواتير آجلة أو مدفوعة جزئياً.</p>
-                    </div>
-                )}
-                
-                {customer.orders.length > 0 && (
-                    <>
-                        <h4 className="font-bold text-lg border-b pb-2">طلبات الأونلاين</h4>
-                        {customer.orders.map(order => (
-                            <div key={`order-${order.id}`} className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-                                <div className="flex justify-between items-center font-bold">
-                                    <span>طلب رقم #{order.id} - {formatDateTime(order.date, order.timestamp)}</span>
-                                    <span>{formatCurrency(order.totalAmount)}</span>
-                                </div>
-                                <ul className="text-sm mt-2 list-disc pr-5">
-                                    {order.items.map(item => (
-                                        <li key={item.productId}>{item.productName} (الكمية: {item.quantity})</li>
-                                    ))}
-                                </ul>
-                            </div>
-                        ))}
-                    </>
-                )}
+    const totalSpent = customer.totalSpent;
+    const totalDebt = customer.totalDebt;
+    const totalPaid = totalSpent - totalDebt;
 
-                {customer.sales.length > 0 && (
-                    <>
-                        <h4 className="font-bold text-lg border-b pb-2 mt-4">فواتير المحل</h4>
-                        {customer.sales.map(sale => (
-                            <div key={`sale-${sale.id}`} className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-                                <div className="flex justify-between items-center font-bold">
-                                    <span>فاتورة رقم #{sale.invoiceNumber} - {formatDateTime(sale.date, sale.timestamp)}</span>
-                                    <span>{formatCurrency(sale.totalAmount)}</span>
-                                </div>
-                                {sale.remainingDebt && sale.remainingDebt > 0 ? (
-                                    <div className="mt-2 border-t pt-2">
-                                        <div className="text-sm text-red-500 font-semibold mb-2">
-                                            متبقي (آجل): {formatCurrency(sale.remainingDebt)}
-                                        </div>
-                                        {payingSaleId === sale.id ? (
-                                            <div className="flex items-center gap-2 mt-2">
-                                                <input 
-                                                    type="number" 
-                                                    value={paymentAmount}
-                                                    onChange={e => setPaymentAmount(e.target.value ? Number(e.target.value) : '')}
-                                                    placeholder="المبلغ المدفوع"
-                                                    className="p-1 border rounded text-sm w-32 dark:bg-gray-600 dark:border-gray-500"
-                                                    max={sale.remainingDebt}
-                                                />
-                                                <button 
-                                                    onClick={() => handlePaymentSubmit(sale)}
-                                                    className="bg-green-500 text-white px-3 py-1 rounded text-sm hover:bg-green-600"
-                                                >
-                                                    تأكيد
-                                                </button>
-                                                <button 
-                                                    onClick={() => { setPayingSaleId(null); setPaymentAmount(''); }}
-                                                    className="bg-gray-300 text-gray-700 px-3 py-1 rounded text-sm hover:bg-gray-400"
-                                                >
-                                                    إلغاء
-                                                </button>
-                                            </div>
-                                        ) : (
-                                            <button 
-                                                onClick={() => { setPayingSaleId(sale.id); setPaymentAmount(sale.remainingDebt || 0); }}
-                                                className="bg-primary text-white px-3 py-1 rounded text-sm hover:bg-primary-dark transition shadow-sm"
-                                            >
-                                                تسديد دفعة
-                                            </button>
-                                        )}
-                                    </div>
-                                ) : null}
-                            </div>
-                        ))}
-                    </>
-                )}
+    return (
+        <div className="animate-fade-in space-y-6">
+            <div className="flex justify-between items-center mb-6">
+                <button onClick={onBack} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 flex items-center gap-2">
+                    <i className="fas fa-arrow-right"></i> عودة للعملاء
+                </button>
+                <h2 className="text-2xl font-bold text-gray-800 dark:text-white">كشف حساب العميل: {customer.name}</h2>
             </div>
-        </Modal>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+                    <div className="text-gray-500 dark:text-gray-400 text-sm mb-1">إجمالي المشتريات</div>
+                    <div className="text-2xl font-bold text-gray-900 dark:text-white">{formatCurrency(totalSpent)}</div>
+                </div>
+                <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+                    <div className="text-gray-500 dark:text-gray-400 text-sm mb-1">إجمالي السداد</div>
+                    <div className="text-2xl font-bold text-green-600">{formatCurrency(totalPaid)}</div>
+                </div>
+                <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+                    <div className="text-gray-500 dark:text-gray-400 text-sm mb-1">المديونية المتبقية</div>
+                    <div className={`text-2xl font-bold ${totalDebt > 0 ? 'text-red-600' : 'text-gray-900 dark:text-white'}`}>
+                        {formatCurrency(totalDebt)}
+                    </div>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Outgoing sales/orders */}
+                <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border dark:border-gray-700 overflow-hidden">
+                    <div className="p-4 border-b dark:border-gray-700 font-bold bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-white">الفواتير والمبيعات للعميل</div>
+                    <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
+                        <table className="w-full text-sm text-right text-gray-500 dark:text-gray-400">
+                            <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-300">
+                                <tr>
+                                    <th className="px-4 py-3">المستند</th>
+                                    <th className="px-4 py-3">التاريخ</th>
+                                    <th className="px-4 py-3">الإجمالي</th>
+                                    <th className="px-4 py-3">المديونية</th>
+                                    <th className="px-4 py-3">الإجراء</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {customer.sales.length === 0 && customer.orders.length === 0 ? (
+                                    <tr><td colSpan={5} className="px-4 py-4 text-center">لا توجد فواتير أو مسحوبات للعميل.</td></tr>
+                                ) : (
+                                    <>
+                                        {customer.sales.map(sale => (
+                                            <tr key={sale.id} className="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
+                                                <td className="px-4 py-3 font-semibold text-gray-900 dark:text-white">فاتورة #{sale.invoiceNumber}</td>
+                                                <td className="px-4 py-3 whitespace-nowrap" dir="ltr">{formatDateTime(sale.date, sale.timestamp)}</td>
+                                                <td className="px-4 py-3 font-medium">{formatCurrency(sale.totalAmount)}</td>
+                                                <td className={`px-4 py-3 font-semibold ${sale.remainingDebt && sale.remainingDebt > 0 ? 'text-red-500' : 'text-gray-500'}`}>
+                                                    {sale.remainingDebt && sale.remainingDebt > 0 ? formatCurrency(sale.remainingDebt) : '-'}
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    {sale.remainingDebt && sale.remainingDebt > 0 ? (
+                                                        payingSaleId === sale.id ? (
+                                                            <div className="flex items-center gap-2">
+                                                                <input 
+                                                                    type="number" 
+                                                                    value={paymentAmount}
+                                                                    onChange={e => setPaymentAmount(e.target.value ? Number(e.target.value) : '')}
+                                                                    placeholder="أدخل مبلغ الدفعة"
+                                                                    className="p-1 border rounded text-xs w-24 dark:bg-gray-700 dark:border-gray-600 text-gray-800 dark:text-white"
+                                                                    max={sale.remainingDebt}
+                                                                />
+                                                                <button 
+                                                                    onClick={() => handlePaymentSubmit(sale)}
+                                                                    className="bg-green-500 text-white px-2 py-1 rounded text-xs hover:bg-green-600 font-bold"
+                                                                >
+                                                                    حفظ
+                                                                </button>
+                                                                <button 
+                                                                    onClick={() => { setPayingSaleId(null); setPaymentAmount(''); }}
+                                                                    className="bg-gray-300 dark:bg-gray-700 text-gray-700 dark:text-gray-300 px-2 py-1 rounded text-xs hover:bg-gray-400"
+                                                                >
+                                                                    إلغاء
+                                                                </button>
+                                                            </div>
+                                                        ) : (
+                                                            <button 
+                                                                onClick={() => { setPayingSaleId(sale.id); setPaymentAmount(sale.remainingDebt || 0); }}
+                                                                className="bg-primary text-white px-3 py-1 rounded text-xs hover:bg-primary-dark font-medium transition"
+                                                            >
+                                                                سداد دفعة
+                                                            </button>
+                                                        )
+                                                    ) : (
+                                                        <span className="text-green-500 text-xs font-bold">مدفوعة بالكامل</span>
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                        {customer.orders.map(order => (
+                                            <tr key={order.id} className="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
+                                                <td className="px-4 py-3 text-blue-500 font-semibold text-right">طلب أونلاين #{order.id}</td>
+                                                <td className="px-4 py-3 whitespace-nowrap" dir="ltr">{formatDateTime(order.date, order.timestamp)}</td>
+                                                <td className="px-4 py-3 font-medium">{formatCurrency(order.totalAmount)}</td>
+                                                <td className="px-4 py-3 text-gray-500">-</td>
+                                                <td className="px-4 py-3">
+                                                    <span className="text-gray-400 text-xs">-</span>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                {/* Received payments */}
+                <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border dark:border-gray-700 overflow-hidden">
+                    <div className="p-4 border-b dark:border-gray-700 font-bold bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-white">المدفوعات والمتحصلات من العميل</div>
+                    <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
+                        <table className="w-full text-sm text-right text-gray-500 dark:text-gray-400">
+                            <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-300">
+                                <tr>
+                                    <th className="px-4 py-3">التاريخ والوقت</th>
+                                    <th className="px-4 py-3">المبلغ المورد</th>
+                                    <th className="px-4 py-3">البيان</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {customerPayments.length === 0 ? (
+                                    <tr><td colSpan={3} className="px-4 py-4 text-center">لا توجد سجلات دفعات مسجلة</td></tr>
+                                ) : (
+                                    customerPayments.map(p => (
+                                        <tr key={p.id} className="border-b dark:border-gray-700">
+                                            <td className="px-4 py-3 whitespace-nowrap" dir="ltr">{formatDateTime(p.date, p.timestamp)}</td>
+                                            <td className="px-4 py-3 text-green-600 font-bold">{formatCurrency(p.amountIn)}</td>
+                                            <td className="px-4 py-3 text-xs text-gray-600 dark:text-gray-300">{p.description}</td>
+                                        </tr>
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
     );
 };
 
 
 const Customers: React.FC = () => {
-    const orders = useStore(state => state.appData?.orders || []);
-    const dailySales = useStore(state => state.appData?.dailySales || []);
+    const { orders, dailySales, treasury } = useStore(state => ({
+        orders: state.appData?.orders || [],
+        dailySales: state.appData?.dailySales || [],
+        treasury: state.appData?.treasury || []
+    }));
     const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
     const [showOnlyDebtors, setShowOnlyDebtors] = useState(false);
 
-    const customers = useMemo(() => {
+    const allCustomers = useMemo(() => {
         const customerMap = new Map<string, Customer>();
         
         // Process Orders
@@ -216,14 +296,34 @@ const Customers: React.FC = () => {
             }
         });
 
-        let result = Array.from(customerMap.values());
-        
+        return Array.from(customerMap.values());
+    }, [orders, dailySales]);
+
+    const customers = useMemo(() => {
+        let result = [...allCustomers];
         if (showOnlyDebtors) {
             result = result.filter(c => c.totalDebt > 0);
         }
-        
         return result.sort((a,b) => b.totalSpent - a.totalSpent);
-    }, [orders, dailySales, showOnlyDebtors]);
+    }, [allCustomers, showOnlyDebtors]);
+
+    const dashboardStats = useMemo(() => {
+        const totalCustomers = allCustomers.length;
+        const totalPurchases = allCustomers.reduce((sum, c) => sum + c.totalSpent, 0);
+        const totalDebt = allCustomers.reduce((sum, c) => sum + c.totalDebt, 0);
+        const totalPaid = totalPurchases - totalDebt;
+        return { totalCustomers, totalPurchases, totalDebt, totalPaid };
+    }, [allCustomers]);
+
+    if (selectedCustomer) {
+        return (
+            <CustomerDetails 
+                customer={selectedCustomer} 
+                onBack={() => setSelectedCustomer(null)} 
+                treasury={treasury}
+            />
+        );
+    }
 
     return (
         <div className="animate-fade-in space-y-6">
@@ -241,6 +341,45 @@ const Customers: React.FC = () => {
                     </label>
                 </div>
             </SectionHeader>
+
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center text-blue-600 dark:text-blue-300 text-xl">
+                        <i className="fas fa-users"></i>
+                    </div>
+                    <div>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">إجمالي العملاء</p>
+                        <p className="text-xl font-bold text-gray-900 dark:text-white">{dashboardStats.totalCustomers}</p>
+                    </div>
+                </div>
+                <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-full bg-purple-100 dark:bg-purple-900 flex items-center justify-center text-purple-600 dark:text-purple-300 text-xl">
+                        <i className="fas fa-shopping-bag"></i>
+                    </div>
+                    <div>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">إجمالي المبيعات (المسحوبات)</p>
+                        <p className="text-xl font-bold text-gray-900 dark:text-white">{formatCurrency(dashboardStats.totalPurchases)}</p>
+                    </div>
+                </div>
+                <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center text-green-600 dark:text-green-300 text-xl">
+                        <i className="fas fa-hand-holding-usd"></i>
+                    </div>
+                    <div>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">إجمالي المبالغ المحصلة</p>
+                        <p className="text-xl font-bold text-gray-900 dark:text-white">{formatCurrency(dashboardStats.totalPaid)}</p>
+                    </div>
+                </div>
+                <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-900 flex items-center justify-center text-red-600 dark:text-red-300 text-xl">
+                        <i className="fas fa-dollar-sign"></i>
+                    </div>
+                    <div>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">إجمالي مديونية العملاء</p>
+                        <p className="text-xl font-bold text-red-600 dark:text-red-400">{formatCurrency(dashboardStats.totalDebt)}</p>
+                    </div>
+                </div>
+            </div>
             
             <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-x-auto">
                 <table className="w-full text-sm text-right text-gray-500 dark:text-gray-400">
@@ -262,7 +401,7 @@ const Customers: React.FC = () => {
                             </tr>
                         ) : (
                             customers.map(customer => (
-                                <tr key={customer.phone} className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
+                                <tr key={`${customer.name}-${customer.phone}`} className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
                                     <td className="px-6 py-4 font-medium text-gray-900 dark:text-white">{customer.name}</td>
                                     <td className="px-6 py-4">{customer.phone}</td>
                                     <td className="px-6 py-4 text-center font-bold">{customer.orderCount}</td>
@@ -270,8 +409,8 @@ const Customers: React.FC = () => {
                                     <td className="px-6 py-4 font-bold text-red-500">{customer.totalDebt > 0 ? formatCurrency(customer.totalDebt) : '-'}</td>
                                     <td className="px-6 py-4 whitespace-nowrap" dir="ltr">{formatDateTime(customer.lastOrderDate)}</td>
                                     <td className="px-6 py-4">
-                                        <button onClick={() => setSelectedCustomer(customer)} className="text-blue-500 hover:text-blue-700" title="عرض سجل الطلبات">
-                                            <i className="fas fa-eye"></i> عرض التفاصيل
+                                        <button onClick={() => setSelectedCustomer(customer)} className="text-blue-500 hover:text-blue-700 font-medium" title="عرض كشف الحساب والمدفوعات">
+                                            <i className="fas fa-file-invoice-dollar ml-1"></i> كشف الحساب
                                         </button>
                                     </td>
                                 </tr>
@@ -280,8 +419,6 @@ const Customers: React.FC = () => {
                     </tbody>
                 </table>
             </div>
-
-            <CustomerDetailsModal customer={selectedCustomer} onClose={() => setSelectedCustomer(null)} />
         </div>
     );
 };

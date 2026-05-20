@@ -17,15 +17,20 @@ const branchNames: Record<Branch, string> = {
 };
 
 const StockTransferModal: React.FC<StockTransferModalProps> = ({ isOpen, onClose }) => {
-    const { products, addStockTransfer, storefrontSettings } = useStore(state => ({
+    const { products, addStockTransfer, storefrontSettings, currentUser } = useStore(state => ({
         products: state.appData?.products || [],
         addStockTransfer: state.addStockTransfer,
-        storefrontSettings: state.appData?.storefrontSettings
+        storefrontSettings: state.appData?.storefrontSettings,
+        currentUser: state.currentUser
     }));
 
     const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-    const [fromBranch, setFromBranch] = useState<Branch>('main');
-    const [toBranch, setToBranch] = useState<Branch>('branch1');
+    const [fromBranch, setFromBranch] = useState<Branch>(currentUser?.branch || 'main');
+    const [toBranch, setToBranch] = useState<Branch>(
+        currentUser?.allowedBranches && currentUser.allowedBranches.length > 1 
+        ? currentUser.allowedBranches.find(b => b !== (currentUser.branch || 'main')) || 'branch1'
+        : 'branch1'
+    );
     const [quantity, setQuantity] = useState(1);
     const [notes, setNotes] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -150,13 +155,18 @@ const StockTransferModal: React.FC<StockTransferModalProps> = ({ isOpen, onClose
                     <div>
                         <label>من فرع *</label>
                         <select value={fromBranch} onChange={e => setFromBranch(e.target.value as Branch)} className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700">
-                            {Object.entries(branchNames).map(([key, name]) => <option key={key} value={key}>{name}</option>)}
+                            {currentUser?.role === 'admin' ? (
+                                Object.entries(branchNames).map(([key, name]) => <option key={key} value={key as Branch}>{name}</option>)
+                            ) : (
+                                currentUser?.allowedBranches?.map(b => <option key={b} value={b}>{branchNames[b]}</option>)
+                                || <option value={currentUser?.branch}>{branchNames[currentUser?.branch as Branch] || currentUser?.branch}</option>
+                            )}
                         </select>
                     </div>
                      <div>
                         <label>إلى فرع *</label>
                         <select value={toBranch} onChange={e => setToBranch(e.target.value as Branch)} className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700">
-                            {Object.entries(branchNames).map(([key, name]) => <option key={key} value={key}>{name}</option>)}
+                            {Object.entries(branchNames).map(([key, name]) => <option key={key} value={key as Branch}>{name}</option>)}
                         </select>
                     </div>
                 </div>
