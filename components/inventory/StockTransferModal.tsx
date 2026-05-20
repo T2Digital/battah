@@ -10,10 +10,10 @@ interface StockTransferModalProps {
 }
 
 const branchNames: Record<Branch, string> = {
-    main: 'المخزن',
-    branch1: 'الرئيسي',
-    branch2: 'فرع 1',
-    branch3: 'فرع 2',
+    main: 'الرئيسي',
+    branch1: 'فرع 1',
+    branch2: 'فرع 2',
+    branch3: 'فرع 3',
 };
 
 const StockTransferModal: React.FC<StockTransferModalProps> = ({ isOpen, onClose }) => {
@@ -147,7 +147,7 @@ const StockTransferModal: React.FC<StockTransferModalProps> = ({ isOpen, onClose
                 {selectedProduct && (
                     <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg text-sm">
                         <p><strong>المنتج المختار:</strong> {selectedProduct.name}</p>
-                        <p><strong>الرصيد في الفروع:</strong> المخزن({selectedProduct.stock.main}), الرئيسي({selectedProduct.stock.branch1}), ف1({selectedProduct.stock.branch2}), ف2({selectedProduct.stock.branch3})</p>
+                        <p><strong>الرصيد في الفروع:</strong> الرئيسي({selectedProduct.stock.main}), ف1({selectedProduct.stock.branch1}), ف2({selectedProduct.stock.branch2}), ف3({selectedProduct.stock.branch3})</p>
                     </div>
                 )}
                 

@@ -3,6 +3,20 @@
 import { AppData, DailySale, Product, DailyReview } from '../types';
 import { formatCurrency, formatDate, formatDateTime, calculateHours, normalizeSaleItems, calculateSaleProfit, getActualSaleRevenue } from './utils';
 
+export const branchNames: Record<string, string> = {
+    main: 'الرئيسي',
+    branch1: 'فرع 1',
+    branch2: 'فرع 2',
+    branch3: 'فرع 3',
+};
+
+export const branchAddresses: Record<string, string> = {
+    main: '79 شارع رمسيس ناصية التوفيقية امام سنترال رمسيس',
+    branch1: '1 شارع البورصة ناصية التوفيقية امام دار القضاء العالى',
+    branch2: '19 شارع رمسيس ناصية التوفيقية امام سنترال رمسيس',
+    branch3: '6 شارع البورصة ناصية التوفيقية بجوار سينما ريفولى',
+};
+
 const getReportStyles = (themeColor: string) => `
 <style>
     body { 
@@ -156,7 +170,8 @@ const generateReportHTML = (title: string, themeColor: string, content: string, 
         @media print {
             @page { margin: 0; size: 80mm auto; }
             body { width: 72mm; max-width: 72mm; margin: 0 auto; padding: 0; }
-            .invoice-box { padding: 2mm; width: 100%; box-sizing: border-box; }
+            .invoice-box { padding: 2mm; width: 100%; box-sizing: border-box; page-break-inside: avoid; }
+            .page-break { page-break-after: always; break-after: page; display: block; height: 1px; }
             .no-print { display: none; }
         }
     </style>
@@ -201,10 +216,11 @@ export const generateInvoiceContent = (sale: DailySale, products: Product[]) => 
         </tr>
     `}).join('');
 
-    const branchAddressHtml = sale.branchSoldFrom === 'branch1' ? `
-        <p style="margin: 0; font-size: 10px;">1 شارع البورصة ناصية التوفيقية امام دار القضاء العالى</p>
-    ` : `
-        <p style="margin: 0; font-size: 10px;">79 شارع رمسيس ناصية التوفيقية</p>
+    const bName = branchNames[sale.branchSoldFrom] || sale.branchSoldFrom;
+    const bAddress = branchAddresses[sale.branchSoldFrom] || branchAddresses.main;
+
+    const branchAddressHtml = `
+        <p style="margin: 0; font-size: 10px;">${bAddress}</p>
         <p style="margin: 0; font-size: 10px;">تليفون: 01080444447</p>
     `;
 
@@ -221,7 +237,7 @@ export const generateInvoiceContent = (sale: DailySale, products: Product[]) => 
             ${sale.direction === 'مرتجع' && sale.notes ? `<div style="color: #ef4444; margin-bottom: 4px;"><strong>سبب المرتجع:</strong> ${sale.notes}</div>` : ''}
             <div><strong>رقم الفاتورة:</strong> ${sale.invoiceNumber}</div>
             <div><strong>التاريخ والوقت:</strong> ${formatDateTime(sale.date, sale.timestamp)}</div>
-            <div><strong>الفرع:</strong> ${sale.branchSoldFrom === 'main' ? 'الرئيسي' : sale.branchSoldFrom === 'branch1' ? 'فرع التوفيقية' : sale.branchSoldFrom}</div>
+            <div><strong>الفرع:</strong> ${bName}</div>
             <div><strong>البائع:</strong> ${sale.sellerName}</div>
             ${sale.customerName ? `<div><strong>العميل:</strong> ${sale.customerName}</div>` : ''}
             ${sale.customerPhone ? `<div><strong>تليفون العميل:</strong> ${sale.customerPhone}</div>` : ''}
@@ -303,7 +319,7 @@ export const generateInvoiceContent = (sale: DailySale, products: Product[]) => 
     const content = `
         ${singleInvoiceHtml}
         
-        <div style="page-break-after: always;"></div>
+        <div class="page-break"></div>
         
         ${singleInvoiceHtmlCopy2}
     `;
@@ -626,7 +642,7 @@ export const generateFilteredSalesReportContent = (sales: DailySale[], filterDat
             <tr>
                 <td>${sale.invoiceNumber}</td>
                 <td dir="ltr">${formatDateTime(sale.date, sale.timestamp)}</td>
-                <td>${sale.branchSoldFrom === 'main' ? 'الرئيسي' : sale.branchSoldFrom}</td>
+                <td>${branchNames[sale.branchSoldFrom] || sale.branchSoldFrom}</td>
                 <td>${sale.sellerName}</td>
                 <td>${sale.direction}</td>
                 <td style="font-weight: bold; color: ${sale.direction === 'مرتجع' ? 'red' : 'green'};">${formatCurrency(sale.totalAmount)}</td>
@@ -658,7 +674,7 @@ export const generateFilteredSalesReportContent = (sales: DailySale[], filterDat
 };
 
 export const generateInventoryReportContent = (appData: AppData, branch: string) => {
-    const branchName = branch === 'main' ? 'الرئيسي' : branch === 'branch1' ? 'فرع 1' : branch === 'branch2' ? 'فرع 2' : 'فرع 3';
+    const branchName = branchNames[branch] || branch;
     
     let html = `
         <!DOCTYPE html>
@@ -1175,13 +1191,6 @@ export const generateFinancialClosingReportContent = (appData: AppData, startDat
 };
 
 export const generateDailyReviewReportContent = (reviews: DailyReview[], startDate: string, endDate: string) => {
-    const branchNames: Record<string, string> = {
-        main: 'المخزن',
-        branch1: 'الرئيسي',
-        branch2: 'فرع 1',
-        branch3: 'فرع 2',
-    };
-
     const content = `
         ${getReportStyles('#0891b2')}
         <div class="header">

@@ -5,7 +5,7 @@ import DailySaleModal from './DailySaleModal';
 import ConfirmationModal from '../shared/ConfirmationModal';
 import Modal from '../shared/Modal';
 import { formatCurrency, normalizeSaleItems, formatDateTime } from '../../lib/utils';
-import { generateInvoiceContent } from '../../lib/reportTemplates';
+import { generateInvoiceContent, branchNames } from '../../lib/reportTemplates';
 import useStore from '../../lib/store';
 
 import ProductName from '../shared/ProductName';
@@ -468,7 +468,7 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
     };
 
     const uniqueSellers = useMemo(() => {
-        const sellers = new Set(dailySales.map(s => s.sellerName));
+        const sellers = new Set(dailySales.map(s => s.sellerName).filter(Boolean));
         return Array.from(sellers);
     }, [dailySales]);
 
@@ -581,16 +581,16 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
                             {currentUser.role === 'admin' ? (
                                 <>
                                     <option value="all">الكل</option>
-                                    <option value="main">المخزن</option>
-                                    <option value="branch1">الرئيسي</option>
-                                    <option value="branch2">فرع 1</option>
-                                    <option value="branch3">فرع 2</option>
+                                    <option value="main">الرئيسي</option>
+                                    <option value="branch1">فرع 1</option>
+                                    <option value="branch2">فرع 2</option>
+                                    <option value="branch3">فرع 3</option>
                                 </>
                             ) : (
                                 <>
                                     {currentUser.allowedBranches?.map(b => (
                                         <option key={b} value={b}>
-                                            {b === 'main' ? 'المخزن' : b === 'branch1' ? 'الرئيسي' : b === 'branch2' ? 'فرع 1' : 'فرع 2'}
+                                            {b === 'main' ? 'الرئيسي' : b === 'branch1' ? 'فرع 1' : b === 'branch2' ? 'فرع 2' : 'فرع 3'}
                                         </option>
                                     ))}
                                 </>
@@ -800,7 +800,7 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
                 <Modal 
                     isOpen={isCloseDayModalOpen} 
                     onClose={() => setCloseDayModalOpen(false)} 
-                    title={`تقفيل يومية: ${filterDate} - فرع: ${filterBranch === 'all' ? (currentUser.branch === 'main' ? 'الرئيسي' : currentUser.branch === 'branch1' ? 'فرع التوفيقية' : currentUser.branch) : (filterBranch === 'main' ? 'الرئيسي' : filterBranch === 'branch1' ? 'فرع التوفيقية' : filterBranch)}`} 
+                    title={`تقفيل يومية: ${filterDate} - فرع: ${branchNames[filterBranch === 'all' ? (currentUser.branch || 'main') : filterBranch] || (filterBranch === 'all' ? (currentUser.branch || 'main') : filterBranch)}`} 
                     onSave={handleSaveCloseDay}
                     saveLabel="حفظ التقفيل"
                 >

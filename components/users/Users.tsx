@@ -73,10 +73,10 @@ const Users: React.FC = () => {
     };
 
     const branchLabels: Record<Branch, string> = {
-        'main': 'المخزن',
-        'branch1': 'الرئيسي',
-        'branch2': 'فرع 1',
-        'branch3': 'فرع 2',
+        'main': 'الرئيسي',
+        'branch1': 'فرع 1',
+        'branch2': 'فرع 2',
+        'branch3': 'فرع 3',
     };
 
     return (

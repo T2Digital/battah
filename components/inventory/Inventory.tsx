@@ -13,10 +13,10 @@ import * as XLSX from 'xlsx';
 
 const StockTransfersList: React.FC<{ transfers: StockTransfer[] }> = ({ transfers }) => {
     const branchNames: Record<Branch, string> = {
-        main: 'المخزن',
-        branch1: 'الرئيسي',
-        branch2: 'فرع 1',
-        branch3: 'فرع 2',
+        main: 'الرئيسي',
+        branch1: 'فرع 1',
+        branch2: 'فرع 2',
+        branch3: 'فرع 3',
     };
 
     const sortedTransfers = useMemo(() => 
@@ -149,10 +149,10 @@ const Inventory: React.FC = () => {
                 wholesalePrice: Number(row['سعر البيع جملة']) || 0,
                 reorderPoint: Number(row['حد الطلب']) || 0,
                 stock: {
-                    main: Number(row['رصيد المخزن']) || 0,
-                    branch1: Number(row['رصيد الرئيسي']) || 0,
-                    branch2: Number(row['رصيد فرع 1']) || 0,
-                    branch3: Number(row['رصيد فرع 2']) || 0,
+                    main: Number(row['رصيد الرئيسي'] || row['رصيد المخزن']) || 0,
+                    branch1: Number(row['رصيد فرع 1']) || 0,
+                    branch2: Number(row['رصيد فرع 2']) || 0,
+                    branch3: Number(row['رصيد فرع 3']) || 0,
                 },
                 imageUrl: row['رابط الصورة'] || '',
                 images: row['رابط الصورة'] ? [row['رابط الصورة']] : [],
@@ -348,15 +348,15 @@ const Inventory: React.FC = () => {
                                 {currentUser?.role === 'admin' ? (
                                     <>
                                         <option value="all">كل الفروع</option>
-                                        <option value="main">المخزن</option>
-                                        <option value="branch1">الرئيسي</option>
-                                        <option value="branch2">فرع 1</option>
-                                        <option value="branch3">فرع 2</option>
+                                        <option value="main">الرئيسي</option>
+                                        <option value="branch1">فرع 1</option>
+                                        <option value="branch2">فرع 2</option>
+                                        <option value="branch3">فرع 3</option>
                                     </>
                                 ) : (
                                     currentUser?.allowedBranches?.map(b => (
                                         <option key={b} value={b}>
-                                            {b === 'main' ? 'المخزن' : b === 'branch1' ? 'الرئيسي' : b === 'branch2' ? 'فرع 1' : 'فرع 2'}
+                                            {b === 'main' ? 'الرئيسي' : b === 'branch1' ? 'فرع 1' : b === 'branch2' ? 'فرع 2' : 'فرع 3'}
                                         </option>
                                     ))
                                 )}
@@ -384,9 +384,9 @@ const Inventory: React.FC = () => {
                                     <th className="px-6 py-3">سعر البيع</th>
                                     <th className="px-6 py-3">
                                         {filterBranch === 'all' ? 'الرصيد الكلي' : 
-                                         filterBranch === 'main' ? 'رصيد المخزن' : 
-                                         filterBranch === 'branch1' ? 'رصيد الرئيسي' : 
-                                         filterBranch === 'branch2' ? 'رصيد فرع 1' : 'رصيد فرع 2'}
+                                         filterBranch === 'main' ? 'رصيد الرئيسي' : 
+                                         filterBranch === 'branch1' ? 'رصيد فرع 1' : 
+                                         filterBranch === 'branch2' ? 'رصيد فرع 2' : 'رصيد فرع 3'}
                                     </th>
                                     <th className="px-6 py-3">الإجراءات</th>
                                 </tr>

@@ -232,10 +232,10 @@ const CreateUserModal: React.FC<{
                 <div>
                     <label>الفرع *</label>
                     <select value={branch} onChange={e => setBranch(e.target.value as Branch)} className="w-full mt-1 p-2 border rounded dark:bg-gray-700">
-                        <option value="main">المخزن</option>
-                        <option value="branch1">الرئيسي</option>
-                        <option value="branch2">فرع 1</option>
-                        <option value="branch3">فرع 2</option>
+                        <option value="main">الرئيسي</option>
+                        <option value="branch1">فرع 1</option>
+                        <option value="branch2">فرع 2</option>
+                        <option value="branch3">فرع 3</option>
                     </select>
                 </div>
                 {loading && <p className="text-blue-500">جاري إنشاء الحساب...</p>}

@@ -63,6 +63,7 @@ import { formatCurrency, normalizeSaleItems } from './utils';
 
 let publicUnsubscribers: Unsubscribe[] = [];
 let adminUnsubscribers: Unsubscribe[] = [];
+let userProfileUnsubscribe: Unsubscribe | null = null;
 
 type AppState = {
     currentUser: User | null;
@@ -391,23 +392,41 @@ const useStore = create<AppState & AppActions>((set, get) => ({
         return state;
     }),
     setCurrentUserByEmail: async (email) => {
+        if (userProfileUnsubscribe) {
+            userProfileUnsubscribe();
+            userProfileUnsubscribe = null;
+        }
         try {
             const q = query(collection(db, "users"), where("username", "==", email.toLowerCase()));
-            const querySnapshot = await getDocs(q);
-            if (!querySnapshot.empty) {
-                const userDoc = querySnapshot.docs[0];
-                const remoteUser = userDoc.data() as User;
-                set({ currentUser: remoteUser });
-            } else {
-                console.warn(`User profile not found in DB for email: ${email}. Logging out.`);
-                await get().logout();
-            }
+            userProfileUnsubscribe = onSnapshot(q, (querySnapshot) => {
+                if (!querySnapshot.empty) {
+                    const userDoc = querySnapshot.docs[0];
+                    const remoteUser = { ...userDoc.data(), id: userDoc.id } as User;
+                    const prevUser = get().currentUser;
+                    
+                    // Only update state if something actually changed to avoid unnecessary renders
+                    if (!prevUser || JSON.stringify(prevUser) !== JSON.stringify(remoteUser)) {
+                        set({ currentUser: remoteUser });
+                    }
+                } else {
+                    console.warn(`User profile not found in DB for email: ${email}. Logging out.`);
+                    get().logout();
+                }
+            }, (error) => {
+                console.error("Error listening to user profile:", error);
+            });
         } catch (error) {
-            console.error("Error fetching user profile from DB:", error);
+            console.error("Error setting up user profile snapshot:", error);
             await get().logout();
         }
     },
-    clearCurrentUser: () => set({ currentUser: null }),
+    clearCurrentUser: () => {
+        if (userProfileUnsubscribe) {
+            userProfileUnsubscribe();
+            userProfileUnsubscribe = null;
+        }
+        set({ currentUser: null });
+    },
     
     setProducts: async (products) => {
         const batch = writeBatch(db);
