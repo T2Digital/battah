@@ -45,10 +45,10 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar, setViewMode }) => {
     if (!currentUser) return null;
 
     const branchLabels: Record<Branch, string> = {
-        'main': 'الرئيسي',
-        'branch1': 'فرع 1',
-        'branch2': 'فرع 2',
-        'branch3': 'فرع 3'
+        'main': 'المخزن',
+        'branch1': 'الرئيسي',
+        'branch2': 'فرع 1',
+        'branch3': 'فرع 2'
     };
 
     const hasMultipleBranches = currentUser.allowedBranches && currentUser.allowedBranches.length > 1;

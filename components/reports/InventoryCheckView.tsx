@@ -161,7 +161,7 @@ const InventoryCheckView: React.FC<InventoryCheckViewProps> = ({ onBack }) => {
                             onChange={(e) => setSelectedBranch(e.target.value as Branch)}
                             className="p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-primary outline-none"
                         >
-                            <option value="main">الرئيسي</option>
+                            <option value="main">الفرع الرئيسي</option>
                             <option value="branch1">فرع 1</option>
                             <option value="branch2">فرع 2</option>
                             <option value="branch3">فرع 3</option>

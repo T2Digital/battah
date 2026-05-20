@@ -51,14 +51,14 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
     const [securityError, setSecurityError] = useState('');
 
     const branchNames: Record<Branch, string> = {
-        main: 'الرئيسي',
-        branch1: 'فرع 1',
-        branch2: 'فرع 2',
-        branch3: 'فرع 3',
+        main: 'المخزن',
+        branch1: 'الرئيسي',
+        branch2: 'فرع 1',
+        branch3: 'فرع 2',
     };
 
     const getStockBreakdown = (product: Product): string => {
-        return `رصيد: الرئيسي(${product.stock.main}), ف1(${product.stock.branch1}), ف2(${product.stock.branch2}), ف3(${product.stock.branch3})`;
+        return `رصيد: المخزن(${product.stock.main}), الرئيسي(${product.stock.branch1}), ف1(${product.stock.branch2}), ف2(${product.stock.branch3})`;
     };
 
     useEffect(() => {
@@ -102,7 +102,7 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
                 setInvoiceNumber(generateInvoiceNumber());
                 setDate(new Date().toISOString().split('T')[0]);
                 setDirection('بيع');
-                setBranchSoldFrom(currentUser.branch || 'main');
+                setBranchSoldFrom('branch1');
                 setNotes('');
                 setItems([]);
                 setInvoiceType('retail');

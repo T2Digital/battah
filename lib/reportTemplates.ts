@@ -4,10 +4,10 @@ import { AppData, DailySale, Product, DailyReview } from '../types';
 import { formatCurrency, formatDate, formatDateTime, calculateHours, normalizeSaleItems, calculateSaleProfit, getActualSaleRevenue } from './utils';
 
 export const branchNames: Record<string, string> = {
-    main: 'الرئيسي',
-    branch1: 'فرع 1',
-    branch2: 'فرع 2',
-    branch3: 'فرع 3',
+    main: 'المخزن',
+    branch1: 'الرئيسي',
+    branch2: 'فرع 1',
+    branch3: 'فرع 2',
 };
 
 export const branchAddresses: Record<string, string> = {

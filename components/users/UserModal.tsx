@@ -188,10 +188,10 @@ const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose, onSave, existing
                                     onChange={e => setBranch(e.target.value as Branch)}
                                     className="w-full p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                                 >
-                                    <option value="main">الرئيسي</option>
-                                    <option value="branch1">فرع 1</option>
-                                    <option value="branch2">فرع 2</option>
-                                    <option value="branch3">فرع 3</option>
+                                    <option value="main">المخزن</option>
+                                    <option value="branch1">الرئيسي</option>
+                                    <option value="branch2">فرع 1</option>
+                                    <option value="branch3">فرع 2</option>
                                 </select>
                             </div>
                             <div className="md:col-span-2">
@@ -209,7 +209,7 @@ const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose, onSave, existing
                                                 className="w-4 h-4 text-primary focus:ring-primary rounded"
                                             />
                                             <span className="text-sm dark:text-gray-300">
-                                                {b === 'main' ? 'الرئيسي' : b === 'branch1' ? 'فرع 1' : b === 'branch2' ? 'فرع 2' : 'فرع 3'}
+                                                {b === 'main' ? 'المخزن' : b === 'branch1' ? 'الرئيسي' : b === 'branch2' ? 'فرع 1' : 'فرع 2'}
                                             </span>
                                         </label>
                                     ))}
