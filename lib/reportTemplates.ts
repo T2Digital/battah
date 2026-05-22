@@ -181,12 +181,31 @@ const generateReportHTML = (title: string, themeColor: string, content: string, 
     ${content}
     ${isInvoice ? `
     <script>
-        window.onafterprint = function() {
-            window.close();
+        let isSecondCopyMode = false;
+        window.onload = function() {
+            setTimeout(() => {
+                window.print();
+            }, 600);
         };
-        setTimeout(() => {
-            window.print();
-        }, 500);
+        
+        window.onafterprint = function() {
+            const customerDiv = document.getElementById('copy-customer');
+            const shopDiv = document.getElementById('copy-shop');
+            
+            if (customerDiv && shopDiv && !isSecondCopyMode) {
+                isSecondCopyMode = true;
+                customerDiv.style.display = 'none';
+                shopDiv.style.display = 'block';
+                
+                setTimeout(() => {
+                    window.print();
+                }, 800);
+            } else {
+                setTimeout(() => {
+                    window.close();
+                }, 300);
+            }
+        };
     </script>
     ` : `
     <div class="no-print" style="text-align: left; margin: 20px;">
@@ -373,14 +392,13 @@ export const generateInvoiceContent = (
 
     let content = '';
     if (copyType === 'customer') {
-        content = renderSingleCopy('(نسخة العميل)');
+        content = `<div id="copy-customer" style="display: block;">${renderSingleCopy('(نسخة العميل)')}</div>`;
     } else if (copyType === 'shop') {
-        content = renderSingleCopy('(نسخة المحل)');
+        content = `<div id="copy-shop" style="display: block;">${renderSingleCopy('(نسخة المحل)')}</div>`;
     } else {
         content = `
-            ${renderSingleCopy('(نسخة العميل)')}
-            <div class="page-break"></div>
-            ${renderSingleCopy('(نسخة المحل)')}
+            <div id="copy-customer" style="display: block;">${renderSingleCopy('(نسخة العميل)')}</div>
+            <div id="copy-shop" style="display: none;">${renderSingleCopy('(نسخة المحل)')}</div>
         `;
     }
 
