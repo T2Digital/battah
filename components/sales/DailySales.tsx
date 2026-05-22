@@ -421,19 +421,12 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
     };
 
     const handlePrintInvoice = (sale: DailySale, isTaxable = sale.isTaxable || false) => {
-        const w1 = window.open('', '_blank');
-        const w2 = window.open('', '_blank');
+        const printWindow = window.open('', '_blank');
 
-        if (w1) {
-            const customerContent = generateInvoiceContent(sale, products, { isTaxable, copyType: 'customer' });
-            w1.document.write(customerContent);
-            w1.document.close();
-        }
-
-        if (w2) {
-            const shopContent = generateInvoiceContent(sale, products, { isTaxable, copyType: 'shop' });
-            w2.document.write(shopContent);
-            w2.document.close();
+        if (printWindow) {
+            const invoiceContent = generateInvoiceContent(sale, products, { isTaxable, copyType: 'both' });
+            printWindow.document.write(invoiceContent);
+            printWindow.document.close();
         }
     };
 

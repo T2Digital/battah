@@ -149,7 +149,7 @@ const generateReportHTML = (title: string, themeColor: string, content: string, 
     ${getReportStyles(themeColor)}
     ${isInvoice ? `
     <style>
-        @page { margin: 0; size: 80mm auto; }
+        @page { margin: 0; }
         body { margin: 0; padding: 0; background: #fff; width: 72mm; max-width: 72mm; margin: 0 auto; font-family: 'Cairo', sans-serif; font-size: 12px; color: #000; direction: rtl; }
         .invoice-box { width: 100%; margin: 0; padding: 0 2mm; box-sizing: border-box; overflow: hidden; }
         .invoice-box table { width: 100%; line-height: 1.2; text-align: right; border-collapse: collapse; }
@@ -168,10 +168,10 @@ const generateReportHTML = (title: string, themeColor: string, content: string, 
         .invoice-box .mt-4 { margin-top: 10px; }
         .invoice-box hr { border: none; border-top: 1px dashed #000; margin: 10px 0; }
         @media print {
-            @page { margin: 0; size: 80mm auto; }
+            @page { margin: 0; }
             body { width: 72mm; max-width: 72mm; margin: 0 auto; padding: 0; }
-            .invoice-box { padding: 2mm; width: 100%; box-sizing: border-box; page-break-inside: avoid; }
-            .page-break { page-break-after: always; break-after: page; display: block; height: 1px; }
+            .invoice-box { padding: 2mm; width: 100%; box-sizing: border-box; page-break-inside: avoid; break-inside: avoid; }
+            .page-break { page-break-after: always; break-after: page; display: block; height: 1px; background: transparent; border: none; clear: both; }
             .no-print { display: none; }
         }
     </style>
