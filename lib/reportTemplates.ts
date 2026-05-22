@@ -170,7 +170,7 @@ const generateReportHTML = (title: string, themeColor: string, content: string, 
         @media print {
             @page { margin: 0; }
             body { width: 72mm; max-width: 72mm; margin: 0 auto; padding: 0; }
-            .invoice-box { padding: 2mm; padding-bottom: 25mm !important; width: 100%; box-sizing: border-box; page-break-inside: avoid; break-inside: avoid; }
+            .invoice-box { padding: 2mm; padding-bottom: 30mm !important; width: 100%; box-sizing: border-box; page-break-inside: avoid; break-inside: avoid; }
             .page-break { page-break-after: always; break-after: page; display: block; height: 1px; background: transparent; border: none; clear: both; }
             .no-print { display: none; }
         }
@@ -232,25 +232,25 @@ export const generateInvoiceContent = (
     }, 0);
     const discountPercent = sale.discount || 0;
 
-    let baseAmount = sale.totalAmount;
+    let baseAmount = Math.round(sale.totalAmount);
     let taxAmount = 0;
-    let totalWithTax = sale.totalAmount;
+    let totalWithTax = Math.round(sale.totalAmount);
 
     if (isTaxable) {
         if (sale.isTaxable) {
-            totalWithTax = sale.totalAmount;
-            baseAmount = sale.totalAmount / 1.14;
-            taxAmount = sale.totalAmount - baseAmount;
+            totalWithTax = Math.round(sale.totalAmount);
+            baseAmount = Math.round(sale.totalAmount / 1.14);
+            taxAmount = Math.round(sale.totalAmount - baseAmount);
         } else {
-            baseAmount = sale.totalAmount;
-            taxAmount = baseAmount * 0.14;
-            totalWithTax = baseAmount + taxAmount;
+            baseAmount = Math.round(sale.totalAmount);
+            taxAmount = Math.round(baseAmount * 0.14);
+            totalWithTax = Math.round(baseAmount + taxAmount);
         }
     } else {
         if (sale.isTaxable) {
-            baseAmount = sale.totalAmount / 1.14;
+            baseAmount = Math.round(sale.totalAmount / 1.14);
         } else {
-            baseAmount = sale.totalAmount;
+            baseAmount = Math.round(sale.totalAmount);
         }
     }
 
@@ -363,6 +363,8 @@ export const generateInvoiceContent = (
             </div>
             <div style="margin-top: 5px; font-size: 9px; color: #555;">${copyLabel}</div>
         </div>
+        <!-- 3cm blank space for easy tearing on thermal printers -->
+        <div style="height: 3cm; min-height: 30mm; width: 100%; clear: both;"></div>
     </div>
     `;
 

@@ -56,14 +56,15 @@ export const calculateSaleProfit = (sale: DailySale, products: Product[]): numbe
 
 export const formatCurrency = (amount: number | null | undefined): string => {
     if (amount === null || amount === undefined || isNaN(amount)) {
-        return '0.00 ج.م';
+        return '0 ج.م';
     }
+    const rounded = Math.round(parseFloat(amount.toString()));
     return new Intl.NumberFormat('ar-EG', {
         style: 'currency',
         currency: 'EGP',
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2
-    }).format(parseFloat(amount.toString())).replace('EGP', 'ج.م');
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0
+    }).format(rounded).replace('EGP', 'ج.م');
 };
 
 export const formatDate = (dateString: string | undefined): string => {

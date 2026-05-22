@@ -163,7 +163,8 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
             return item.isReturn ? sum - itemTotal : sum + itemTotal;
         }, 0);
         const afterDiscount = subtotal - (subtotal * discount / 100);
-        return isTaxable ? afterDiscount * 1.14 : afterDiscount;
+        const rawTotal = isTaxable ? afterDiscount * 1.14 : afterDiscount;
+        return Math.round(rawTotal);
     }, [items, discount, isTaxable]);
     
     const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
@@ -211,37 +212,51 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
     };
 
     const handleProductSelect = (product: Product) => {
-        const existingItemIndex = items.findIndex(item => item.productId === product.id);
-        
-        if (existingItemIndex !== -1) {
-            // If product already exists, increment quantity
-            const updatedItems = [...items];
-            updatedItems[existingItemIndex] = {
-                ...updatedItems[existingItemIndex],
-                quantity: updatedItems[existingItemIndex].quantity + 1
-            };
-            setItems(updatedItems);
-            setProductSearch('');
-            setShowSuggestions(false);
-            return;
-        }
-        
-        const price = invoiceType === 'wholesale' 
-            ? (product.wholesalePrice || product.sellingPrice) 
-            : (product.retailPrice || product.sellingPrice);
+        setItems(prevItems => {
+            const existingItemIndex = prevItems.findIndex(item => item.productId === product.id);
+            
+            if (existingItemIndex !== -1) {
+                // If product already exists, increment quantity
+                const updatedItems = [...prevItems];
+                const currentQty = updatedItems[existingItemIndex].quantity;
+                const newQty = currentQty + 1;
+                
+                // Adjust serial numbers array size if quantity changes and product has serial numbers
+                let serials = updatedItems[existingItemIndex].serialNumbers || [];
+                if (updatedItems[existingItemIndex].hasSerialNumber) {
+                    if (newQty > serials.length) {
+                        serials = [
+                            ...serials,
+                            ...Array(newQty - serials.length).fill('')
+                        ];
+                    }
+                }
 
-        const newItem: EditableSaleItem = {
-            productId: product.id,
-            productName: product.name,
-            quantity: 1,
-            unitPrice: price,
-            itemType: product.category as SaleItem['itemType'] || 'أخرى',
-            stock: product.stock[branchSoldFrom],
-            hasSerialNumber: product.hasSerialNumber,
-            serialNumbers: [],
-            isReturn: direction === 'مرتجع' || direction === 'تبديل', // Default to true for returns/exchanges, user can uncheck if it's a new item
-        };
-        setItems(prev => [...prev, newItem]);
+                updatedItems[existingItemIndex] = {
+                    ...updatedItems[existingItemIndex],
+                    quantity: newQty,
+                    serialNumbers: serials
+                };
+                return updatedItems;
+            }
+            
+            const price = invoiceType === 'wholesale' 
+                ? (product.wholesalePrice || product.sellingPrice) 
+                : (product.retailPrice || product.sellingPrice);
+
+            const newItem: EditableSaleItem = {
+                productId: product.id,
+                productName: product.name,
+                quantity: 1,
+                unitPrice: price,
+                itemType: product.category as SaleItem['itemType'] || 'أخرى',
+                stock: product.stock[branchSoldFrom],
+                hasSerialNumber: product.hasSerialNumber,
+                serialNumbers: product.hasSerialNumber ? [''] : [],
+                isReturn: direction === 'مرتجع' || direction === 'تبديل', // Default to true for returns/exchanges, user can uncheck if it's a new item
+            };
+            return [...prevItems, newItem];
+        });
         setProductSearch('');
         setShowSuggestions(false);
     };
@@ -277,11 +292,28 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
     useEffect(() => {
         if (initialScannedCode && isOpen) {
             // Give a little time for states to initialize
-            setTimeout(() => {
+            const timer = setTimeout(() => {
                 handleBarcodeScan(initialScannedCode);
             }, 300);
+            return () => clearTimeout(timer);
         }
     }, [initialScannedCode, isOpen]);
+
+    useEffect(() => {
+        if (!isOpen) return;
+
+        const handleGlobalScan = (e: CustomEvent<string>) => {
+            const scannedCode = e.detail;
+            if (scannedCode) {
+                handleBarcodeScan(scannedCode);
+            }
+        };
+
+        window.addEventListener('scan-product', handleGlobalScan as EventListener);
+        return () => {
+            window.removeEventListener('scan-product', handleGlobalScan as EventListener);
+        };
+    }, [isOpen, products, invoiceType, branchSoldFrom, direction]);
 
     const handleSerialNumberChange = (index: number, serialIndex: number, value: string) => {
         const newItems = [...items];
