@@ -1,5 +1,38 @@
 import { useEffect, useRef } from 'react';
 
+function getCharFromCode(code: string, shift: boolean = false): string | null {
+    if (code.startsWith('Key')) {
+        const char = code.slice(3); // 'A'...'Z'
+        return shift ? char.toUpperCase() : char.toLowerCase();
+    }
+    if (code.startsWith('Digit')) {
+        const num = code.slice(5); // '0'...'9'
+        if (shift) {
+            const shiftNums: Record<string, string> = {
+                '1': '!', '2': '@', '3': '#', '4': '$', '5': '%',
+                '6': '^', '7': '&', '8': '*', '9': '(', '0': ')'
+            };
+            return shiftNums[num] || num;
+        }
+        return num;
+    }
+    switch (code) {
+        case 'Minus': return shift ? '_' : '-';
+        case 'Equal': return shift ? '+' : '=';
+        case 'Slash': return shift ? '?' : '/';
+        case 'Period': return shift ? '>' : '.';
+        case 'Comma': return shift ? '<' : ',';
+        case 'Semicolon': return shift ? ':' : ';';
+        case 'Quote': return shift ? '"' : "'";
+        case 'Backslash': return shift ? '|' : '\\';
+        case 'BracketLeft': return shift ? '{' : '[';
+        case 'BracketRight': return shift ? '}' : ']';
+        case 'Backquote': return shift ? '~' : '`';
+        case 'Space': return ' ';
+        default: return null;
+    }
+}
+
 export function useBarcodeScanner(onScan: (barcode: string) => void) {
     const barcodeBuffer = useRef<string>('');
     const lastKeyTime = useRef<number>(Date.now());
@@ -8,10 +41,10 @@ export function useBarcodeScanner(onScan: (barcode: string) => void) {
         const handleKeyDown = (e: KeyboardEvent) => {
             const currentTime = Date.now();
             
-            // If the time between keystrokes is more than 50ms, 
+            // If the time between keystrokes is more than 100ms, 
             // it's likely a human typing, not a scanner.
             // Reset the buffer.
-            if (currentTime - lastKeyTime.current > 60) {
+            if (currentTime - lastKeyTime.current > 100) {
                 barcodeBuffer.current = '';
             }
 
@@ -42,9 +75,15 @@ export function useBarcodeScanner(onScan: (barcode: string) => void) {
                 }
             }
 
-            // Only capture printable single characters
-            if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
-                barcodeBuffer.current += e.key;
+            // Translate physical key code to standard English key to bypass any OS keyboard layouts
+            if (!e.ctrlKey && !e.altKey && !e.metaKey) {
+                const physicalChar = getCharFromCode(e.code, e.shiftKey);
+                if (physicalChar !== null) {
+                    barcodeBuffer.current += physicalChar;
+                } else if (e.key.length === 1) {
+                    // Fallback to key if we couldn't resolve code but it is a printable single char
+                    barcodeBuffer.current += e.key;
+                }
             }
 
             lastKeyTime.current = currentTime;
