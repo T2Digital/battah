@@ -420,12 +420,20 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
         }
     };
 
-    const handlePrintInvoice = (sale: DailySale) => {
-        const content = generateInvoiceContent(sale, products);
-        const reportWindow = window.open('', '_blank');
-        if (reportWindow) {
-            reportWindow.document.write(content);
-            reportWindow.document.close();
+    const handlePrintInvoice = (sale: DailySale, isTaxable = false) => {
+        const w1 = window.open('', '_blank');
+        const w2 = window.open('', '_blank');
+
+        if (w1) {
+            const customerContent = generateInvoiceContent(sale, products, { isTaxable, copyType: 'customer' });
+            w1.document.write(customerContent);
+            w1.document.close();
+        }
+
+        if (w2) {
+            const shopContent = generateInvoiceContent(sale, products, { isTaxable, copyType: 'shop' });
+            w2.document.write(shopContent);
+            w2.document.close();
         }
     };
 
@@ -677,9 +685,10 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
                                     <td className="px-6 py-4">{sale.direction}</td>
                                     <td className="px-6 py-4">{sale.sellerName}</td>
                                     <td className="px-6 py-4 flex gap-3">
-                                        <button onClick={() => handlePrintInvoice(sale)} className="text-green-500 hover:text-green-700 text-lg" aria-label={`طباعة فاتورة ${sale.invoiceNumber}`}><i className="fas fa-print"></i></button>
-                                        <button onClick={() => handleViewInvoice(sale)} className="text-blue-600 hover:text-blue-800 text-lg" aria-label={`عرض تفاصيل فاتورة ${sale.invoiceNumber}`}><i className="fas fa-eye"></i></button>
-                                        <button onClick={() => handleEditSale(sale)} className="text-blue-500 hover:text-blue-700 text-lg" aria-label={`تعديل فاتورة ${sale.invoiceNumber}`}><i className="fas fa-edit"></i></button>
+                                        <button onClick={() => handlePrintInvoice(sale)} className="text-green-500 hover:text-green-700 text-lg" aria-label={`طباعة فاتورة ${sale.invoiceNumber}`} title="طباعة فاتورة عادية"><i className="fas fa-print"></i></button>
+                                        <button onClick={() => handlePrintInvoice(sale, true)} className="text-purple-600 hover:text-purple-800 text-lg" aria-label={`طباعة فاتورة ضريبية ${sale.invoiceNumber}`} title="طباعة فاتورة ضريبية (14%)"><i className="fas fa-file-invoice-dollar"></i></button>
+                                        <button onClick={() => handleViewInvoice(sale)} className="text-blue-600 hover:text-blue-800 text-lg" aria-label={`عرض تفاصيل فاتورة ${sale.invoiceNumber}`} title="عرض الفاتورة"><i className="fas fa-eye"></i></button>
+                                        <button onClick={() => handleEditSale(sale)} className="text-blue-500 hover:text-blue-700 text-lg" aria-label={`تعديل فاتورة ${sale.invoiceNumber}`} title="تعديل"><i className="fas fa-edit"></i></button>
                                         <button onClick={() => setSaleToDelete(sale)} className="text-red-500 hover:text-red-700 text-lg w-6 text-center" aria-label={`حذف فاتورة ${sale.invoiceNumber}`}>
                                             <i className="fas fa-trash"></i>
                                         </button>

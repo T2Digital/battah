@@ -12,9 +12,9 @@ export const branchNames: Record<string, string> = {
 
 export const branchAddresses: Record<string, string> = {
     main: '79 شارع رمسيس ناصية التوفيقية امام سنترال رمسيس',
-    branch1: '1 شارع البورصة ناصية التوفيقية امام دار القضاء العالى',
-    branch2: '19 شارع رمسيس ناصية التوفيقية امام سنترال رمسيس',
-    branch3: '6 شارع البورصة ناصية التوفيقية بجوار سينما ريفولى',
+    branch1: '79 شارع رمسيس ناصية التوفيقية امام سنترال رمسيس',
+    branch2: '1 شارع البورصة ناصية التوفيقية امام دار القضاء العالى',
+    branch3: '19 شارع رمسيس ناصية التوفيقية امام سنترال رمسيس',
 };
 
 const getReportStyles = (themeColor: string) => `
@@ -196,7 +196,14 @@ const generateReportHTML = (title: string, themeColor: string, content: string, 
 </body>
 </html>`;
 
-export const generateInvoiceContent = (sale: DailySale, products: Product[]) => {
+export const generateInvoiceContent = (
+    sale: DailySale, 
+    products: Product[],
+    options?: { isTaxable?: boolean; copyType?: 'customer' | 'shop' | 'both' }
+) => {
+    const isTaxable = options?.isTaxable || false;
+    const copyType = options?.copyType || 'both';
+
     const getProductName = (item: any) => item.productName || products.find(p => p.id === item.productId)?.name || 'صنف غير معروف';
     const items = normalizeSaleItems(sale);
 
@@ -224,11 +231,18 @@ export const generateInvoiceContent = (sale: DailySale, products: Product[]) => 
         <p style="margin: 0; font-size: 10px;">تليفون: 01080444447</p>
     `;
 
-    const singleInvoiceHtml = `
+    // Calculate taxes if taxable
+    const taxAmount = sale.totalAmount * 0.14;
+    const totalWithTax = sale.totalAmount + taxAmount;
+
+    const renderSingleCopy = (copyLabel: string) => `
     <div class="invoice-box">
         <div class="text-center mb-2">
             <h1 style="margin: 0; font-size: 20px; font-weight: bold;">بطاح الأصلي</h1>
             <p style="margin: 0; font-size: 12px;">لقطع غيار السيارات</p>
+            ${isTaxable ? `
+                <p style="margin: 2px 0 0 0; font-size: 11px; font-weight: bold; color: #000;">فاتورة ضريبية</p>
+            ` : ''}
             ${branchAddressHtml}
         </div>
         <hr>
@@ -263,6 +277,16 @@ export const generateInvoiceContent = (sale: DailySale, products: Product[]) => 
             <tr>
                 <td colspan="3" style="text-align:right; font-size: 10px;">خصم (${sale.discount}%):</td>
                 <td style="text-align:left; font-size: 10px;">-${formatCurrency((sale.totalAmount / (1 - (sale.discount/100))) * (sale.discount/100))}</td>
+            </tr>
+            ` : ''}
+            ${isTaxable ? `
+            <tr>
+                <td colspan="3" style="text-align:right; font-size: 10px; font-weight: bold;">ضريبة القيمة المضافة (14%):</td>
+                <td style="text-align:left; font-size: 10px; font-weight: bold;">${formatCurrency(taxAmount)}</td>
+            </tr>
+            <tr class="total" style="border-top: 1px dashed #000;">
+                <td colspan="3" style="text-align:right; font-size: 13px; font-weight: bold;">الإجمالي شامل الضريبة:</td>
+                <td style="text-align:left; font-size: 13px; font-weight: bold;">${formatCurrency(totalWithTax)}</td>
             </tr>
             ` : ''}
             ${sale.paymentMethod ? `
@@ -309,20 +333,23 @@ export const generateInvoiceContent = (sale: DailySale, products: Product[]) => 
                     <li>يشترط الحفاظ على حالة المنتج الأصلية (الكرتونة والمحتويات).</li>
                 </ul>
             </div>
-            <div style="margin-top: 5px; font-size: 9px; color: #555;">(نسخة العميل)</div>
+            <div style="margin-top: 5px; font-size: 9px; color: #555;">${copyLabel}</div>
         </div>
     </div>
     `;
 
-    const singleInvoiceHtmlCopy2 = singleInvoiceHtml.replace('(نسخة العميل)', '(نسخة المحل)');
-
-    const content = `
-        ${singleInvoiceHtml}
-        
-        <div class="page-break"></div>
-        
-        ${singleInvoiceHtmlCopy2}
-    `;
+    let content = '';
+    if (copyType === 'customer') {
+        content = renderSingleCopy('(نسخة العميل)');
+    } else if (copyType === 'shop') {
+        content = renderSingleCopy('(نسخة المحل)');
+    } else {
+        content = `
+            ${renderSingleCopy('(نسخة العميل)')}
+            <div class="page-break"></div>
+            ${renderSingleCopy('(نسخة المحل)')}
+        `;
+    }
 
     return generateReportHTML(`فاتورة ${sale.invoiceNumber}`, '#3b82f6', content, true);
 };

@@ -111,12 +111,20 @@ const SalesReportView: React.FC<SalesReportViewProps> = ({ setActiveReport }) =>
         }
     };
 
-    const handlePrintInvoice = (sale: DailySale) => {
-        const content = generateInvoiceContent(sale, products);
-        const reportWindow = window.open('', '_blank');
-        if (reportWindow) {
-            reportWindow.document.write(content);
-            reportWindow.document.close();
+    const handlePrintInvoice = (sale: DailySale, isTaxable = false) => {
+        const w1 = window.open('', '_blank');
+        const w2 = window.open('', '_blank');
+
+        if (w1) {
+            const customerContent = generateInvoiceContent(sale, products, { isTaxable, copyType: 'customer' });
+            w1.document.write(customerContent);
+            w1.document.close();
+        }
+
+        if (w2) {
+            const shopContent = generateInvoiceContent(sale, products, { isTaxable, copyType: 'shop' });
+            w2.document.write(shopContent);
+            w2.document.close();
         }
     };
 
@@ -255,9 +263,12 @@ const SalesReportView: React.FC<SalesReportViewProps> = ({ setActiveReport }) =>
                                     <td className="px-6 py-4">{sale.direction}</td>
                                     <td className="px-6 py-4">{sale.sellerName}</td>
                                     <td className="px-6 py-4 font-bold text-blue-600">{formatCurrency(sale.totalAmount)}</td>
-                                    <td className="px-6 py-4">
-                                        <button onClick={(e) => { e.stopPropagation(); handlePrintInvoice(sale); }} className="text-gray-500 hover:text-primary transition" title="عرض الفاتورة">
-                                            <i className="fas fa-eye text-lg"></i>
+                                    <td className="px-6 py-4 flex items-center gap-3">
+                                        <button onClick={(e) => { e.stopPropagation(); handlePrintInvoice(sale); }} className="text-gray-500 hover:text-primary transition" title="طباعة الفاتورة العادية">
+                                            <i className="fas fa-print text-lg"></i>
+                                        </button>
+                                        <button onClick={(e) => { e.stopPropagation(); handlePrintInvoice(sale, true); }} className="text-purple-600 hover:text-purple-800 transition" title="طباعة فاتورة ضريبية (14%)">
+                                            <i className="fas fa-file-invoice-dollar text-lg"></i>
                                         </button>
                                     </td>
                                 </tr>
