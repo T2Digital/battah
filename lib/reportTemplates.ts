@@ -231,9 +231,33 @@ export const generateInvoiceContent = (
         <p style="margin: 0; font-size: 10px;">تليفون: 01080444447</p>
     `;
 
-    // Calculate taxes if taxable
-    const taxAmount = sale.totalAmount * 0.14;
-    const totalWithTax = sale.totalAmount + taxAmount;
+    const itemsTotal = items.reduce((sum, item) => {
+        const itemTotal = item.quantity * item.unitPrice;
+        return item.isReturn ? sum - itemTotal : sum + itemTotal;
+    }, 0);
+    const discountPercent = sale.discount || 0;
+
+    let baseAmount = sale.totalAmount;
+    let taxAmount = 0;
+    let totalWithTax = sale.totalAmount;
+
+    if (isTaxable) {
+        if (sale.isTaxable) {
+            totalWithTax = sale.totalAmount;
+            baseAmount = sale.totalAmount / 1.14;
+            taxAmount = sale.totalAmount - baseAmount;
+        } else {
+            baseAmount = sale.totalAmount;
+            taxAmount = baseAmount * 0.14;
+            totalWithTax = baseAmount + taxAmount;
+        }
+    } else {
+        if (sale.isTaxable) {
+            baseAmount = sale.totalAmount / 1.14;
+        } else {
+            baseAmount = sale.totalAmount;
+        }
+    }
 
     const renderSingleCopy = (copyLabel: string) => `
     <div class="invoice-box">
@@ -270,16 +294,20 @@ export const generateInvoiceContent = (
         <hr>
         <table cellpadding="0" cellspacing="0" style="table-layout: fixed; width: 100%; word-wrap: break-word;">
             <tr class="total">
-                <td colspan="3" style="text-align:right;">الإجمالي:</td>
-                <td style="text-align:left;">${formatCurrency(sale.totalAmount)}</td>
+                <td colspan="3" style="text-align:right;">المجموع:</td>
+                <td style="text-align:left;">${formatCurrency(itemsTotal)}</td>
             </tr>
-            ${sale.discount ? `
+            ${discountPercent ? `
             <tr>
-                <td colspan="3" style="text-align:right; font-size: 10px;">خصم (${sale.discount}%):</td>
-                <td style="text-align:left; font-size: 10px;">-${formatCurrency((sale.totalAmount / (1 - (sale.discount/100))) * (sale.discount/100))}</td>
+                <td colspan="3" style="text-align:right; font-size: 10px;">خصم (${discountPercent}%):</td>
+                <td style="text-align:left; font-size: 10px;">-${formatCurrency(itemsTotal * (discountPercent/100))}</td>
             </tr>
             ` : ''}
             ${isTaxable ? `
+            <tr>
+                <td colspan="3" style="text-align:right; font-size: 10px;">الإجمالي قبل الضريبة:</td>
+                <td style="text-align:left; font-size: 10px;">${formatCurrency(baseAmount)}</td>
+            </tr>
             <tr>
                 <td colspan="3" style="text-align:right; font-size: 10px; font-weight: bold;">ضريبة القيمة المضافة (14%):</td>
                 <td style="text-align:left; font-size: 10px; font-weight: bold;">${formatCurrency(taxAmount)}</td>
@@ -288,7 +316,12 @@ export const generateInvoiceContent = (
                 <td colspan="3" style="text-align:right; font-size: 13px; font-weight: bold;">الإجمالي شامل الضريبة:</td>
                 <td style="text-align:left; font-size: 13px; font-weight: bold;">${formatCurrency(totalWithTax)}</td>
             </tr>
-            ` : ''}
+            ` : `
+            <tr class="total" style="border-top: 1px dashed #000;">
+                <td colspan="3" style="text-align:right; font-size: 13px; font-weight: bold;">الإجمالي النهائي:</td>
+                <td style="text-align:left; font-size: 13px; font-weight: bold;">${formatCurrency(baseAmount)}</td>
+            </tr>
+            `}
             ${sale.paymentMethod ? `
             <tr>
                 <td colspan="3" style="text-align:right; font-size: 10px;">طريقة الدفع:</td>

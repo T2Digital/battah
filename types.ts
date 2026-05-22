@@ -104,6 +104,8 @@ export interface DailySale {
     locationLink?: string; // Added
     remainingDebt?: number;
     paidAmount?: number;
+    isTaxable?: boolean;
+    taxAmount?: number;
 
     // New multi-item structure (optional for backward compatibility)
     items?: SaleItem[];

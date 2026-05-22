@@ -411,7 +411,17 @@ const Inventory: React.FC = () => {
                                             <td className="px-6 py-4">{p.sku}</td>
                                             {currentUser?.role === 'admin' && <td className="px-6 py-4">{formatCurrency(p.purchasePrice)}</td>}
                                             <td className="px-6 py-4">{formatCurrency(p.sellingPrice)}</td>
-                                            <td className={`px-6 py-4 font-bold ${displayStock <= (p.reorderPoint || 0) ? 'text-red-500' : ''}`}>{displayStock}</td>
+                                            <td className={`px-6 py-4 font-bold ${displayStock <= (p.reorderPoint || 0) ? 'text-red-500' : ''}`}>
+                                                <div className="text-base">{displayStock}</div>
+                                                {filterBranch === 'all' && (
+                                                    <div className="text-xs text-gray-500 dark:text-gray-400 font-normal mt-1.5 flex flex-wrap gap-1 justify-end max-w-[220px]">
+                                                        <span className="bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded text-[10px] whitespace-nowrap">المخزن: {p.stock?.main || 0}</span>
+                                                        <span className="bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded text-[10px] whitespace-nowrap">الرئيسي: {p.stock?.branch1 || 0}</span>
+                                                        <span className="bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded text-[10px] whitespace-nowrap">فرع 1: {p.stock?.branch2 || 0}</span>
+                                                        <span className="bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded text-[10px] whitespace-nowrap">فرع 2: {p.stock?.branch3 || 0}</span>
+                                                    </div>
+                                                )}
+                                            </td>
                                             <td className="px-6 py-4 flex gap-3">
                                                 <button onClick={() => handleEditProduct(p)} className="text-blue-500 hover:text-blue-700 text-lg"><i className="fas fa-edit"></i></button>
                                                 {currentUser?.role === 'admin' && (

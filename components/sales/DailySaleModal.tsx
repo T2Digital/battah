@@ -31,6 +31,7 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
     
     const [invoiceType, setInvoiceType] = useState<'wholesale' | 'retail'>('retail');
     const [discount, setDiscount] = useState<number>(0);
+    const [isTaxable, setIsTaxable] = useState(false);
     const [cashierLocation, setCashierLocation] = useState<'فوق' | 'تحت'>('تحت');
     const [warrantyPeriod, setWarrantyPeriod] = useState<string>('');
     const [paymentMethod, setPaymentMethod] = useState<'نقدى' | 'إلكترونى' | 'مختلط' | 'آجل'>('نقدى');
@@ -78,6 +79,7 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
                 setNotes(existingSale.notes || '');
                 setInvoiceType(existingSale.invoiceType || 'retail');
                 setDiscount(existingSale.discount || 0);
+                setIsTaxable(existingSale.isTaxable || false);
                 setCashierLocation(existingSale.cashierLocation || 'تحت');
                 setWarrantyPeriod(existingSale.notes?.match(/ضمان: (.*)/)?.[1] || '');
                 setPaymentMethod(existingSale.paymentMethod || 'نقدى');
@@ -106,6 +108,7 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
                 setNotes('');
                 setItems([]);
                 setInvoiceType('retail');
+                setIsTaxable(false);
                 setDiscount(0);
                 setCashierLocation('تحت');
                 setWarrantyPeriod('');
@@ -159,8 +162,9 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
             const itemTotal = item.quantity * item.unitPrice;
             return item.isReturn ? sum - itemTotal : sum + itemTotal;
         }, 0);
-        return subtotal - (subtotal * discount / 100);
-    }, [items, discount]);
+        const afterDiscount = subtotal - (subtotal * discount / 100);
+        return isTaxable ? afterDiscount * 1.14 : afterDiscount;
+    }, [items, discount, isTaxable]);
     
     const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
     const { searchProducts } = useStore(state => ({
@@ -384,7 +388,9 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
                 hasSerialNumber: rest.hasSerialNumber || false, // Ensure boolean
                 serialNumbers: rest.serialNumbers || [], // Ensure array
                 itemType: rest.itemType || 'أخرى' // Ensure string
-            })), 
+            })),
+            isTaxable,
+            taxAmount: isTaxable ? (totalAmount * 0.14) / 1.14 : 0, 
         };
         onSave(existingSale ? { ...saleData, id: existingSale.id } : saleData, true);
     };
@@ -586,26 +592,53 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
                     </div>
                 </div>
 
-                <div className="flex flex-col md:flex-row justify-between items-center mt-4 border-t pt-4">
-                    <div className="flex items-center gap-2 mb-2 md:mb-0">
-                        <span className="font-bold">خصم:</span>
-                        {invoiceType === 'retail' ? (
-                            <>
-                                <button type="button" onClick={() => setDiscount(discount === 5 ? 0 : 5)} className={`px-3 py-1 rounded border ${discount === 5 ? 'bg-primary text-white' : 'bg-gray-100 dark:bg-gray-700'}`}>5%</button>
-                                <button type="button" onClick={() => setDiscount(discount === 10 ? 0 : 10)} className={`px-3 py-1 rounded border ${discount === 10 ? 'bg-primary text-white' : 'bg-gray-100 dark:bg-gray-700'}`}>10%</button>
-                                <button type="button" onClick={() => setDiscount(discount === 15 ? 0 : 15)} className={`px-3 py-1 rounded border ${discount === 15 ? 'bg-primary text-white' : 'bg-gray-100 dark:bg-gray-700'}`}>15%</button>
-                            </>
-                        ) : (
-                            <>
-                                <button type="button" onClick={() => setDiscount(discount === 3 ? 0 : 3)} className={`px-3 py-1 rounded border ${discount === 3 ? 'bg-primary text-white' : 'bg-gray-100 dark:bg-gray-700'}`}>3%</button>
-                                <button type="button" onClick={() => setDiscount(discount === 5 ? 0 : 5)} className={`px-3 py-1 rounded border ${discount === 5 ? 'bg-primary text-white' : 'bg-gray-100 dark:bg-gray-700'}`}>5%</button>
-                            </>
-                        )}
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mt-4 border-t pt-4 gap-4">
+                    <div className="flex flex-col gap-3">
+                        <div className="flex items-center gap-2">
+                            <span className="font-bold">خصم:</span>
+                            {invoiceType === 'retail' ? (
+                                <>
+                                    <button type="button" onClick={() => setDiscount(discount === 5 ? 0 : 5)} className={`px-3 py-1 rounded border ${discount === 5 ? 'bg-primary text-white' : 'bg-gray-100 dark:bg-gray-700'}`}>5%</button>
+                                    <button type="button" onClick={() => setDiscount(discount === 10 ? 0 : 10)} className={`px-3 py-1 rounded border ${discount === 10 ? 'bg-primary text-white' : 'bg-gray-100 dark:bg-gray-700'}`}>10%</button>
+                                    <button type="button" onClick={() => setDiscount(discount === 15 ? 0 : 15)} className={`px-3 py-1 rounded border ${discount === 15 ? 'bg-primary text-white' : 'bg-gray-100 dark:bg-gray-700'}`}>15%</button>
+                                </>
+                            ) : (
+                                <>
+                                    <button type="button" onClick={() => setDiscount(discount === 3 ? 0 : 3)} className={`px-3 py-1 rounded border ${discount === 3 ? 'bg-primary text-white' : 'bg-gray-100 dark:bg-gray-700'}`}>3%</button>
+                                    <button type="button" onClick={() => setDiscount(discount === 5 ? 0 : 5)} className={`px-3 py-1 rounded border ${discount === 5 ? 'bg-primary text-white' : 'bg-gray-100 dark:bg-gray-700'}`}>5%</button>
+                                </>
+                            )}
+                        </div>
+                        <div className="flex items-center gap-2 bg-purple-50 dark:bg-purple-950/20 p-2 rounded border border-purple-200 dark:border-purple-800">
+                            <label className="flex items-center gap-2 font-bold text-purple-700 dark:text-purple-300 cursor-pointer">
+                                <input 
+                                    type="checkbox" 
+                                    checked={isTaxable} 
+                                    onChange={e => setIsTaxable(e.target.checked)}
+                                    className="rounded border-purple-400 text-purple-600 focus:ring-purple-500 w-4 h-4"
+                                />
+                                فاتورة ضريبية (إضافة 14% ضريبة)
+                            </label>
+                        </div>
                     </div>
                     <div className="text-right">
-                        <div className="text-sm text-gray-500">المجموع: {formatCurrency(items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0))}</div>
-                        {discount > 0 && <div className="text-sm text-red-500">خصم ({discount}%): -{formatCurrency(items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0) * discount / 100)}</div>}
-                        <div className="font-bold text-2xl">الإجمالي النهائي: {formatCurrency(totalAmount)}</div>
+                        <div className="text-sm text-gray-500">المجموع: {formatCurrency(items.reduce((sum, item) => {
+                            const itemTotal = item.quantity * item.unitPrice;
+                            return item.isReturn ? sum - itemTotal : sum + itemTotal;
+                        }, 0))}</div>
+                        {discount > 0 && <div className="text-sm text-red-500">خصم ({discount}%): -{formatCurrency(items.reduce((sum, item) => {
+                            const itemTotal = item.quantity * item.unitPrice;
+                            return item.isReturn ? sum - itemTotal : sum + itemTotal;
+                        }, 0) * discount / 100)}</div>}
+                        {isTaxable && (
+                            <div className="text-sm text-purple-600 dark:text-purple-400 font-semibold">
+                                ضريبة القيمة المضافة (14%): +{formatCurrency((items.reduce((sum, item) => {
+                                    const itemTotal = item.quantity * item.unitPrice;
+                                    return item.isReturn ? sum - itemTotal : sum + itemTotal;
+                                }, 0) * (1 - discount/100)) * 0.14)}
+                            </div>
+                        )}
+                        <div className="font-bold text-2xl mt-1">الإجمالي النهائي: {formatCurrency(totalAmount)}</div>
                     </div>
                 </div>
                 

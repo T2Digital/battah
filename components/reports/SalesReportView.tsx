@@ -111,7 +111,7 @@ const SalesReportView: React.FC<SalesReportViewProps> = ({ setActiveReport }) =>
         }
     };
 
-    const handlePrintInvoice = (sale: DailySale, isTaxable = false) => {
+    const handlePrintInvoice = (sale: DailySale, isTaxable = sale.isTaxable || false) => {
         const w1 = window.open('', '_blank');
         const w2 = window.open('', '_blank');
 
@@ -264,12 +264,14 @@ const SalesReportView: React.FC<SalesReportViewProps> = ({ setActiveReport }) =>
                                     <td className="px-6 py-4">{sale.sellerName}</td>
                                     <td className="px-6 py-4 font-bold text-blue-600">{formatCurrency(sale.totalAmount)}</td>
                                     <td className="px-6 py-4 flex items-center gap-3">
-                                        <button onClick={(e) => { e.stopPropagation(); handlePrintInvoice(sale); }} className="text-gray-500 hover:text-primary transition" title="طباعة الفاتورة العادية">
+                                        <button onClick={(e) => { e.stopPropagation(); handlePrintInvoice(sale); }} className="text-gray-500 hover:text-primary transition" title="طباعة الفاتورة">
                                             <i className="fas fa-print text-lg"></i>
                                         </button>
-                                        <button onClick={(e) => { e.stopPropagation(); handlePrintInvoice(sale, true); }} className="text-purple-600 hover:text-purple-800 transition" title="طباعة فاتورة ضريبية (14%)">
-                                            <i className="fas fa-file-invoice-dollar text-lg"></i>
-                                        </button>
+                                        {sale.isTaxable && (
+                                            <button onClick={(e) => { e.stopPropagation(); handlePrintInvoice(sale, true); }} className="text-purple-600 hover:text-purple-800 transition" title="طباعة فاتورة ضريبية (14%)">
+                                                <i className="fas fa-file-invoice-dollar text-lg"></i>
+                                            </button>
+                                        )}
                                     </td>
                                 </tr>
                             ))}
