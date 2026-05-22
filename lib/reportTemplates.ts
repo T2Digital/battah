@@ -170,7 +170,7 @@ const generateReportHTML = (title: string, themeColor: string, content: string, 
         @media print {
             @page { margin: 0; }
             body { width: 72mm; max-width: 72mm; margin: 0 auto; padding: 0; }
-            .invoice-box { padding: 2mm; width: 100%; box-sizing: border-box; page-break-inside: avoid; break-inside: avoid; }
+            .invoice-box { padding: 2mm; padding-bottom: 25mm !important; width: 100%; box-sizing: border-box; page-break-inside: avoid; break-inside: avoid; }
             .page-break { page-break-after: always; break-after: page; display: block; height: 1px; background: transparent; border: none; clear: both; }
             .no-print { display: none; }
         }
@@ -181,31 +181,7 @@ const generateReportHTML = (title: string, themeColor: string, content: string, 
     ${content}
     ${isInvoice ? `
     <script>
-        let isSecondCopyMode = false;
-        window.onload = function() {
-            setTimeout(() => {
-                window.print();
-            }, 600);
-        };
-        
-        window.onafterprint = function() {
-            const customerDiv = document.getElementById('copy-customer');
-            const shopDiv = document.getElementById('copy-shop');
-            
-            if (customerDiv && shopDiv && !isSecondCopyMode) {
-                isSecondCopyMode = true;
-                customerDiv.style.display = 'none';
-                shopDiv.style.display = 'block';
-                
-                setTimeout(() => {
-                    window.print();
-                }, 800);
-            } else {
-                setTimeout(() => {
-                    window.close();
-                }, 300);
-            }
-        };
+        // Parent tab will manually print iframes to ensure separate print queue jobs
     </script>
     ` : `
     <div class="no-print" style="text-align: left; margin: 20px;">
@@ -403,6 +379,94 @@ export const generateInvoiceContent = (
     }
 
     return generateReportHTML(`فاتورة ${sale.invoiceNumber}`, '#3b82f6', content, true);
+};
+
+export const triggerInvoicePrint = (
+    sale: DailySale, 
+    products: Product[], 
+    isTaxable = sale.isTaxable || false
+) => {
+    // 1. Remove any stale printable iframes to avoid duplication
+    const existingCust = document.getElementById('print-iframe-customer');
+    const existingShop = document.getElementById('print-iframe-shop');
+    if (existingCust && existingCust.parentNode) {
+        existingCust.parentNode.removeChild(existingCust);
+    }
+    if (existingShop && existingShop.parentNode) {
+        existingShop.parentNode.removeChild(existingShop);
+    }
+
+    // 2. Generate separate and complete documents for Customer & Shop copies
+    const customerHtml = generateInvoiceContent(sale, products, { isTaxable, copyType: 'customer' });
+    const shopHtml = generateInvoiceContent(sale, products, { isTaxable, copyType: 'shop' });
+
+    // 3. Create two hidden independent document frames
+    const iframeCustomer = document.createElement('iframe');
+    iframeCustomer.id = 'print-iframe-customer';
+    iframeCustomer.style.position = 'absolute';
+    iframeCustomer.style.width = '0px';
+    iframeCustomer.style.height = '0px';
+    iframeCustomer.style.border = 'none';
+    iframeCustomer.style.left = '-9999px';
+    iframeCustomer.style.top = '-9999px';
+
+    const iframeShop = document.createElement('iframe');
+    iframeShop.id = 'print-iframe-shop';
+    iframeShop.style.position = 'absolute';
+    iframeShop.style.width = '0px';
+    iframeShop.style.height = '0px';
+    iframeShop.style.border = 'none';
+    iframeShop.style.left = '-9999px';
+    iframeShop.style.top = '-9999px';
+
+    document.body.appendChild(iframeCustomer);
+    document.body.appendChild(iframeShop);
+
+    // 4. Load reports into document contexts
+    const docCustomer = iframeCustomer.contentWindow?.document || iframeCustomer.contentDocument;
+    const docShop = iframeShop.contentWindow?.document || iframeShop.contentDocument;
+
+    if (docCustomer && docShop) {
+        docCustomer.open();
+        docCustomer.write(customerHtml);
+        docCustomer.close();
+
+        docShop.open();
+        docShop.write(shopHtml);
+        docShop.close();
+
+        // 5. On completion of Customer copy print, wait 2.5 seconds (allowing physical cutting) then trigger Shop copy print
+        if (iframeCustomer.contentWindow) {
+            iframeCustomer.contentWindow.onafterprint = () => {
+                setTimeout(() => {
+                    if (iframeShop.contentWindow) {
+                        iframeShop.contentWindow.focus();
+                        iframeShop.contentWindow.print();
+                    }
+                }, 2500); // 2.5s delay to make sure the physical thermal printer finished and auto-cutter completed
+            };
+        }
+
+        if (iframeShop.contentWindow) {
+            iframeShop.contentWindow.onafterprint = () => {
+                // Done printing both! Clean up the iframes from DOM
+                setTimeout(() => {
+                    const custFrame = document.getElementById('print-iframe-customer');
+                    const shopFrame = document.getElementById('print-iframe-shop');
+                    if (custFrame && custFrame.parentNode) custFrame.parentNode.removeChild(custFrame);
+                    if (shopFrame && shopFrame.parentNode) shopFrame.parentNode.removeChild(shopFrame);
+                }, 1000);
+            };
+        }
+
+        // 6. Trigger first print window dialog
+        setTimeout(() => {
+            if (iframeCustomer.contentWindow) {
+                iframeCustomer.contentWindow.focus();
+                iframeCustomer.contentWindow.print();
+            }
+        }, 550);
+    }
 };
 
 export const generateSalesReportContent = (appData: AppData) => {

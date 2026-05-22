@@ -5,7 +5,7 @@ import DailySaleModal from './DailySaleModal';
 import ConfirmationModal from '../shared/ConfirmationModal';
 import Modal from '../shared/Modal';
 import { formatCurrency, normalizeSaleItems, formatDateTime } from '../../lib/utils';
-import { generateInvoiceContent } from '../../lib/reportTemplates';
+import { generateInvoiceContent, triggerInvoicePrint } from '../../lib/reportTemplates';
 import useStore from '../../lib/store';
 
 import ProductName from '../shared/ProductName';
@@ -421,13 +421,7 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
     };
 
     const handlePrintInvoice = (sale: DailySale, isTaxable = sale.isTaxable || false) => {
-        const printWindow = window.open('', '_blank');
-
-        if (printWindow) {
-            const invoiceContent = generateInvoiceContent(sale, products, { isTaxable, copyType: 'both' });
-            printWindow.document.write(invoiceContent);
-            printWindow.document.close();
-        }
+        triggerInvoicePrint(sale, products, isTaxable);
     };
 
     const [saleToView, setSaleToView] = useState<DailySale | null>(null);

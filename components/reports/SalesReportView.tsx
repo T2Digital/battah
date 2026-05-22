@@ -7,7 +7,7 @@ import { DailySale, Product } from '../../types';
 import { normalizeSaleItems, formatCurrency, formatDate, calculateSaleProfit, getActualSaleRevenue } from '../../lib/utils';
 import SectionHeader from '../shared/SectionHeader';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
-import { generateSalesReportContent, generateInvoiceContent } from '../../lib/reportTemplates';
+import { generateSalesReportContent, generateInvoiceContent, triggerInvoicePrint } from '../../lib/reportTemplates';
 
 interface SalesReportViewProps {
     setActiveReport: (report: string | null) => void;
@@ -112,13 +112,7 @@ const SalesReportView: React.FC<SalesReportViewProps> = ({ setActiveReport }) =>
     };
 
     const handlePrintInvoice = (sale: DailySale, isTaxable = sale.isTaxable || false) => {
-        const printWindow = window.open('', '_blank');
-
-        if (printWindow) {
-            const invoiceContent = generateInvoiceContent(sale, products, { isTaxable, copyType: 'both' });
-            printWindow.document.write(invoiceContent);
-            printWindow.document.close();
-        }
+        triggerInvoicePrint(sale, products, isTaxable);
     };
 
     return (

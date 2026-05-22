@@ -141,13 +141,8 @@ const App: React.FC = () => {
             if(!state.appData) return;
             const sale = state.appData.dailySales.find(s => s.id === saleId);
             if(sale) {
-                const { generateInvoiceContent } = await import('./lib/reportTemplates');
-                const content = generateInvoiceContent(sale, state.appData.products);
-                const reportWindow = window.open('', '_blank');
-                if (reportWindow) {
-                    reportWindow.document.write(content);
-                    reportWindow.document.close();
-                }
+                const { triggerInvoicePrint } = await import('./lib/reportTemplates');
+                triggerInvoicePrint(sale, state.appData.products, sale.isTaxable || false);
             } else {
                 alert('عذراً، لم يتم العثور على الفاتورة.');
             }
