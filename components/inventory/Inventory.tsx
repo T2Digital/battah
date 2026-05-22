@@ -97,7 +97,11 @@ const Inventory: React.FC = () => {
     const [isTransferModalOpen, setTransferModalOpen] = useState(false);
     const [isPriceIncreaseModalOpen, setPriceIncreaseModalOpen] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
-    const [filterBranch, setFilterBranch] = useState<string>(currentUser?.role === 'admin' ? 'all' : (currentUser?.branch || 'main'));
+    const [filterBranch, setFilterBranch] = useState<string>(
+        (currentUser?.role === 'admin' || (currentUser?.allowedBranches && currentUser.allowedBranches.length > 1))
+            ? 'all'
+            : (currentUser?.branch || 'main')
+    );
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const handleDownloadTemplate = () => {
@@ -354,11 +358,14 @@ const Inventory: React.FC = () => {
                                         <option value="branch3">فرع 2</option>
                                     </>
                                 ) : (
-                                    currentUser?.allowedBranches?.map(b => (
-                                        <option key={b} value={b}>
-                                            {b === 'main' ? 'المخزن' : b === 'branch1' ? 'الرئيسي' : b === 'branch2' ? 'فرع 1' : 'فرع 2'}
-                                        </option>
-                                    ))
+                                    <>
+                                        <option value="all">كل الفروع (الرصيد الكلي)</option>
+                                        {currentUser?.allowedBranches?.map(b => (
+                                            <option key={b} value={b}>
+                                                {b === 'main' ? 'المخزن' : b === 'branch1' ? 'الرئيسي' : b === 'branch2' ? 'فرع 1' : 'فرع 2'}
+                                            </option>
+                                        ))}
+                                    </>
                                 )}
                             </select>
                         )}
