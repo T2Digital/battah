@@ -84,10 +84,10 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, activeSection, setActiveSecti
                     isOpen ? 'w-64 sm:w-72 translate-x-0' : 'w-0 sm:w-20 translate-x-full sm:translate-x-0 overflow-hidden'
                 }`}
             >
-                <div className="flex items-center justify-center h-44 sm:h-32 border-b dark:border-gray-700">
+                <div className="flex items-center justify-center h-20 border-b dark:border-gray-700">
                     {/* This space is intentionally left for the header to overlay */}
                 </div>
-                <nav className="pt-4 px-3 h-[calc(100vh-11rem)] sm:h-[calc(100vh-8rem)] overflow-y-auto custom-scrollbar">
+                <nav className="pt-4 px-3 h-[calc(100vh-5rem)] overflow-y-auto custom-scrollbar">
                     <ul>
                         {navItems.map(item => (
                             <NavLink key={item.id} item={item} />
