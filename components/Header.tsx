@@ -4,6 +4,7 @@ import useStore from '../lib/store';
 import { Branch } from '../types';
 import NotificationsDropdown from './shared/NotificationsDropdown';
 import GlobalSearch from './shared/GlobalSearch';
+import SystemWarningBanner from './shared/SystemWarningBanner';
 
 interface HeaderProps {
     toggleSidebar: () => void;
@@ -55,20 +56,22 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar, setViewMode }) => {
 
     return (
         <>
-            <header className="fixed top-0 left-0 right-0 bg-white dark:bg-gray-800 shadow-md h-20 flex items-center justify-between px-6 z-40" style={{ right: 0 }}>
-                <div className="flex items-center gap-4">
-                     <div className="flex items-center gap-3">
-                         <img src="https://i.ibb.co/LDdGwd87/5-1.png" alt="Logo" className="h-10 w-auto" />
-                         <h1 className="text-xl font-bold text-gray-800 dark:text-white hidden sm:block">نظام بطاح الأصلي</h1>
-                    </div>
-                     <button 
-                        onClick={() => setSearchOpen(true)}
-                        className="flex items-center gap-2 px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-                        aria-label="بحث شامل"
-                    >
-                        <i className="fas fa-search"></i>
-                        <span className="hidden lg:inline">بحث سريع...</span>
-                    </button>
+            <header className="fixed top-0 left-0 right-0 bg-white dark:bg-gray-800 shadow-md flex flex-col z-40" style={{ right: 0 }}>
+                <SystemWarningBanner />
+                <div className="h-20 flex items-center justify-between px-6 w-full">
+                    <div className="flex items-center gap-4">
+                         <div className="flex items-center gap-3">
+                             <img src="https://i.ibb.co/LDdGwd87/5-1.png" alt="Logo" className="h-10 w-auto" />
+                             <h1 className="text-xl font-bold text-gray-800 dark:text-white hidden sm:block">نظام بطاح الأصلي</h1>
+                        </div>
+                         <button 
+                            onClick={() => setSearchOpen(true)}
+                            className="flex items-center gap-2 px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                            aria-label="بحث شامل"
+                        >
+                            <i className="fas fa-search"></i>
+                            <span className="hidden lg:inline">بحث سريع...</span>
+                        </button>
                     {hasMultipleBranches && (
                         <div className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 mr-2 sm:mr-4 bg-gray-100 dark:bg-gray-700 rounded-lg px-2 sm:px-3 py-1">
                             <i className="fas fa-map-marker-alt text-primary dark:text-primary-light hidden sm:block"></i>
@@ -113,6 +116,7 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar, setViewMode }) => {
                         <i className="fas fa-bars text-2xl"></i>
                     </button>
                 </div>
+            </div>
             </header>
             <GlobalSearch isOpen={isSearchOpen} onClose={() => setSearchOpen(false)} />
         </>

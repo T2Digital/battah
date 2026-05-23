@@ -19,6 +19,7 @@ import EmployeesReportView from './components/reports/EmployeesReportView';
 import FinancialReportView from './components/reports/FinancialReportView';
 import SuppliersReportView from './components/reports/SuppliersReportView';
 import ToastContainer from './components/shared/ToastContainer';
+import SystemWarningBanner from './components/shared/SystemWarningBanner';
 
 // Lazy load components for code splitting and better performance
 const Dashboard = React.lazy(() => import('./components/dashboard/Dashboard'));
@@ -477,20 +478,22 @@ const App: React.FC = () => {
     
     if (viewMode === 'store') {
         return (
-            <>
+            <div className="flex flex-col min-h-screen">
+                <SystemWarningBanner />
                 <Storefront setViewMode={setViewMode} />
                 <NotificationPrompt />
-            </>
+            </div>
         );
     }
 
     // --- Admin View Logic ---
     if (!currentUser) {
         return (
-            <>
+            <div className="flex flex-col min-h-screen">
+                <SystemWarningBanner />
                 <LoginModal setViewMode={setViewMode} />
                 <NotificationPrompt />
-            </>
+            </div>
         );
     }
 
@@ -514,7 +517,7 @@ const App: React.FC = () => {
                 hasPermission={hasPermission}
                 onClose={() => setSidebarOpen(false)}
             />
-            <main className={`transition-all duration-300 ease-in-out pt-24 pb-8 px-4 sm:px-8 ${isSidebarOpen ? 'sm:mr-72' : 'sm:mr-20'}`}>
+            <main className={`transition-all duration-300 ease-in-out pt-48 sm:pt-36 pb-8 px-4 sm:px-8 ${isSidebarOpen ? 'sm:mr-72' : 'sm:mr-20'}`}>
                 <Suspense fallback={<div className="text-center p-8">جاري تحميل القسم...</div>}>
                     {renderAdminContent()}
                 </Suspense>
