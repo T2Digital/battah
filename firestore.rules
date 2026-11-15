@@ -154,5 +154,11 @@ service cloud.firestore {
       allow read: if true;
       allow write: if isAdmin();
     }
+
+    // Multi-Tenant Isolated Client Data (tenants/{brandId}/...)
+    match /tenants/{brandId}/products/{id} { allow read: if true; allow write: if isAuthenticated(); }
+    match /tenants/{brandId}/settings/{id} { allow read: if true; allow write: if isAuthenticated(); }
+    match /tenants/{brandId}/orders/{id} { allow read: if isAuthenticated(); allow create: if true; allow update, delete: if isAuthenticated(); }
+    match /tenants/{brandId}/{col}/{id} { allow read, write: if isAuthenticated(); }
   }
 }

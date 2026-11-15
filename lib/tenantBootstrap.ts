@@ -1,3 +1,5 @@
+import { collection as fsCollection, doc as fsDoc, Firestore } from 'firebase/firestore';
+
 export interface TenantBrandConfig {
   id: string;
   slug: string;
@@ -53,4 +55,20 @@ export async function bootstrapBattahTenant(): Promise<TenantBrandConfig | null>
   } catch {
     return null;
   }
+}
+
+export function tenantCollection(db: Firestore, path: string, ...pathSegments: string[]) {
+  const brandId = resolveTenantBrandId();
+  if (!brandId || path === '_connection_test') {
+    return fsCollection(db, path, ...pathSegments);
+  }
+  return fsCollection(db, 'tenants', brandId, path, ...pathSegments);
+}
+
+export function tenantDoc(db: Firestore, path: string, ...pathSegments: string[]) {
+  const brandId = resolveTenantBrandId();
+  if (!brandId || path === '_connection_test') {
+    return fsDoc(db, path, ...pathSegments);
+  }
+  return fsDoc(db, 'tenants', brandId, path, ...pathSegments);
 }

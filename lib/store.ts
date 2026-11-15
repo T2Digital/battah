@@ -1,5 +1,6 @@
 /// <reference types="vite/client" />
 import { create } from 'zustand';
+import { tenantCollection as collection, tenantDoc as doc } from './tenantBootstrap';
 import { initializeApp } from 'firebase/app';
 import {
     signInWithEmailAndPassword,
@@ -8,8 +9,6 @@ import {
     getAuth,
 } from 'firebase/auth';
 import {
-    collection,
-    doc,
     writeBatch,
     setDoc,
     getDoc,
