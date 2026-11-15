@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
+import useStore from '../../lib/store';
 
 interface StoreHeaderProps {
     onCartClick: () => void;
@@ -9,6 +10,10 @@ interface StoreHeaderProps {
 }
 
 const StoreHeader: React.FC<StoreHeaderProps> = ({ onCartClick, cartItemCount, setViewMode, onMyOrdersClick }) => {
+    const settings = useStore(state => state.appData?.settings);
+    const brandName = settings?.companyName || 'متجر بطاح الأصلي';
+    const brandTagline = settings?.tickerMessages?.[0] || 'المتجر الإلكتروني المعتمد';
+
     const [isDarkMode, setIsDarkMode] = useState(false);
     const [isScrolled, setIsScrolled] = useState(false);
 
@@ -54,8 +59,8 @@ const StoreHeader: React.FC<StoreHeaderProps> = ({ onCartClick, cartItemCount, s
                         <img src="https://i.ibb.co/LDdGwd87/5-1.png" alt="Logo" className="w-8 h-8 sm:w-10 sm:h-10 object-contain group-hover:scale-110 transition-transform duration-300" />
                     </div>
                     <div className="hidden sm:flex flex-col">
-                        <h1 className="text-xl font-black text-gray-900 dark:text-white leading-none tracking-tight">متجر بطاح الأصلي</h1>
-                        <span className="text-[10px] text-primary font-bold tracking-widest uppercase mt-1">لقطع الغيار الأصلية</span>
+                        <h1 className="text-xl font-black text-gray-900 dark:text-white leading-none tracking-tight">{brandName}</h1>
+                        <span className="text-[10px] text-primary font-bold tracking-widest uppercase mt-1">{brandTagline}</span>
                     </div>
                 </div>
 

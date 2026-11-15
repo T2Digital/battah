@@ -6,6 +6,7 @@ import { auth, setupMessageListener, requestNotificationPermission } from './lib
 import { Section, Role } from './types';
 import useStore from './lib/store';
 import { useBarcodeScanner } from './hooks/useBarcodeScanner';
+import { bootstrapBattahTenant, TenantBrandConfig } from './lib/tenantBootstrap';
 
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
@@ -134,6 +135,13 @@ const App: React.FC = () => {
     const [isSidebarOpen, setSidebarOpen] = useState(true);
     const [activeReport, setActiveReport] = useState<string | null>(null);
     const [accessDenied, setAccessDenied] = useState<{ reason: 'time' | 'ip', details?: string } | null>(null);
+    const [tenantBrand, setTenantBrand] = useState<TenantBrandConfig | null>(null);
+
+    useEffect(() => {
+        bootstrapBattahTenant().then((b) => {
+            if (b) setTenantBrand(b);
+        });
+    }, []);
     
     useEffect(() => {
         (window as any).printInvoiceFromCardex = async (saleId: number) => {
@@ -500,6 +508,24 @@ const App: React.FC = () => {
 
     return (
         <div className="bg-slate-100 dark:bg-gray-900 min-h-screen font-cairo">
+            {tenantBrand && (
+                <div className="bg-slate-900 text-white px-4 py-2 flex items-center justify-between border-b border-cyan-500/30" dir="rtl">
+                    <div className="flex items-center gap-3">
+                        {tenantBrand.logoUrl && (
+                            <img src={tenantBrand.logoUrl} alt={tenantBrand.name} className="w-8 h-8 rounded-lg object-cover border border-cyan-400" />
+                        )}
+                        <div>
+                            <div className="text-sm font-black">{tenantBrand.name}</div>
+                            {tenantBrand.slogan && <div className="text-[11px] text-cyan-300">{tenantBrand.slogan}</div>}
+                        </div>
+                    </div>
+                    {tenantBrand.phone && (
+                        <a href={`https://wa.me/${tenantBrand.whatsapp || tenantBrand.phone}`} target="_blank" rel="noreferrer" className="text-xs bg-emerald-500 text-black font-black px-3 py-1 rounded-lg">
+                            💬 واتساب: {tenantBrand.phone}
+                        </a>
+                    )}
+                </div>
+            )}
             <ToastContainer />
             <NotificationPrompt />
             <Header
