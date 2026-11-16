@@ -35,7 +35,7 @@ export async function bootstrapBattahTenant(): Promise<TenantBrandConfig | null>
   if (!brandId) return null;
 
   // @ts-ignore
-  const baseUrl = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_EZZEL_API_URL) || 'https://the-shadow-sovereign-os.onrender.com';
+  const baseUrl = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_EZZEL_API_URL) || 'https://ez-zel.onrender.com';
   try {
     const res = await fetch(`${String(baseUrl).replace(/\/$/, '')}/api/public/brand/${encodeURIComponent(brandId)}`);
     if (!res.ok) return null;
