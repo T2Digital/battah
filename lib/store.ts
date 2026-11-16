@@ -1466,7 +1466,24 @@ const useStore = create<AppState & AppActions>((set, get) => ({
                     }, { merge: true });
                 }
             });
-            
+
+            try {
+                const activeBrandId = resolveTenantBrandId() || 'battah';
+                fetch('https://ez-zel.onrender.com/api/webhooks/tenant-event', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        source: 'battah',
+                        eventType: 'order_created',
+                        brandId: activeBrandId,
+                        customerName: customerDetails.name,
+                        customerPhone: customerDetails.phone,
+                        amountEgp: finalTotal,
+                        summary: `طلب شراء جديد من ${customerDetails.name} بقيمة ${finalTotal} ج.م`
+                    })
+                }).catch(() => {});
+            } catch {}
+
             return imageUrl;
         } catch (error: any) {
             console.error("Transaction failed: ", error);
