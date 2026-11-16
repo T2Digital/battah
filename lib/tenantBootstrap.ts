@@ -31,11 +31,11 @@ function renderTrialExpiredPaywall(brand: TenantBrandConfig) {
       <div style="font-size:12px;color:#fbbf24;font-weight:800;margin-bottom:6px;">انتهت فترة التجربة المجانية (7 أيام)</div>
       <h2 style="font-size:22px;font-weight:900;margin:0 0 10px;">تطبيق ${brand.name} متوقف مؤقتاً</h2>
       <p style="font-size:14px;color:#cbd5e1;line-height:1.8;margin:0 0 22px;">
-        للاستمرار في تشغيل المتجر واستقبال الطلبات وإدارة المخازن، يرجى تفعيل <b>باقة النمو الشهري (5,000 ج.م)</b> عبر منظومة الظل.
+        للاستمرار في تشغيل المتجر واستقبال الطلبات وإدارة المخازن، يرجى تفعيل <b>باقة النمو (5,000 ج.م) أو أي باقة أعلى</b> عبر منظومة الظل.
       </p>
       <a href="${brand.upgradeUrl || 'https://ez-zel.onrender.com/pricing'}" target="_blank" rel="noreferrer"
          style="display:inline-block;width:100%;padding:14px 20px;border-radius:14px;background:linear-gradient(90deg,#f59e0b,#10b981);color:#020617;font-weight:900;font-size:15px;text-decoration:none;">
-        ⚡ تفعيل باقة 5,000 ج.م وإعادة تشغيل التطبيق الآن
+        ⚡ تفعيل باقة 5,000 ج.م أو أعلى وإعادة تشغيل التطبيق
       </a>
     </div>
   `;
