@@ -119,7 +119,7 @@ export function resolveTenantBrandId(): string | null {
   const parts = host.split('.');
   if (parts.length >= 3) {
     const sub = parts[0].toLowerCase();
-    if (sub && !['www', 'battah', 'localhost', '127'].includes(sub)) {
+    if (sub && !['www', 'battah', 'shop', 'store', 'app', 'apps', 'book', 't2digital', 'localhost', '127'].includes(sub)) {
       return sub;
     }
   }
