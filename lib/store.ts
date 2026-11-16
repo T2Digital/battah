@@ -459,6 +459,20 @@ const useStore = create<AppState & AppActions>((set, get) => ({
                         set({ currentUser: remoteUser });
                     }
                 } else {
+                    const tenantBrand = (typeof window !== 'undefined' && (window as any).__TENANT_BRAND__) || null;
+                    if (resolveTenantBrandId() && auth.currentUser && (!tenantBrand?.adminEmail || email.toLowerCase() === tenantBrand.adminEmail.toLowerCase())) {
+                        const adminUser: User = {
+                            id: auth.currentUser.uid,
+                            username: email.toLowerCase(),
+                            name: tenantBrand?.name ? `مدير ${tenantBrand.name}` : 'مدير النظام',
+                            role: 'admin',
+                            branch: 'main',
+                            permissions: ['daily-sales', 'store-management', 'treasury', 'expenses', 'employees', 'payroll', 'advances', 'attendance', 'suppliers', 'purchasing', 'daily-review', 'orders']
+                        } as any;
+                        setDoc(doc(db, 'users', auth.currentUser.uid), adminUser).catch(() => {});
+                        set({ currentUser: adminUser });
+                        return;
+                    }
                     console.warn(`User profile not found in DB for email: ${email}. Logging out.`);
                     get().logout();
                 }

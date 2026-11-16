@@ -7,10 +7,79 @@ export interface TenantBrandConfig {
   slogan?: string;
   logoUrl?: string;
   primaryColor?: string;
+  accentColor?: string;
+  adminEmail?: string;
   phone?: string;
   whatsapp?: string;
   businessType?: string;
   productsCatalog?: any[];
+}
+
+function applyDynamicPwaAndTheme(brand: TenantBrandConfig) {
+  if (typeof document === 'undefined') return;
+  const primary = brand.primaryColor || '#06b6d4';
+  const accent = brand.accentColor || '#0f172a';
+
+  document.documentElement.style.setProperty('--primary', primary);
+  document.documentElement.style.setProperty('--brand-primary', primary);
+  document.documentElement.style.setProperty('--brand-accent', accent);
+
+  // Inject dynamic theme override so primary buttons, headers & badges match brand logo identity
+  let styleEl = document.getElementById('tenant-theme-override');
+  if (!styleEl) {
+    styleEl = document.createElement('style');
+    styleEl.id = 'tenant-theme-override';
+    document.head.appendChild(styleEl);
+  }
+  styleEl.textContent = `
+    .bg-primary, .bg-emerald-600, .bg-cyan-600, .bg-teal-600 { background-color: ${primary} !important; }
+    .text-primary { color: ${primary} !important; }
+    .border-primary { border-color: ${primary} !important; }
+  `;
+
+  let themeMeta = document.querySelector('meta[name="theme-color"]') as HTMLMetaElement | null;
+  if (!themeMeta) {
+    themeMeta = document.createElement('meta');
+    themeMeta.name = 'theme-color';
+    document.head.appendChild(themeMeta);
+  }
+  themeMeta.content = primary;
+
+  if (brand.logoUrl) {
+    let iconLink = document.querySelector('link[rel="icon"]') as HTMLLinkElement | null;
+    if (!iconLink) {
+      iconLink = document.createElement('link');
+      iconLink.rel = 'icon';
+      document.head.appendChild(iconLink);
+    }
+    iconLink.href = brand.logoUrl;
+  }
+
+  try {
+    const manifestObj = {
+      name: brand.name,
+      short_name: brand.name.slice(0, 14),
+      description: brand.slogan || brand.businessType || brand.name,
+      start_url: window.location.pathname + window.location.search,
+      display: 'standalone',
+      background_color: '#ffffff',
+      theme_color: primary,
+      icons: brand.logoUrl
+        ? [
+            { src: brand.logoUrl, sizes: '192x192', type: 'image/png' },
+            { src: brand.logoUrl, sizes: '512x512', type: 'image/png' }
+          ]
+        : []
+    };
+    const blobUrl = URL.createObjectURL(new Blob([JSON.stringify(manifestObj)], { type: 'application/manifest+json' }));
+    let manifestLink = document.querySelector('link[rel="manifest"]') as HTMLLinkElement | null;
+    if (!manifestLink) {
+      manifestLink = document.createElement('link');
+      manifestLink.rel = 'manifest';
+      document.head.appendChild(manifestLink);
+    }
+    manifestLink.href = blobUrl;
+  } catch {}
 }
 
 export function resolveTenantBrandId(): string | null {
@@ -48,9 +117,7 @@ export async function bootstrapBattahTenant(): Promise<TenantBrandConfig | null>
       localStorage.setItem('battah_active_tenant', JSON.stringify(brand));
     } catch {}
     document.title = `${brand.name} | المتجر ونظام الإدارة`;
-    if (brand.primaryColor) {
-      document.documentElement.style.setProperty('--primary', brand.primaryColor);
-    }
+    applyDynamicPwaAndTheme(brand);
     return brand;
   } catch {
     return null;
