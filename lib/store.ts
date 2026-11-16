@@ -216,11 +216,34 @@ const useStore = create<AppState & AppActions>((set, get) => ({
             publicUnsubscribers.forEach(unsub => unsub());
             publicUnsubscribers = [];
         
-            const publicCollections: (keyof AppData)[] = ['broadcasts'];
+            const publicCollections: (keyof AppData)[] = ['broadcasts', 'products'];
 
             publicCollections.forEach(name => {
                 const unsub = onSnapshot(collection(db, name as string), (snapshot) => {
-                    const data = snapshot.docs.map(d => ({ ...d.data(), id: d.data().id ?? (isNaN(parseInt(d.id, 10)) ? d.id : parseInt(d.id, 10)) }));
+                    let data = snapshot.docs.map(d => ({ ...d.data(), id: d.data().id ?? (isNaN(parseInt(d.id, 10)) ? d.id : parseInt(d.id, 10)) }));
+
+                    // For a newly created tenant brand whose Firestore products collection is still empty,
+                    // immediately hydrate storefront products from Ez-Zel's AI-generated productsCatalog.
+                    if (name === 'products' && data.length === 0 && resolveTenantBrandId()) {
+                        const tenantBrand = (typeof window !== 'undefined' && (window as any).__TENANT_BRAND__) || null;
+                        const catalog = Array.isArray(tenantBrand?.productsCatalog) ? tenantBrand.productsCatalog : [];
+                        if (catalog.length > 0) {
+                            data = catalog.map((item: any, idx: number) => {
+                                const price = Number(item.numericPrice || String(item.price || '').replace(/[^\d.]/g, '')) || 500;
+                                return {
+                                    id: idx + 1,
+                                    name: item.name || `منتج ${idx + 1}`,
+                                    sku: `SKU-${idx + 101}`,
+                                    category: item.category || tenantBrand?.businessType || 'عام',
+                                    description: item.description || '',
+                                    purchasePrice: Math.round(price * 0.7),
+                                    sellingPrice: price,
+                                    stock: { main: 25, branch1: 10, branch2: 10, branch3: 10 },
+                                    imageUrl: tenantBrand?.logoUrl || ''
+                                };
+                            });
+                        }
+                    }
                     
                     if (name === 'broadcasts') {
                         // Sort broadcasts by date descending
@@ -298,6 +321,34 @@ const useStore = create<AppState & AppActions>((set, get) => ({
                 }));
             });
             adminUnsubscribers.push(settingsUnsub);
+
+            // Auto-seed AI-generated products into tenants/{brandId}/products when an admin logs in and collection is empty
+            if (resolveTenantBrandId() && auth.currentUser) {
+                const tenantBrand = (typeof window !== 'undefined' && (window as any).__TENANT_BRAND__) || null;
+                const catalog = Array.isArray(tenantBrand?.productsCatalog) ? tenantBrand.productsCatalog : [];
+                if (catalog.length > 0) {
+                    getDocs(collection(db, 'products')).then(async (snap) => {
+                        if (snap.empty) {
+                            for (let idx = 0; idx < catalog.length; idx++) {
+                                const item = catalog[idx];
+                                const price = Number(item.numericPrice || String(item.price || '').replace(/[^\d.]/g, '')) || 500;
+                                const prodId = idx + 1;
+                                await setDoc(doc(db, 'products', String(prodId)), {
+                                    id: prodId,
+                                    name: item.name || `منتج ${prodId}`,
+                                    sku: `SKU-${idx + 101}`,
+                                    category: item.category || tenantBrand?.businessType || 'عام',
+                                    description: item.description || '',
+                                    purchasePrice: Math.round(price * 0.7),
+                                    sellingPrice: price,
+                                    stock: { main: 25, branch1: 10, branch2: 10, branch3: 10 },
+                                    imageUrl: tenantBrand?.logoUrl || ''
+                                });
+                            }
+                        }
+                    }).catch(() => {});
+                }
+            }
 
             const collectionsToListen: (keyof AppData)[] = [
                 'users', 'dailySales', 'employees', 'advances', 'attendance', 'payroll', 'suppliers', 
