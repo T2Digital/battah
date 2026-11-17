@@ -1,6 +1,7 @@
 /// <reference types="vite/client" />
 import { create } from 'zustand';
-import { tenantCollection as collection, tenantDoc as doc } from './tenantBootstrap';
+import { tenantCollection as collection, tenantDoc as doc, resolveTenantBrandId } from './tenantBootstrap';
+import { fetchTenantErpState, queueTenantErpSync, getTenantSessionToken } from './tenantErpSync';
 import { initializeApp } from 'firebase/app';
 import {
     signInWithEmailAndPassword,
@@ -215,6 +216,25 @@ const useStore = create<AppState & AppActions>((set, get) => ({
         try {
             publicUnsubscribers.forEach(unsub => unsub());
             publicUnsubscribers = [];
+
+            const activeSlug = resolveTenantBrandId();
+            if (activeSlug) {
+                fetchTenantErpState(activeSlug, getTenantSessionToken(activeSlug)).then((cloudState) => {
+                    if (cloudState && typeof cloudState === 'object') {
+                        isHydratingFromCloud = true;
+                        set(state => ({
+                            appData: {
+                                ...(state.appData as AppData),
+                                ...(Array.isArray(cloudState.products) && cloudState.products.length > 0 ? { products: cloudState.products } : {}),
+                                ...(Array.isArray(cloudState.broadcasts) && cloudState.broadcasts.length > 0 ? { broadcasts: cloudState.broadcasts } : {}),
+                                ...(cloudState.settings ? { settings: cloudState.settings } : {}),
+                                ...(getTenantSessionToken(activeSlug) ? cloudState : {})
+                            }
+                        }));
+                        isHydratingFromCloud = false;
+                    }
+                }).catch(() => {});
+            }
         
             const publicCollections: (keyof AppData)[] = ['broadcasts', 'products'];
 
@@ -256,6 +276,27 @@ const useStore = create<AppState & AppActions>((set, get) => ({
                 }, (error) => {
                     if (error.message.includes('Missing or insufficient permissions')) {
                         handleFirestoreError(error, OperationType.LIST, name as string);
+                    }
+                    if (name === 'products' && resolveTenantBrandId()) {
+                        const tenantBrand = (typeof window !== 'undefined' && (window as any).__TENANT_BRAND__) || null;
+                        const catalog = Array.isArray(tenantBrand?.productsCatalog) ? tenantBrand.productsCatalog : [];
+                        const fallbackProducts = catalog.map((item: any, idx: number) => {
+                            const price = Number(item.numericPrice || String(item.price || '').replace(/[^\d.]/g, '')) || 500;
+                            return {
+                                id: idx + 1,
+                                name: item.name || `منتج ${idx + 1}`,
+                                sku: item.sku || `AH-${idx + 101}`,
+                                category: item.category || 'قطع غيار',
+                                description: item.description || '',
+                                purchasePrice: Math.round(price * 0.7),
+                                sellingPrice: price,
+                                stock: { main: 25, branch1: 10, branch2: 10, branch3: 10 },
+                                imageUrl: item.imageUrl || tenantBrand?.logoUrl || ''
+                            };
+                        });
+                        set(state => ({
+                            appData: { ...(state.appData as AppData), products: fallbackProducts }
+                        }));
                     }
                     console.warn(`Error listening to ${name}:`, error.message);
                 });
@@ -428,10 +469,41 @@ const useStore = create<AppState & AppActions>((set, get) => ({
     },
 
     login: async (email, pass) => {
+        const brandSlug = resolveTenantBrandId();
+        if (brandSlug) {
+            const baseUrl = ((typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_EZZEL_API_URL) || 'https://ez-zel.onrender.com').replace(/\/$/, '');
+            const res = await fetch(`${baseUrl}/api/tenant-auth/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ brandSlug, email: email.trim(), password: pass })
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || !data?.ok || !data?.user || !data?.token) {
+                const err: any = new Error(data?.error || 'بيانات الدخول غير صحيحة');
+                err.code = 'auth/invalid-credential';
+                throw err;
+            }
+            try {
+                localStorage.setItem(`t2_tenant_session_${brandSlug}`, JSON.stringify({ token: data.token, user: data.user }));
+            } catch {}
+            set({ currentUser: data.user as any });
+            const cloudState = await fetchTenantErpState(brandSlug, data.token);
+            if (cloudState && typeof cloudState === 'object') {
+                isHydratingFromCloud = true;
+                set(state => ({ appData: { ...(state.appData as AppData), ...cloudState } }));
+                isHydratingFromCloud = false;
+            }
+            return;
+        }
         await signInWithEmailAndPassword(auth, email, pass);
     },
     logout: async () => {
-        await signOut(auth);
+        const brandSlug = resolveTenantBrandId();
+        if (brandSlug) {
+            try { localStorage.removeItem(`t2_tenant_session_${brandSlug}`); } catch {}
+            set({ currentUser: null });
+        }
+        await signOut(auth).catch(() => {});
         window.location.hash = '';
     },
     setCurrentUser: (user) => set({ currentUser: user }),
@@ -1926,5 +1998,15 @@ const useStore = create<AppState & AppActions>((set, get) => ({
         }
     },
 }));
+
+let isHydratingFromCloud = false;
+useStore.subscribe((state, prevState) => {
+    if (isHydratingFromCloud) return;
+    const slug = resolveTenantBrandId();
+    if (!slug || !state.currentUser || !getTenantSessionToken(slug)) return;
+    if (state.appData !== prevState.appData && state.appData) {
+        queueTenantErpSync(slug, state.appData as any);
+    }
+});
 
 export default useStore;

@@ -136,26 +136,54 @@ export async function bootstrapBattahTenant(): Promise<TenantBrandConfig | null>
 
   // @ts-ignore
   const baseUrl = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_EZZEL_API_URL) || 'https://ez-zel.onrender.com';
+  let brand: TenantBrandConfig | null = null;
   try {
     const res = await fetch(`${String(baseUrl).replace(/\/$/, '')}/api/public/brand/${encodeURIComponent(brandId)}`);
-    if (!res.ok) return null;
-    const data = await res.json();
-    if (!data?.ok || !data?.brand) return null;
-
-    const brand: TenantBrandConfig = data.brand;
-    (window as any).__TENANT_BRAND__ = brand;
-    try {
-      localStorage.setItem('battah_active_tenant', JSON.stringify(brand));
-    } catch {}
-    document.title = `${brand.name} | المتجر ونظام الإدارة`;
-    applyDynamicPwaAndTheme(brand);
-    if (brand.subscriptionStatus === 'expired') {
-      renderTrialExpiredPaywall(brand);
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.ok && data?.brand) brand = data.brand;
     }
-    return brand;
-  } catch {
-    return null;
+  } catch {}
+
+  try {
+    const cfgRes = await fetch('/tenant-config.json');
+    if (cfgRes.ok) {
+      const cfg = await cfgRes.json();
+      if (!brand && cfg?.name) {
+        brand = {
+          id: cfg.brandId || cfg.id || brandId,
+          slug: cfg.slug || brandId,
+          name: cfg.name,
+          slogan: cfg.slogan || '',
+          logoUrl: cfg.logoUrl || '',
+          phone: cfg.phone || '',
+          whatsapp: cfg.whatsapp || cfg.phone || '',
+          adminEmail: cfg.adminEmail || '',
+          productsCatalog: Array.isArray(cfg.productsCatalog) ? cfg.productsCatalog : [],
+          primaryColor: cfg.primaryColor || '#00f0ff',
+          accentColor: cfg.accentColor || '#0f172a',
+        };
+      } else if (brand && cfg) {
+        if (!brand.adminEmail && cfg.adminEmail) brand.adminEmail = cfg.adminEmail;
+        if ((!Array.isArray(brand.productsCatalog) || brand.productsCatalog.length === 0) && Array.isArray(cfg.productsCatalog)) {
+          brand.productsCatalog = cfg.productsCatalog;
+        }
+      }
+    }
+  } catch {}
+
+  if (!brand) return null;
+
+  (window as any).__TENANT_BRAND__ = brand;
+  try {
+    localStorage.setItem('battah_active_tenant', JSON.stringify(brand));
+  } catch {}
+  document.title = `${brand.name} | المتجر ونظام الإدارة`;
+  applyDynamicPwaAndTheme(brand);
+  if (brand.subscriptionStatus === 'expired') {
+    renderTrialExpiredPaywall(brand);
   }
+  return brand;
 }
 
 export function tenantCollection(db: Firestore, path: string, ...pathSegments: string[]) {

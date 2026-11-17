@@ -2,15 +2,16 @@ import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from "firebase/firestore";
 import { getMessaging, getToken, onMessage } from "firebase/messaging";
+import appletConfig from "../firebase-applet-config.json";
 
 // Your web app's Firebase configuration
 export const firebaseConfig = {
-    apiKey: process.env.FIREBASE_API_KEY,
-    authDomain: process.env.FIREBASE_AUTH_DOMAIN,
-    projectId: process.env.FIREBASE_PROJECT_ID,
-    storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
-    messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
-    appId: process.env.FIREBASE_APP_ID,
+    apiKey: process.env.FIREBASE_API_KEY || appletConfig.apiKey,
+    authDomain: process.env.FIREBASE_AUTH_DOMAIN || appletConfig.authDomain,
+    projectId: process.env.FIREBASE_PROJECT_ID || appletConfig.projectId,
+    storageBucket: process.env.FIREBASE_STORAGE_BUCKET || appletConfig.storageBucket,
+    messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID || appletConfig.messagingSenderId,
+    appId: process.env.FIREBASE_APP_ID || appletConfig.appId,
     measurementId: "G-1PT1JS2CVS"
 };
 
@@ -24,7 +25,7 @@ export const db = initializeFirestore(app, {
   localCache: persistentLocalCache({
     tabManager: persistentMultipleTabManager()
   })
-});
+}, appletConfig.firestoreDatabaseId || undefined);
 
 // Connection test for diagnosing deployment issues
 import { doc, getDocFromCache, getDocFromServer } from "firebase/firestore";
