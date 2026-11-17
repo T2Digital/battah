@@ -63,7 +63,7 @@ const StoreCart: React.FC<StoreCartProps> = ({ isOpen, onClose, cartItems, onUpd
                         cartItems.map(item => (
                             <div key={item.product.id} className="flex gap-4 bg-white dark:bg-gray-800 p-3 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 relative group">
                                 <div className="w-24 h-24 bg-gray-50 dark:bg-gray-700 rounded-xl overflow-hidden flex items-center justify-center flex-shrink-0 p-2 border border-gray-100 dark:border-gray-600">
-                                    <img src={item.product.images[0]} alt={item.product.name} className="w-full h-full object-contain mix-blend-multiply dark:mix-blend-normal" />
+                                    <img src={item.product.images?.[0] || (item.product as any).imageUrl || 'https://via.placeholder.com/150'} alt={item.product.name} className="w-full h-full object-contain mix-blend-multiply dark:mix-blend-normal" />
                                 </div>
                                 
                                 <div className="flex-grow flex flex-col justify-between py-1">

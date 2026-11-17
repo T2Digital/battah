@@ -47,7 +47,7 @@ const StoreProductCard: React.FC<StoreProductCardProps> = ({ product, onProductC
             {/* Image Container */}
             <div className="relative h-40 sm:h-48 bg-gray-50/50 dark:bg-gray-700/50 flex items-center justify-center overflow-hidden p-4 group-hover:bg-gray-100 dark:group-hover:bg-gray-700 transition-colors">
                 <img 
-                    src={product.images[0] || 'https://via.placeholder.com/150'} 
+                    src={product.images?.[0] || (product as any).imageUrl || 'https://via.placeholder.com/150'} 
                     alt={product.name} 
                     className="h-full w-full object-contain mix-blend-multiply dark:mix-blend-normal transform group-hover:scale-110 transition-transform duration-500"
                 />

@@ -37,7 +37,7 @@ const StoreProductModal: React.FC<StoreProductModalProps> = ({ isOpen, onClose, 
                             </div>
                         )}
                         <img 
-                            src={product.images[activeImage] || 'https://via.placeholder.com/400'} 
+                            src={product.images?.[activeImage] || (product as any).imageUrl || 'https://via.placeholder.com/400'} 
                             alt={product.name} 
                             className="w-full h-full object-contain mix-blend-multiply dark:mix-blend-normal" 
                         />

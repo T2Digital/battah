@@ -66,7 +66,7 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, ex
                 compatibility: existingProduct.compatibility || [],
                 hasSerialNumber: existingProduct.hasSerialNumber || false,
             });
-            setImagePreview(existingProduct.images[0] || null);
+            setImagePreview(existingProduct.images?.[0] || (existingProduct as any).imageUrl || null);
         } else {
             setFormData({
                 name: '', sku: '', mainCategory: 'قطع غيار', category: '', brand: '', countryOfOrigin: '',
