@@ -115,10 +115,14 @@ export function resolveTenantBrandId(): string | null {
   const fromQuery = params.get('brandId') || params.get('tenant');
   if (fromQuery) return fromQuery.trim();
 
+  // @ts-ignore
+  const fromEnv = typeof import.meta !== 'undefined' && import.meta.env?.VITE_TENANT_BRAND_ID;
+  if (fromEnv && String(fromEnv).trim()) return String(fromEnv).trim();
+
   const host = window.location.hostname || '';
   const parts = host.split('.');
   if (parts.length >= 3) {
-    const sub = parts[0].toLowerCase();
+    const sub = parts[0].toLowerCase().replace(/^t2-tenant-/, '');
     if (sub && !['www', 'battah', 'shop', 'store', 'app', 'apps', 'book', 't2digital', 'localhost', '127'].includes(sub)) {
       return sub;
     }
