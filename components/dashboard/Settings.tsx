@@ -15,6 +15,12 @@ const Settings: React.FC = () => {
 
     const [localSettings, setLocalSettings] = useState(settings);
     const [adminPassword, setAdminPassword] = useState(appData?.storefrontSettings?.adminPassword || '');
+    const [contactPhone, setContactPhone] = useState((appData?.storefrontSettings as any)?.contactPhone || (typeof window !== 'undefined' ? (window as any).__TENANT_BRAND__?.phone : '') || '01013373634');
+    const [address, setAddress] = useState((appData?.storefrontSettings as any)?.address || (typeof window !== 'undefined' ? (window as any).__TENANT_BRAND__?.address : '') || 'القاهرة - التوفيقية');
+    const [primaryColor, setPrimaryColor] = useState(() => {
+        const raw = (appData?.storefrontSettings as any)?.primaryColor || (typeof window !== 'undefined' ? (window as any).__TENANT_BRAND__?.primaryColor : '') || '#0284c7';
+        return String(raw).toLowerCase() === '#00f0ff' ? '#0284c7' : raw;
+    });
     const [currentIP, setCurrentIP] = useState<string>('');
     const [isLoadingIP, setIsLoadingIP] = useState(false);
 
@@ -54,6 +60,12 @@ const Settings: React.FC = () => {
         }
         if (appData?.storefrontSettings) {
             setAdminPassword(appData.storefrontSettings.adminPassword || '');
+            if ((appData.storefrontSettings as any).contactPhone) setContactPhone((appData.storefrontSettings as any).contactPhone);
+            if ((appData.storefrontSettings as any).address) setAddress((appData.storefrontSettings as any).address);
+            if ((appData.storefrontSettings as any).primaryColor) {
+                const c = String((appData.storefrontSettings as any).primaryColor);
+                setPrimaryColor(c.toLowerCase() === '#00f0ff' ? '#0284c7' : c);
+            }
         }
     }, [appData?.settings, appData?.storefrontSettings]);
 
@@ -91,12 +103,13 @@ const Settings: React.FC = () => {
         setIsSaving(true);
         try {
             await updateSettings(localSettings);
-            if (appData?.storefrontSettings) {
-                await updateStorefrontSettings({
-                    ...appData.storefrontSettings,
-                    adminPassword
-                });
-            }
+            await updateStorefrontSettings({
+                ...(appData?.storefrontSettings || {}),
+                adminPassword,
+                contactPhone,
+                address,
+                primaryColor,
+            } as any);
             addToast("تم حفظ الإعدادات بنجاح", "success");
         } catch (error) {
             console.error("Failed to save settings:", error);
@@ -147,6 +160,59 @@ const Settings: React.FC = () => {
                     </p>
                 </div>
                 
+                {/* Storefront Footer, Invoice Contact & Theme Color Section */}
+                <div className="border-b dark:border-gray-700 pb-6">
+                    <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
+                        <i className="fas fa-store text-primary"></i>
+                        بيانات الفوتر والفاتورة المطبوعة ولون الثيم
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">رقم الموبايل (يظهر في الفوتر والفاتورة)</label>
+                            <input
+                                type="text"
+                                dir="ltr"
+                                value={contactPhone}
+                                onChange={(e) => setContactPhone(e.target.value)}
+                                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700"
+                                placeholder="01013373634"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">العنوان (يظهر في الفوتر والفاتورة المطبوعة)</label>
+                            <input
+                                type="text"
+                                value={address}
+                                onChange={(e) => setAddress(e.target.value)}
+                                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700"
+                                placeholder="القاهرة - التوفيقية"
+                            />
+                        </div>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">لون الثيم الرئيسي (اختر لوناً واضحاً للأزرار والنصوص)</label>
+                        <div className="flex flex-wrap items-center gap-2.5">
+                            {['#0284c7', '#2563eb', '#059669', '#dc2626', '#7c3aed', '#d97706'].map((preset) => (
+                                <button
+                                    key={preset}
+                                    type="button"
+                                    onClick={() => setPrimaryColor(preset)}
+                                    style={{ backgroundColor: preset }}
+                                    className={`w-8 h-8 rounded-full border-2 transition ${primaryColor === preset ? 'border-gray-900 dark:border-white scale-110 shadow-md' : 'border-transparent'}`}
+                                    title={preset}
+                                />
+                            ))}
+                            <input
+                                type="color"
+                                value={primaryColor}
+                                onChange={(e) => setPrimaryColor(e.target.value)}
+                                className="w-10 h-8 rounded cursor-pointer border border-gray-300"
+                            />
+                            <span className="text-xs font-mono text-gray-500" dir="ltr">{primaryColor}</span>
+                        </div>
+                    </div>
+                </div>
+
                 {/* IP Restriction Section */}
                 <div className="border-b dark:border-gray-700 pb-6">
                     <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
