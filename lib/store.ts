@@ -223,6 +223,7 @@ const useStore = create<AppState & AppActions>((set, get) => ({
                     if (cloudState && typeof cloudState === 'object') {
                         isHydratingFromCloud = true;
                         set(state => ({
+                            isLoading: false,
                             appData: {
                                 ...(state.appData as AppData),
                                 ...(Array.isArray(cloudState.products) && cloudState.products.length > 0 ? { products: cloudState.products } : {}),
@@ -274,10 +275,7 @@ const useStore = create<AppState & AppActions>((set, get) => ({
                         appData: { ...(state.appData as AppData), [name]: data }
                     }));
                 }, (error) => {
-                    if (error.message.includes('Missing or insufficient permissions')) {
-                        handleFirestoreError(error, OperationType.LIST, name as string);
-                    }
-                    if (name === 'products' && resolveTenantBrandId()) {
+                    if (resolveTenantBrandId() && name === 'products') {
                         const tenantBrand = (typeof window !== 'undefined' && (window as any).__TENANT_BRAND__) || null;
                         const catalog = Array.isArray(tenantBrand?.productsCatalog) ? tenantBrand.productsCatalog : [];
                         const fallbackProducts = catalog.map((item: any, idx: number) => {
@@ -285,7 +283,7 @@ const useStore = create<AppState & AppActions>((set, get) => ({
                             return {
                                 id: idx + 1,
                                 name: item.name || `منتج ${idx + 1}`,
-                                sku: item.sku || `AH-${idx + 101}`,
+                                sku: item.sku || `SKU-${idx + 101}`,
                                 category: item.category || 'قطع غيار',
                                 description: item.description || '',
                                 purchasePrice: Math.round(price * 0.7),
@@ -295,8 +293,13 @@ const useStore = create<AppState & AppActions>((set, get) => ({
                             };
                         });
                         set(state => ({
-                            appData: { ...(state.appData as AppData), products: fallbackProducts }
+                            isLoading: false,
+                            appData: { ...(state.appData as AppData), ...(fallbackProducts.length > 0 ? { products: fallbackProducts } : {}) }
                         }));
+                        return;
+                    }
+                    if (!resolveTenantBrandId() && error.message.includes('Missing or insufficient permissions')) {
+                        handleFirestoreError(error, OperationType.LIST, name as string);
                     }
                     console.warn(`Error listening to ${name}:`, error.message);
                 });
@@ -343,6 +346,24 @@ const useStore = create<AppState & AppActions>((set, get) => ({
 
     initAdminListeners: async () => {
         if (get().isInitialized || !get().currentUser) return;
+        const activeSlug = resolveTenantBrandId();
+        const tenantToken = activeSlug ? getTenantSessionToken(activeSlug) : null;
+        if (activeSlug && tenantToken) {
+            set({ isLoading: true });
+            const cloudState = await fetchTenantErpState(activeSlug, tenantToken);
+            if (cloudState && typeof cloudState === 'object') {
+                isHydratingFromCloud = true;
+                set(state => ({
+                    isLoading: false,
+                    isInitialized: true,
+                    appData: { ...(state.appData as AppData), ...cloudState }
+                }));
+                isHydratingFromCloud = false;
+            } else {
+                set({ isLoading: false, isInitialized: true });
+            }
+            return;
+        }
         set({ isLoading: true });
     
         try {

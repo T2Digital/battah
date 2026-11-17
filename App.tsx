@@ -159,8 +159,11 @@ const App: React.FC = () => {
                         };
                     });
                     useStore.setState((state) => ({
+                        isLoading: false,
                         appData: { ...(state.appData as any), products: hydrated }
                     }));
+                } else if (currentProducts.length > 0) {
+                    useStore.setState({ isLoading: false });
                 }
             }
         });
