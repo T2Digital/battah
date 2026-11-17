@@ -64,7 +64,9 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
         loadFeatured();
     }, [storefrontSettings]);
 
-    // Fetch products based on filters
+    const storeProducts = useStore(state => state.appData?.products || []);
+
+    // Fetch products based on filters or live storeProducts updates
     useEffect(() => {
         const load = async () => {
             setLoading(true);
@@ -86,7 +88,7 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
         // Debounce search
         const timer = setTimeout(load, filters.search ? 500 : 0);
         return () => clearTimeout(timer);
-    }, [filters.category, filters.search]);
+    }, [filters.category, filters.search, storeProducts]);
 
     // Handle Smart Scanning from Hash or pendingScan
     const globalLoading = useStore(state => state.isLoading);
@@ -154,9 +156,9 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
         return {
             "@context": "https://schema.org",
             "@type": "AutoPartsStore",
-            "name": "بطاح الأصلي",
-            "image": "https://i.ibb.co/LDdGwd87/5-1.png",
-            "description": "متجر بطاح الأصلي لقطع غيار السيارات وإكسسواراتها الأصلية.",
+            "name": "أوتو هاوس لقطع غيار السيارات",
+            "image": "https://i.ibb.co/3yL3ZXm5/aa2f6315c6fc.jpg",
+            "description": "متجر أوتو هاوس لقطع غيار السيارات لقطع غيار السيارات وإكسسواراتها الأصلية.",
             "address": {
                 "@type": "PostalAddress",
                 "streetAddress": "79 شارع رمسيس ناصية التوفيقية",
@@ -166,7 +168,7 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
             "telephone": "+201080444447",
             "priceRange": "$$",
             "openingHours": "Sa-Th 09:00-23:00",
-            "url": "https://battah-system.vercel.app/"
+            "url": "https://t2-tenant-auto-house.vercel.app/"
         };
     }, []);
 
@@ -256,12 +258,12 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
     return (
         <div className="font-cairo bg-slate-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200">
             <Helmet>
-                <title>بطاح الأصلي | قطع غيار سيارات أصلية</title>
-                <meta name="description" content="تسوق أفضل قطع غيار السيارات الأصلية والإكسسوارات من بطاح الأصلي. جودة عالية وأسعار تنافسية." />
+                <title>أوتو هاوس لقطع غيار السيارات | قطع غيار سيارات أصلية</title>
+                <meta name="description" content="تسوق أفضل قطع غيار السيارات الأصلية والإكسسوارات من أوتو هاوس لقطع غيار السيارات. جودة عالية وأسعار تنافسية." />
                 <meta name="keywords" content="قطع غيار, سيارات, بطاح, اكسسوارات, زيوت, فلاتر, فرامل" />
-                <meta property="og:title" content="بطاح الأصلي | قطع غيار سيارات أصلية" />
-                <meta property="og:description" content="تسوق أفضل قطع غيار السيارات الأصلية والإكسسوارات من بطاح الأصلي." />
-                <meta property="og:image" content="https://i.ibb.co/LDdGwd87/5-1.png" />
+                <meta property="og:title" content="أوتو هاوس لقطع غيار السيارات | قطع غيار سيارات أصلية" />
+                <meta property="og:description" content="تسوق أفضل قطع غيار السيارات الأصلية والإكسسوارات من أوتو هاوس لقطع غيار السيارات." />
+                <meta property="og:image" content="https://i.ibb.co/3yL3ZXm5/aa2f6315c6fc.jpg" />
                 <meta property="og:type" content="website" />
                 <meta name="twitter:card" content="summary_large_image" />
                 <script type="application/ld+json">

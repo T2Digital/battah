@@ -895,6 +895,45 @@ const useStore = create<AppState & AppActions>((set, get) => ({
     },
     
     fetchProducts: async (lastDoc = null, limitCount = 20, filter?: { category?: string }) => {
+        const activeSlug = resolveTenantBrandId();
+        if (activeSlug) {
+            let list: Product[] = get().appData?.products || [];
+            if (list.length === 0) {
+                const cloud = await fetchTenantErpState(activeSlug, getTenantSessionToken(activeSlug));
+                if (Array.isArray(cloud?.products) && cloud.products.length > 0) {
+                    list = cloud.products;
+                    isHydratingFromCloud = true;
+                    set(state => ({ isLoading: false, appData: { ...(state.appData as AppData), products: list } }));
+                    isHydratingFromCloud = false;
+                } else {
+                    const tenantBrand = (typeof window !== 'undefined' && (window as any).__TENANT_BRAND__) || null;
+                    const catalog = Array.isArray(tenantBrand?.productsCatalog) ? tenantBrand.productsCatalog : [];
+                    if (catalog.length > 0) {
+                        list = catalog.map((item: any, idx: number) => {
+                            const price = Number(item.numericPrice || String(item.price || '').replace(/[^\d.]/g, '')) || 500;
+                            return {
+                                id: idx + 1,
+                                name: item.name || `منتج ${idx + 1}`,
+                                sku: item.sku || `SKU-${idx + 101}`,
+                                category: item.category || 'قطع غيار',
+                                mainCategory: item.mainCategory || item.category || 'قطع غيار',
+                                description: item.description || '',
+                                purchasePrice: Math.round(price * 0.7),
+                                sellingPrice: price,
+                                stock: { main: 25, branch1: 10, branch2: 10, branch3: 10 },
+                                imageUrl: item.imageUrl || tenantBrand?.logoUrl || ''
+                            } as Product;
+                        });
+                        set(state => ({ isLoading: false, appData: { ...(state.appData as AppData), products: list } }));
+                    }
+                }
+            }
+            const cat = filter?.category;
+            const filtered = (cat && cat !== 'all')
+                ? list.filter((p: any) => p.mainCategory === cat || p.category === cat)
+                : list;
+            return { products: filtered.slice(0, limitCount), lastDoc: null };
+        }
         try {
             let constraints: any[] = [orderBy('id', 'desc'), limit(limitCount)];
             
@@ -967,6 +1006,16 @@ const useStore = create<AppState & AppActions>((set, get) => ({
     },
     searchProducts: async (searchQuery: string) => {
         if (!searchQuery.trim()) return [];
+        const activeSlug = resolveTenantBrandId();
+        if (activeSlug) {
+            const qLower = searchQuery.trim().toLowerCase();
+            const list: Product[] = get().appData?.products || [];
+            return list.filter((p: any) =>
+                String(p.name || '').toLowerCase().includes(qLower) ||
+                String(p.sku || '').toLowerCase().includes(qLower) ||
+                String(p.category || '').toLowerCase().includes(qLower)
+            );
+        }
         try {
             // Search by name
             const nameQuery = query(
