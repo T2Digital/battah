@@ -51,15 +51,29 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
     const [showSecurityCheck, setShowSecurityCheck] = useState(false);
     const [securityError, setSecurityError] = useState('');
 
-    const branchNames: Record<Branch, string> = {
+    const appCustomization = useStore(state => (state.appData as any)?.appCustomization || {});
+    const defaultBranchNames: Record<Branch, string> = {
         main: 'المخزن',
         branch1: 'الرئيسي',
         branch2: 'فرع 1',
         branch3: 'فرع 2',
     };
+    const configuredBranches: Array<{ key: Branch; label: string }> =
+        Array.isArray(appCustomization?.activeBranches) && appCustomization.activeBranches.length > 0
+            ? appCustomization.activeBranches
+            : (Object.entries(defaultBranchNames).map(([key, label]) => ({ key: key as Branch, label })));
+    const branchNames: Record<string, string> = Object.fromEntries(
+        configuredBranches.map(b => [b.key, b.label])
+    );
+    const configuredCashiers: Array<{ value: string; label: string }> =
+        Array.isArray(appCustomization?.cashiers) && appCustomization.cashiers.length > 0
+            ? appCustomization.cashiers
+            : [{ value: 'تحت', label: 'كاشير تحت' }, { value: 'فوق', label: 'كاشير فوق' }];
 
     const getStockBreakdown = (product: Product): string => {
-        return `رصيد: المخزن(${product.stock.main}), الرئيسي(${product.stock.branch1}), ف1(${product.stock.branch2}), ف2(${product.stock.branch3})`;
+        return configuredBranches
+            .map(b => `${b.label}(${(product.stock as any)?.[b.key] ?? 0})`)
+            .join(', ');
     };
 
     useEffect(() => {
@@ -482,28 +496,23 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
                             value={branchSoldFrom} 
                             onChange={e => setBranchSoldFrom(e.target.value as Branch)} 
                             className="w-full mt-1 p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
-                            disabled={currentUser.role !== Role.Admin && (!currentUser.allowedBranches || currentUser.allowedBranches.length <= 1)}
+                            disabled={configuredBranches.length <= 1 || (currentUser.role !== Role.Admin && (!currentUser.allowedBranches || currentUser.allowedBranches.length <= 1))}
                         >
-                            {currentUser.role === Role.Admin ? (
-                                Object.entries(branchNames).map(([key, name]) => (
-                                    <option key={key} value={key}>{name}</option>
-                                ))
-                            ) : (
-                                currentUser.allowedBranches?.map(b => (
-                                    <option key={b} value={b}>{branchNames[b]}</option>
-                                )) || <option value={currentUser.branch}>{branchNames[currentUser.branch]}</option>
-                            )}
+                            {configuredBranches.map((b) => (
+                                <option key={b.key} value={b.key}>{b.label}</option>
+                            ))}
                         </select>
                     </div>
                     <div>
                         <label>الكاشير</label>
                         <select 
                             value={cashierLocation} 
-                            onChange={e => setCashierLocation(e.target.value as 'فوق' | 'تحت')} 
+                            onChange={e => setCashierLocation(e.target.value as any)} 
                             className="w-full mt-1 p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
                         >
-                            <option value="تحت">كاشير تحت</option>
-                            <option value="فوق">كاشير فوق</option>
+                            {configuredCashiers.map((c) => (
+                                <option key={c.value} value={c.value}>{c.label}</option>
+                            ))}
                         </select>
                     </div>
                     {direction === 'ضمان' && (
