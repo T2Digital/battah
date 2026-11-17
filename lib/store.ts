@@ -2030,4 +2030,28 @@ useStore.subscribe((state, prevState) => {
     }
 });
 
+if (typeof window !== 'undefined') {
+    setInterval(async () => {
+        if (document.visibilityState !== 'visible') return;
+        const slug = resolveTenantBrandId();
+        if (!slug) return;
+        const token = getTenantSessionToken(slug);
+        const cloudState = await fetchTenantErpState(slug, token);
+        if (!cloudState || typeof cloudState !== 'object') return;
+        const curData = (useStore.getState().appData || {}) as Record<string, any>;
+        const nextMerged: Record<string, any> = {
+            ...curData,
+            ...(Array.isArray(cloudState.products) && cloudState.products.length > 0 ? { products: cloudState.products } : {}),
+            ...(Array.isArray(cloudState.broadcasts) && cloudState.broadcasts.length > 0 ? { broadcasts: cloudState.broadcasts } : {}),
+            ...(cloudState.settings ? { settings: cloudState.settings } : {}),
+            ...(token ? cloudState : {}),
+        };
+        if (JSON.stringify(nextMerged) !== JSON.stringify(curData)) {
+            isHydratingFromCloud = true;
+            useStore.setState({ isLoading: false, appData: nextMerged as AppData });
+            isHydratingFromCloud = false;
+        }
+    }, 12000);
+}
+
 export default useStore;
