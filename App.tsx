@@ -170,6 +170,35 @@ const App: React.FC = () => {
     }, []);
     
     useEffect(() => {
+        const checkPrintHash = async () => {
+            const hash = window.location.hash || '';
+            const match = hash.match(/^#print-invoice\/(.+)$/);
+            if (!match) return;
+            const targetId = decodeURIComponent(match[1]);
+            const state = useStore.getState();
+            let sale = (state.appData?.dailySales || []).find((s: any) => String(s.id) === targetId || String(s.invoiceNumber) === targetId);
+            if (!sale) {
+                const { resolveTenantBrandId } = await import('./lib/tenantBootstrap');
+                const { fetchTenantErpState, getTenantSessionToken } = await import('./lib/tenantErpSync');
+                const slug = resolveTenantBrandId();
+                if (slug) {
+                    const cloud = await fetchTenantErpState(slug, getTenantSessionToken(slug));
+                    if (Array.isArray(cloud?.dailySales)) {
+                        sale = cloud.dailySales.find((s: any) => String(s.id) === targetId || String(s.invoiceNumber) === targetId);
+                    }
+                }
+            }
+            if (sale) {
+                const { triggerInvoicePrint } = await import('./lib/reportTemplates');
+                triggerInvoicePrint(sale, useStore.getState().appData?.products || [], sale.isTaxable || false);
+            }
+        };
+        checkPrintHash();
+        window.addEventListener('hashchange', checkPrintHash);
+        return () => window.removeEventListener('hashchange', checkPrintHash);
+    }, []);
+
+    useEffect(() => {
         (window as any).printInvoiceFromCardex = async (saleId: number) => {
             const state = useStore.getState();
             if(!state.appData) return;

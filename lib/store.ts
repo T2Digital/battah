@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 import { create } from 'zustand';
-import { tenantCollection as collection, tenantDoc as doc, resolveTenantBrandId } from './tenantBootstrap';
+import { tenantCollection as collection, tenantDoc as doc, resolveTenantBrandId, applyDynamicPwaAndTheme } from './tenantBootstrap';
 import { fetchTenantErpState, queueTenantErpSync, getTenantSessionToken } from './tenantErpSync';
 import { initializeApp } from 'firebase/app';
 import {
@@ -1454,7 +1454,22 @@ const useStore = create<AppState & AppActions>((set, get) => ({
         }
     },
     updateStorefrontSettings: async (settings) => {
-        await setDoc(doc(db, "settings", "storefront"), settings, { merge: true });
+        const merged = { ...(get().appData?.storefrontSettings || {}), ...settings };
+        set(state => ({
+            appData: { ...(state.appData as AppData), storefrontSettings: merged }
+        }));
+        if (typeof window !== 'undefined') {
+            (window as any).__TENANT_STOREFRONT_SETTINGS__ = merged;
+            if ((merged as any).primaryColor) {
+                applyDynamicPwaAndTheme({
+                    name: ((window as any).__TENANT_BRAND__?.name) || 'المتجر',
+                    primaryColor: (merged as any).primaryColor,
+                    logoUrl: ((window as any).__TENANT_BRAND__?.logoUrl) || '',
+                });
+            }
+        }
+        if (resolveTenantBrandId()) return;
+        await setDoc(doc(db, "settings", "storefront"), merged, { merge: true });
     },
     addTreasuryTransaction: async (transaction) => {
         try {
@@ -2099,6 +2114,16 @@ if (typeof window !== 'undefined') {
             isHydratingFromCloud = true;
             useStore.setState({ isLoading: false, appData: nextMerged as AppData });
             isHydratingFromCloud = false;
+            if (nextMerged.storefrontSettings) {
+                (window as any).__TENANT_STOREFRONT_SETTINGS__ = nextMerged.storefrontSettings;
+                if ((nextMerged.storefrontSettings as any).primaryColor) {
+                    applyDynamicPwaAndTheme({
+                        name: ((window as any).__TENANT_BRAND__?.name) || 'المتجر',
+                        primaryColor: (nextMerged.storefrontSettings as any).primaryColor,
+                        logoUrl: ((window as any).__TENANT_BRAND__?.logoUrl) || '',
+                    });
+                }
+            }
         }
     }, 12000);
 }

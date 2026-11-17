@@ -21,6 +21,9 @@ const StorefrontSettings: React.FC<StorefrontSettingsProps> = ({ isOpen, onClose
     const [featured, setFeatured] = useState<number[]>([]);
     const [newArrivals, setNewArrivals] = useState<number[]>([]);
     const [adminPassword, setAdminPassword] = useState('');
+    const [contactPhone, setContactPhone] = useState('');
+    const [address, setAddress] = useState('');
+    const [primaryColor, setPrimaryColor] = useState('#0284c7');
     const [isSaving, setIsSaving] = useState(false);
     
     const [searchQuery, setSearchQuery] = useState('');
@@ -33,6 +36,10 @@ const StorefrontSettings: React.FC<StorefrontSettingsProps> = ({ isOpen, onClose
             setFeatured(settings.featuredProductIds || []);
             setNewArrivals(settings.newArrivalProductIds || []);
             setAdminPassword(settings.adminPassword || '');
+            setContactPhone((settings as any).contactPhone || (window as any).__TENANT_BRAND__?.phone || '01013373634');
+            setAddress((settings as any).address || (window as any).__TENANT_BRAND__?.address || 'القاهرة - التوفيقية');
+            const rawColor = (settings as any).primaryColor || (window as any).__TENANT_BRAND__?.primaryColor || '#0284c7';
+            setPrimaryColor(String(rawColor).toLowerCase() === '#00f0ff' ? '#0284c7' : rawColor);
         }
     }, [settings, isOpen]);
 
@@ -85,7 +92,14 @@ const StorefrontSettings: React.FC<StorefrontSettingsProps> = ({ isOpen, onClose
         e.preventDefault();
         setIsSaving(true);
         try {
-            await onSave({ featuredProductIds: featured, newArrivalProductIds: newArrivals, adminPassword });
+            await onSave({
+                featuredProductIds: featured,
+                newArrivalProductIds: newArrivals,
+                adminPassword,
+                contactPhone,
+                address,
+                primaryColor,
+            } as any);
             onClose();
         } catch (error) {
             console.error("Failed to save storefront settings:", error);
@@ -182,6 +196,55 @@ const StorefrontSettings: React.FC<StorefrontSettingsProps> = ({ isOpen, onClose
                     <ProductList title="المنتجات الجديدة (وصل حديثاً)" selectedIds={newArrivals} onToggle={(id) => handleToggle('newArrivals', id)} />
                 </div>
                 
+                <div className="border-t pt-4 space-y-4">
+                    <h3 className="font-bold text-lg text-primary">بيانات الفوتر والفاتورة ولون الثيم</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">رقم الموبايل (يظهر في الفوتر والفاتورة)</label>
+                            <input
+                                type="text"
+                                dir="ltr"
+                                value={contactPhone}
+                                onChange={(e) => setContactPhone(e.target.value)}
+                                placeholder="01013373634"
+                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring focus:ring-primary focus:ring-opacity-50 dark:bg-gray-700 dark:border-gray-600"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">العنوان (يظهر في الفوتر والفاتورة)</label>
+                            <input
+                                type="text"
+                                value={address}
+                                onChange={(e) => setAddress(e.target.value)}
+                                placeholder="القاهرة - التوفيقية"
+                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring focus:ring-primary focus:ring-opacity-50 dark:bg-gray-700 dark:border-gray-600"
+                            />
+                        </div>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">لون الثيم الرئيسي (اختر لوناً واضحاً للأزرار والنصوص)</label>
+                        <div className="flex flex-wrap items-center gap-2">
+                            {['#0284c7', '#2563eb', '#059669', '#dc2626', '#7c3aed', '#d97706'].map((preset) => (
+                                <button
+                                    key={preset}
+                                    type="button"
+                                    onClick={() => setPrimaryColor(preset)}
+                                    style={{ backgroundColor: preset }}
+                                    className={`w-8 h-8 rounded-full border-2 transition ${primaryColor === preset ? 'border-gray-900 dark:border-white scale-110 shadow-md' : 'border-transparent'}`}
+                                    title={preset}
+                                />
+                            ))}
+                            <input
+                                type="color"
+                                value={primaryColor}
+                                onChange={(e) => setPrimaryColor(e.target.value)}
+                                className="w-10 h-8 rounded cursor-pointer border border-gray-300"
+                            />
+                            <span className="text-xs font-mono text-gray-500" dir="ltr">{primaryColor}</span>
+                        </div>
+                    </div>
+                </div>
+
                 <div className="border-t pt-4">
                     <h3 className="font-bold text-lg mb-2 text-red-600">إعدادات الأمان</h3>
                     <div>

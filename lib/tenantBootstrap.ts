@@ -42,9 +42,10 @@ function renderTrialExpiredPaywall(brand: TenantBrandConfig) {
   document.body.appendChild(overlay);
 }
 
-function applyDynamicPwaAndTheme(brand: TenantBrandConfig) {
+export function applyDynamicPwaAndTheme(brand: Partial<TenantBrandConfig>) {
   if (typeof document === 'undefined') return;
-  const primary = brand.primaryColor || '#06b6d4';
+  const rawPrimary = String(brand.primaryColor || '#0284c7').trim();
+  const primary = rawPrimary.toLowerCase() === '#00f0ff' ? '#0284c7' : rawPrimary;
   const accent = brand.accentColor || '#0f172a';
 
   document.documentElement.style.setProperty('--primary', primary);
