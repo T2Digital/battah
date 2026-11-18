@@ -22,8 +22,8 @@ const StoreSidebar: React.FC<StoreSidebarProps> = ({ products, filters, setFilte
         const carBrandSet = new Set<string>(defaultCarBrands);
         
         products.forEach(p => {
-            catSet.add(p.mainCategory);
-            partBrandSet.add(p.brand);
+            if (p.mainCategory && p.mainCategory.trim()) catSet.add(p.mainCategory.trim());
+            if (p.brand && p.brand.trim()) partBrandSet.add(p.brand.trim());
             if (p.compatibility) {
                 p.compatibility.forEach(comp => {
                     const brand = comp.split(' ')[0]; // Extract first word (e.g., "Toyota" from "Toyota Corolla 2020")
