@@ -83,7 +83,7 @@ const StoreHero: React.FC<StoreHeroProps> = ({ setFilters }) => {
                     </div>
                     
                     <h1 className="text-5xl sm:text-6xl lg:text-7xl font-black mb-4 leading-[1.1] animate-fade-in-up" style={{animationDelay: '0.1s'}}>
-                        <span className="text-transparent bg-clip-text bg-gradient-to-l from-primary to-primary-light">{slide.title}</span>
+                        <span className="text-transparent bg-clip-text bg-gradient-to-l from-white via-sky-200 to-cyan-300">{slide.title}</span>
                     </h1>
                     <h2 className="text-3xl sm:text-4xl font-bold mb-8 text-gray-100 animate-fade-in-up" style={{animationDelay: '0.2s'}}>
                         {slide.subtitle}

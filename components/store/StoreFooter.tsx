@@ -13,7 +13,7 @@ const StoreFooter: React.FC<StoreFooterProps> = ({ setViewMode }) => {
     const displayName = storefrontSettings?.companyName || tenantBrand?.name || 'متجر أوتو هاوس لقطع غيار السيارات';
     const displayLogo = tenantBrand?.logoUrl || 'https://i.ibb.co/3yL3ZXm5/aa2f6315c6fc.jpg';
     return (
-        <footer className="bg-white dark:bg-gray-900 border-t border-gray-100 dark:border-gray-800 pt-16 pb-8 mt-16">
+        <footer className="bg-white dark:bg-gray-900 border-t border-gray-100 dark:border-gray-800 pt-16 pb-24 mt-16">
             <div className="container mx-auto px-4 sm:px-6">
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-12">
                     {/* Brand Info */}

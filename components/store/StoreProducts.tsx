@@ -50,7 +50,7 @@ const StoreProducts: React.FC<StoreProductsProps> = ({ products, onProductClick,
             <div className="flex flex-col lg:flex-row gap-8">
                 <StoreSidebar products={products} filters={filters} setFilters={setFilters} />
                 <div className="flex-grow">
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6">
                         {isLoading ? (
                             Array.from({ length: 10 }).map((_, index) => <SkeletonCard key={index} />)
                         ) : filteredProducts.length > 0 ? (

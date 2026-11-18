@@ -44,7 +44,7 @@ const StoreSidebar: React.FC<StoreSidebarProps> = ({ products, filters, setFilte
     };
 
     return (
-        <aside className="lg:w-1/4 space-y-6">
+        <aside className="w-full lg:w-72 shrink-0 space-y-6">
             <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
                 <h3 className="font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
                     <i className="fas fa-search text-primary"></i>

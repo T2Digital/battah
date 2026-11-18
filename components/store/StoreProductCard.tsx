@@ -67,7 +67,7 @@ const StoreProductCard: React.FC<StoreProductCardProps> = ({ product, onProductC
             {/* Content */}
             <div className="p-4 flex flex-col flex-grow bg-white dark:bg-gray-800">
                 <div className="flex justify-between items-start mb-2">
-                    <p className="text-[10px] sm:text-xs text-primary dark:text-primary-light font-bold uppercase tracking-wider bg-primary/10 px-2 py-0.5 rounded-md">{product.brand}</p>
+                    <p className="text-[10px] sm:text-xs text-primary dark:text-primary-light font-bold uppercase tracking-wider bg-primary/10 px-2 py-0.5 rounded-md">{product.brand || product.category || 'أوتو هاوس'}</p>
                     <div className="flex items-center text-yellow-400 text-[10px] sm:text-xs shrink-0 bg-yellow-50 dark:bg-yellow-900/20 px-1.5 py-0.5 rounded-md">
                         <i className="fas fa-star"></i>
                         <span className="text-gray-700 dark:text-gray-300 ml-1 font-bold">{product.rating || '4.5'}</span>
@@ -113,6 +113,15 @@ const StoreProductCard: React.FC<StoreProductCardProps> = ({ product, onProductC
                             <i className="fas fa-cart-plus text-sm"></i>
                         </button>
                     </div>
+
+                    {/* Desktop Always-Visible Add to Cart Button */}
+                    <button
+                        onClick={handleAddToCartClick}
+                        className="hidden md:flex w-full items-center justify-center gap-2 py-2.5 px-3 bg-primary hover:bg-primary-dark text-white rounded-xl font-bold text-sm transition-all shadow-sm hover:shadow active:scale-95"
+                    >
+                        <i className="fas fa-cart-plus text-sm"></i>
+                        <span>أضف للسلة</span>
+                    </button>
                 </div>
             </div>
         </div>

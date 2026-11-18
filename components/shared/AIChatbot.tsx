@@ -81,7 +81,7 @@ const AIChatbot: React.FC<AIChatbotProps> = ({ setSelectedProduct, addToCart, op
                 }
             ];
 
-            const systemInstruction = `أنت "مساعد بطاح الذكي"، شخصيتك هي مهندس صيانة سيارات مخضرم وموظف مبيعات محترف في متجر "بطاح" لقطع غيار السيارات.
+            const systemInstruction = `أنت "مساعد أوتو هاوس الذكي"، شخصيتك هي مهندس صيانة سيارات مخضرم وموظف مبيعات محترف في متجر "أوتو هاوس" لقطع غيار السيارات.
 لديك خبرة واسعة في تشخيص أعطال السيارات وتقديم النصائح الفنية الدقيقة.
 أسلوبك في الكلام: ودود، شعبي مصري (يا ريس، يا هندسة، يا باشا)، واثق، ومساعد جداً.
 
@@ -182,7 +182,8 @@ const AIChatbot: React.FC<AIChatbotProps> = ({ setSelectedProduct, addToCart, op
             {!isOpen && (
                 <button
                     onClick={() => setIsOpen(true)}
-                    className="fixed bottom-6 right-6 z-50 w-14 h-14 bg-primary text-white rounded-full shadow-lg flex items-center justify-center hover:bg-primary-dark transition-transform hover:scale-110 animate-bounce-slow"
+                    className="fixed bottom-5 left-5 z-50 w-14 h-14 bg-primary text-white rounded-full shadow-lg flex items-center justify-center hover:bg-primary-dark transition-transform hover:scale-110 animate-bounce-slow"
+                    aria-label="افتح المساعد الذكي"
                 >
                     <i className="fas fa-robot text-2xl"></i>
                 </button>
@@ -190,7 +191,7 @@ const AIChatbot: React.FC<AIChatbotProps> = ({ setSelectedProduct, addToCart, op
 
             {/* Chat Window */}
             {isOpen && (
-                <div className="fixed bottom-0 left-0 right-0 md:bottom-6 md:right-6 md:left-auto md:w-[380px] h-[80vh] md:h-[550px] bg-white dark:bg-gray-800 md:rounded-2xl shadow-2xl flex flex-col overflow-hidden border-t md:border border-gray-200 dark:border-gray-700 font-cairo z-[60]">
+                <div className="fixed bottom-0 left-0 right-0 md:bottom-5 md:left-5 md:right-auto md:w-[380px] h-[80vh] md:h-[550px] bg-white dark:bg-gray-800 md:rounded-2xl shadow-2xl flex flex-col overflow-hidden border-t md:border border-gray-200 dark:border-gray-700 font-cairo z-[60]">
                     {/* Header */}
                     <div className="bg-primary p-4 flex justify-between items-center text-white shadow-md">
                         <div className="flex items-center gap-3">
@@ -198,7 +199,7 @@ const AIChatbot: React.FC<AIChatbotProps> = ({ setSelectedProduct, addToCart, op
                                 <i className="fas fa-user-astronaut text-xl"></i>
                             </div>
                             <div>
-                                <h3 className="font-bold text-sm">مساعد بطاح الذكي</h3>
+                                <h3 className="font-bold text-sm">مساعد أوتو هاوس الذكي</h3>
                                 <p className="text-xs text-blue-100 flex items-center gap-1">
                                     <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
                                     متصل الآن
@@ -216,7 +217,7 @@ const AIChatbot: React.FC<AIChatbotProps> = ({ setSelectedProduct, addToCart, op
                             <div className="text-center text-gray-500 text-sm mt-10">
                                 <i className="fas fa-robot text-5xl mb-4 text-gray-300 dark:text-gray-600"></i>
                                 <p className="font-bold text-gray-700 dark:text-gray-300 mb-2">أهلاً يا باشا! 👋</p>
-                                <p className="leading-relaxed mb-4">أنا "مساعد بطاح"، معاك لو محتاج أي قطعة غيار أو عندك مشكلة في عربيتك.</p>
+                                <p className="leading-relaxed mb-4">أنا "مساعد أوتو هاوس"، معاك لو محتاج أي قطعة غيار أو عندك مشكلة في عربيتك.</p>
                                 <div className="flex flex-wrap justify-center gap-2">
                                     <button onClick={() => handleQuickReply('العربية بتسخن')} className="px-3 py-1.5 bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 rounded-full text-xs hover:bg-blue-200 transition-colors border border-blue-200 dark:border-blue-800">العربية بتسخن</button>
                                     <button onClick={() => handleQuickReply('صوت تصفير في الفرامل')} className="px-3 py-1.5 bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 rounded-full text-xs hover:bg-blue-200 transition-colors border border-blue-200 dark:border-blue-800">تصفير في الفرامل</button>
