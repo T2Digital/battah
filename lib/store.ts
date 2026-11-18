@@ -1956,7 +1956,12 @@ const useStore = create<AppState & AppActions>((set, get) => ({
         }
     },
     updateSettings: async (settings) => {
-        await setDoc(doc(db, "settings", "general"), settings, { merge: true });
+        const merged = { ...(get().appData?.settings || {}), ...settings } as Settings;
+        set(state => ({
+            appData: { ...(state.appData as AppData), settings: merged }
+        }));
+        if (resolveTenantBrandId()) return;
+        await setDoc(doc(db, "settings", "general"), merged, { merge: true });
     },
     saveDeviceToken: async (token: string) => {
         try {
