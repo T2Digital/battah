@@ -15,6 +15,7 @@ export interface TenantBrandConfig {
   productsCatalog?: any[];
   subscriptionStatus?: 'active' | 'trial' | 'expired';
   appAccessMode?: 'full_app' | 'landing_page';
+  studioLandingPageUrl?: string;
   planId?: string;
   planNameAr?: string;
   trialEndsAt?: string;
@@ -224,7 +225,11 @@ export async function bootstrapBattahTenant(): Promise<TenantBrandConfig | null>
   if (brand.subscriptionStatus === 'expired') {
     renderTrialExpiredPaywall(brand);
   } else if (brand.appAccessMode === 'landing_page') {
-    renderStarterLandingPageGate(brand);
+    if (brand.studioLandingPageUrl && !window.location.href.startsWith(brand.studioLandingPageUrl)) {
+      window.location.replace(brand.studioLandingPageUrl);
+    } else {
+      renderStarterLandingPageGate(brand);
+    }
   }
   return brand;
 }
