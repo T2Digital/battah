@@ -14,9 +14,49 @@ export interface TenantBrandConfig {
   businessType?: string;
   productsCatalog?: any[];
   subscriptionStatus?: 'active' | 'trial' | 'expired';
+  appAccessMode?: 'full_app' | 'landing_page';
+  planId?: string;
+  planNameAr?: string;
   trialEndsAt?: string;
   trialDaysLeft?: number | null;
   upgradeUrl?: string;
+}
+
+function renderStarterLandingPageGate(brand: TenantBrandConfig) {
+  if (typeof document === 'undefined' || document.getElementById('ezzel-landing-gate')) return;
+  const waNum = String(brand.whatsapp || brand.phone || '01013373634').replace(/[^0-9]/g, '');
+  const waHref = `https://wa.me/${waNum.startsWith('0') ? `2${waNum}` : waNum}?text=${encodeURIComponent(`مرحباً ${brand.name}، أريد الاستفسار والطلب الآن`)}`;
+  const itemsHtml = (Array.isArray(brand.productsCatalog) ? brand.productsCatalog : []).slice(0, 4).map((p: any) => `
+    <div style="background:#0f172a;border:1px solid rgba(255,255,255,0.12);border-radius:16px;padding:14px;display:flex;justify-content:space-between;align-items:center;gap:12px;">
+      <div style="text-align:right;">
+        <div style="font-size:14px;font-weight:800;color:#fff;">${p?.name || 'عرض مميز'}</div>
+        <div style="font-size:12px;color:#94a3b8;margin-top:2px;">${p?.price || (p?.numericPrice ? `${p.numericPrice} ج.م` : 'تواصل للسعر')}</div>
+      </div>
+      <a href="${waHref}" target="_blank" rel="noreferrer" style="background:#10b981;color:#020617;padding:8px 14px;border-radius:10px;font-size:12px;font-weight:900;text-decoration:none;white-space:nowrap;">اطلب واتساب</a>
+    </div>
+  `).join('');
+
+  const overlay = document.createElement('div');
+  overlay.id = 'ezzel-landing-gate';
+  overlay.dir = 'rtl';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:999998;overflow:auto;background:#020617;padding:24px 16px;font-family:Cairo,sans-serif;color:#fff;';
+  overlay.innerHTML = `
+    <div style="max-width:620px;margin:0 auto;">
+      <div style="background:linear-gradient(180deg,rgba(16,185,129,0.14),rgba(15,23,42,0.9));border:1px solid rgba(16,185,129,0.4);border-radius:24px;padding:26px;text-align:center;margin-bottom:18px;">
+        <div style="display:inline-block;padding:4px 12px;border-radius:999px;background:rgba(16,185,129,0.15);color:#34d399;font-size:11px;font-weight:800;margin-bottom:10px;">Landing Page • ${brand.planNameAr || 'باقة الانطلاق 2,500 ج.م'}</div>
+        ${brand.logoUrl ? `<img src="${brand.logoUrl}" alt="${brand.name}" style="width:72px;height:72px;border-radius:18px;object-fit:cover;margin:0 auto 12px;display:block;border:2px solid #10b981;" />` : ''}
+        <h1 style="margin:0 0 6px;font-size:24px;font-weight:900;">${brand.name}</h1>
+        <p style="margin:0 0 18px;font-size:13.5px;color:#cbd5e1;line-height:1.7;">${brand.slogan || brand.businessType || 'تواصل مباشرة للطلب والاستفسار السريع عبر واتساب'}</p>
+        <a href="${waHref}" target="_blank" rel="noreferrer" style="display:block;width:100%;padding:13px;border-radius:14px;background:#25D366;color:#020617;font-weight:900;font-size:15px;text-decoration:none;">💬 اطلب الآن عبر واتساب مباشرة</a>
+      </div>
+      ${itemsHtml ? `<div style="display:grid;gap:10px;margin-bottom:18px;">${itemsHtml}</div>` : ''}
+      <div style="background:#0f172a;border:1px solid #334155;border-radius:18px;padding:16px;text-align:center;">
+        <div style="font-size:13px;font-weight:800;color:#38bdf8;margin-bottom:6px;">🚀 الترقية للمتجر الكامل + سلة المشتريات + فواتير ERP</div>
+        <a href="${brand.upgradeUrl || 'https://ez-zel.onrender.com/pricing'}" target="_blank" rel="noreferrer" style="display:inline-block;margin-top:6px;padding:10px 20px;border-radius:12px;background:#38bdf8;color:#020617;font-weight:900;font-size:13px;text-decoration:none;">ترقية إلى باقة النمو 5,000 ج.م</a>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
 }
 
 function renderTrialExpiredPaywall(brand: TenantBrandConfig) {
@@ -183,6 +223,8 @@ export async function bootstrapBattahTenant(): Promise<TenantBrandConfig | null>
   applyDynamicPwaAndTheme(brand);
   if (brand.subscriptionStatus === 'expired') {
     renderTrialExpiredPaywall(brand);
+  } else if (brand.appAccessMode === 'landing_page') {
+    renderStarterLandingPageGate(brand);
   }
   return brand;
 }
