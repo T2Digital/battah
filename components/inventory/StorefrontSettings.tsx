@@ -24,6 +24,10 @@ const StorefrontSettings: React.FC<StorefrontSettingsProps> = ({ isOpen, onClose
     const [contactPhone, setContactPhone] = useState('');
     const [address, setAddress] = useState('');
     const [primaryColor, setPrimaryColor] = useState('#0284c7');
+    const [metaPixelId, setMetaPixelId] = useState('');
+    const [tiktokPixelId, setTiktokPixelId] = useState('');
+    const [googleTagId, setGoogleTagId] = useState('');
+    const [snapPixelId, setSnapPixelId] = useState('');
     const [isSaving, setIsSaving] = useState(false);
     
     const [searchQuery, setSearchQuery] = useState('');
@@ -40,6 +44,10 @@ const StorefrontSettings: React.FC<StorefrontSettingsProps> = ({ isOpen, onClose
             setAddress((settings as any).address || (window as any).__TENANT_BRAND__?.address || 'القاهرة - التوفيقية');
             const rawColor = (settings as any).primaryColor || (window as any).__TENANT_BRAND__?.primaryColor || '#0284c7';
             setPrimaryColor(String(rawColor).toLowerCase() === '#00f0ff' ? '#0284c7' : rawColor);
+            setMetaPixelId((settings as any).metaPixelId || '');
+            setTiktokPixelId((settings as any).tiktokPixelId || '');
+            setGoogleTagId((settings as any).googleTagId || '');
+            setSnapPixelId((settings as any).snapPixelId || '');
         }
     }, [settings, isOpen]);
 
@@ -99,6 +107,10 @@ const StorefrontSettings: React.FC<StorefrontSettingsProps> = ({ isOpen, onClose
                 contactPhone,
                 address,
                 primaryColor,
+                metaPixelId: metaPixelId.trim(),
+                tiktokPixelId: tiktokPixelId.trim(),
+                googleTagId: googleTagId.trim(),
+                snapPixelId: snapPixelId.trim(),
             } as any);
             onClose();
         } catch (error) {
@@ -241,6 +253,57 @@ const StorefrontSettings: React.FC<StorefrontSettingsProps> = ({ isOpen, onClose
                                 className="w-10 h-8 rounded cursor-pointer border border-gray-300"
                             />
                             <span className="text-xs font-mono text-gray-500" dir="ltr">{primaryColor}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="border-t pt-4">
+                    <h3 className="font-bold text-lg mb-2 text-blue-600 dark:text-blue-400">تتبع الإعلانات والبكسلات (Tracking Pixels)</h3>
+                    <p className="text-xs text-gray-500 mb-3">أضف معرفات البكسل لتتبع المشاهدات، السلة، وإتمام الطلب تلقائياً في حملاتك الإعلانية.</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                            <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">Meta Pixel ID (فيسبوك وإنستجرام)</label>
+                            <input
+                                type="text"
+                                dir="ltr"
+                                value={metaPixelId}
+                                onChange={(e) => setMetaPixelId(e.target.value)}
+                                placeholder="مثال: 123456789012345"
+                                className="block w-full rounded-md border-gray-300 shadow-sm text-sm dark:bg-gray-700 dark:border-gray-600"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">TikTok Pixel ID</label>
+                            <input
+                                type="text"
+                                dir="ltr"
+                                value={tiktokPixelId}
+                                onChange={(e) => setTiktokPixelId(e.target.value)}
+                                placeholder="مثال: CXXXXXXXXXXXX"
+                                className="block w-full rounded-md border-gray-300 shadow-sm text-sm dark:bg-gray-700 dark:border-gray-600"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">Google Tag / Ads ID (GA4 / GTM)</label>
+                            <input
+                                type="text"
+                                dir="ltr"
+                                value={googleTagId}
+                                onChange={(e) => setGoogleTagId(e.target.value)}
+                                placeholder="مثال: G-XXXXXXXXXX"
+                                className="block w-full rounded-md border-gray-300 shadow-sm text-sm dark:bg-gray-700 dark:border-gray-600"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">Snapchat Pixel ID</label>
+                            <input
+                                type="text"
+                                dir="ltr"
+                                value={snapPixelId}
+                                onChange={(e) => setSnapPixelId(e.target.value)}
+                                placeholder="مثال: xxxxxxxx-xxxx-xxxx"
+                                className="block w-full rounded-md border-gray-300 shadow-sm text-sm dark:bg-gray-700 dark:border-gray-600"
+                            />
                         </div>
                     </div>
                 </div>

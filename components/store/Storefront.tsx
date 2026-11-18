@@ -20,6 +20,7 @@ import InstallPrompt from '../shared/InstallPrompt';
 import FloatingCheckoutButton from './FloatingCheckoutButton';
 
 import StoreFooter from './StoreFooter';
+import { initStorePixels, trackStoreEvent } from '../../utils/pixels';
 
 interface StorefrontProps {
     setViewMode: (mode: 'admin' | 'store') => void;
@@ -63,6 +64,29 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
         };
         loadFeatured();
     }, [storefrontSettings]);
+
+    // Initialize Multi-Platform Tracking Pixels (Meta / TikTok / Google / Snapchat)
+    useEffect(() => {
+        const s: any = storefrontSettings || {};
+        const brand: any = (typeof window !== 'undefined' && (window as any).__TENANT_BRAND__) || {};
+        initStorePixels({
+            metaPixelId: s.metaPixelId || brand.metaPixelId,
+            tiktokPixelId: s.tiktokPixelId || brand.tiktokPixelId,
+            googleTagId: s.googleTagId || brand.googleTagId,
+            snapPixelId: s.snapPixelId || brand.snapPixelId,
+        });
+    }, [storefrontSettings]);
+
+    useEffect(() => {
+        if (selectedProduct) {
+            trackStoreEvent('ViewContent', {
+                content_name: selectedProduct.name,
+                content_ids: [selectedProduct.id],
+                value: Number(selectedProduct.sellingPrice || 0),
+                currency: 'EGP',
+            });
+        }
+    }, [selectedProduct]);
 
     const storeProducts = useStore(state => state.appData?.products || []);
 
@@ -216,6 +240,13 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
             return [...prevItems, { product, quantity }];
         });
         setNotification(`تم إضافة "${product.name}" إلى السلة`);
+        trackStoreEvent('AddToCart', {
+            content_name: product.name,
+            content_ids: [product.id],
+            value: Number(product.sellingPrice || 0) * quantity,
+            currency: 'EGP',
+            num_items: quantity,
+        });
     };
 
     const updateCartQuantity = (productId: number, quantity: number) => {
@@ -229,6 +260,13 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
     const handleCheckout = () => {
         setCartOpen(false);
         setCheckoutOpen(true);
+        const totalVal = cartItems.reduce((sum, item) => sum + item.product.sellingPrice * item.quantity, 0);
+        trackStoreEvent('InitiateCheckout', {
+            content_ids: cartItems.map((i) => i.product.id),
+            value: totalVal,
+            currency: 'EGP',
+            num_items: cartItems.reduce((sum, i) => sum + i.quantity, 0),
+        });
     };
 
     const handlePlaceOrder = async (customerDetails: { name: string; phone: string; address: string }, paymentMethod: Order['paymentMethod'], paymentProof?: File, discountCode?: string, locationLink?: string) => {
@@ -244,6 +282,12 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
         
         try {
             const proofUrl = await createOrder(customerDetails, orderItems, subtotal, paymentMethod, paymentProof, discountCode, locationLink);
+            trackStoreEvent('Purchase', {
+                content_ids: orderItems.map((i) => i.productId),
+                value: subtotal,
+                currency: 'EGP',
+                num_items: orderItems.reduce((sum, i) => sum + i.quantity, 0),
+            });
             setCartItems([]);
             setCheckoutOpen(false);
             setNotification('تم إرسال طلبك بنجاح! سيتم التواصل معك للتأكيد.');

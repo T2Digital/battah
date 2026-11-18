@@ -15,7 +15,7 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, onSave,
     if (!isOpen) return null;
 
     const content = (
-        <div className={`bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-200 rounded-2xl shadow-xl w-full ${maxWidth} m-4 max-h-[90vh] flex flex-col`}>
+        <div className="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-200 rounded-2xl shadow-2xl w-full max-h-[90vh] flex flex-col overflow-hidden">
             <div className="flex justify-between items-center p-5 border-b border-gray-200 dark:border-gray-700">
                 <h3 className="text-xl font-bold">{title}</h3>
                 <button onClick={onClose} className="w-8 h-8 flex justify-center items-center rounded-full hover:bg-gray-200 dark:hover:bg-gray-600 transition">
@@ -47,15 +47,15 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, onSave,
 
     return (
         <div 
-            className="fixed inset-0 bg-gray-900 bg-opacity-60 flex items-center justify-center z-50 backdrop-blur-sm animate-fade-in"
+            className="fixed inset-0 bg-gray-900/70 flex items-center justify-center p-4 overflow-y-auto z-[100] backdrop-blur-sm animate-fade-in"
             onClick={onClose}
         >
             {onSave ? (
-                <form onClick={e => e.stopPropagation()} onSubmit={onSave}>
+                <form className={`w-full ${maxWidth} mx-auto`} onClick={e => e.stopPropagation()} onSubmit={onSave}>
                     {content}
                 </form>
             ) : (
-                 <div onClick={e => e.stopPropagation()}>
+                 <div className={`w-full ${maxWidth} mx-auto`} onClick={e => e.stopPropagation()}>
                     {content}
                 </div>
             )}
