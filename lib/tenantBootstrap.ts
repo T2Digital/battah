@@ -18,6 +18,8 @@ export interface TenantBrandConfig {
   adminEmail?: string;
   phone?: string;
   whatsapp?: string;
+  commercialRegister?: string;
+  taxCardNumber?: string;
   businessType?: string;
   productsCatalog?: any[];
   subscriptionStatus?: 'active' | 'trial' | 'expired';

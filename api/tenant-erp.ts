@@ -425,6 +425,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const existingNotifications: any[] = Array.isArray(ordersShard.notifications) ? ordersShard.notifications : [];
 
     // Compute dynamic shipping fee from catalog/brand config
+    const pg: any = catalog.appCustomization?.paymentGateways || cfg.appCustomization?.paymentGateways || {};
+    if (paymentMethod === 'cod' && pg.enableCod === false) {
+      return res.status(400).json({ ok: false, error: 'الدفع عند الاستلام غير متاح حالياً، يرجى اختيار طريقة دفع أخرى.' });
+    }
     const shippingCfg: any = catalog.appCustomization?.shipping || cfg.appCustomization?.shipping || {};
     const defaultFee = Math.max(0, Number(shippingCfg.defaultFee ?? 50) || 0);
     const freeThreshold = Math.max(0, Number(shippingCfg.freeShippingThreshold ?? 0) || 0);

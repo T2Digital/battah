@@ -8,6 +8,7 @@ import {
     getProductTotalStock,
     getShippingConfig,
     getStoreBranding,
+    getPaymentGatewaysConfig,
 } from '../../lib/appConfig';
 
 interface StoreProductModalProps {
@@ -39,6 +40,7 @@ const StoreProductModal: React.FC<StoreProductModalProps> = ({
     }));
     const activeBranches = getActiveBranches(appCustomization);
     const shippingConfig = getShippingConfig(appCustomization);
+    const paymentGateways = getPaymentGatewaysConfig(appCustomization);
     const branding = getStoreBranding(storefrontSettings, 'المتجر الإلكتروني');
     const [quantity, setQuantity] = useState(1);
     const [activeImage, setActiveImage] = useState(0);
@@ -427,8 +429,8 @@ const StoreProductModal: React.FC<StoreProductModalProps> = ({
                                 شحن سريع
                             </div>
                             <div className="bg-slate-50 dark:bg-white/[0.04] rounded-lg py-1.5 px-1">
-                                <i className="fas fa-hand-holding-usd text-emerald-500 block mb-0.5" />
-                                دفع عند الاستلام
+                                <i className={`fas ${paymentGateways.enableCod !== false ? 'fa-hand-holding-usd' : 'fa-credit-card'} text-emerald-500 block mb-0.5`} />
+                                {paymentGateways.enableCod !== false ? 'دفع عند الاستلام' : 'دفع إلكتروني آمن'}
                             </div>
                             <div className="bg-slate-50 dark:bg-white/[0.04] rounded-lg py-1.5 px-1">
                                 <i className="fas fa-shield-alt text-amber-500 block mb-0.5" />

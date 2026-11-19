@@ -2,7 +2,7 @@
 
 import { AppData, DailySale, Product, DailyReview } from '../types';
 import { formatCurrency, formatDate, formatDateTime, calculateHours, normalizeSaleItems, calculateSaleProfit, getActualSaleRevenue } from './utils';
-import { getActiveBranches, getBranchLabel, getProductTotalStock } from './appConfig';
+import { getActiveBranches, getBranchLabel, getProductTotalStock, getStoreBranding } from './appConfig';
 
 export const branchNames: Record<string, string> = {
     main: 'المخزن',
@@ -221,14 +221,17 @@ export const generateInvoiceContent = (
 
     const liveSf: any = (typeof window !== 'undefined' && (window as any).__TENANT_STOREFRONT_SETTINGS__) || {};
     const liveBrand: any = (typeof window !== 'undefined' && (window as any).__TENANT_BRAND__) || {};
+    const branding = getStoreBranding(liveSf, liveBrand?.name || 'المتجر الإلكتروني');
     const dynamicBranches = getActiveBranches(liveBrand?.appCustomization || null);
     const bName = getBranchLabel(sale.branchSoldFrom, dynamicBranches);
-    const bAddress = liveSf?.address || liveBrand?.address || branchAddresses[sale.branchSoldFrom] || branchAddresses.main;
-    const bPhone = liveSf?.contactPhone || liveBrand?.phone || '01013373634';
+    const bAddress = branding.address || branchAddresses[sale.branchSoldFrom] || branchAddresses.main;
+    const bPhone = branding.contactPhone || liveBrand?.phone || '01013373634';
 
     const branchAddressHtml = `
         <p style="margin: 0; font-size: 10px;">${bAddress}</p>
-        <p style="margin: 0; font-size: 10px;">تليفون: ${bPhone}</p>
+        ${bPhone ? `<p style="margin: 0; font-size: 10px;">تليفون: ${bPhone}</p>` : ''}
+        ${branding.commercialRegister ? `<p style="margin: 1px 0 0 0; font-size: 10px; font-weight: 600;">سجل تجاري: ${branding.commercialRegister}</p>` : ''}
+        ${branding.taxCardNumber ? `<p style="margin: 1px 0 0 0; font-size: 10px; font-weight: 600;">بطاقة ضريبية: ${branding.taxCardNumber}</p>` : ''}
     `;
 
     const itemsTotal = items.reduce((sum, item) => {
@@ -236,6 +239,14 @@ export const generateInvoiceContent = (
         return item.isReturn ? sum - itemTotal : sum + itemTotal;
     }, 0);
     const discountPercent = sale.discount || 0;
+    const flatDiscount = Number(sale.discountAmount || 0);
+    const deliveryFeeVal =
+        typeof sale.deliveryFee === 'number'
+            ? Math.max(0, sale.deliveryFee)
+            : sale.source === 'أونلاين' && !sale.isTaxable && sale.totalAmount > itemsTotal - flatDiscount
+                ? Math.max(0, Math.round(sale.totalAmount - (itemsTotal - flatDiscount)))
+                : undefined;
+    const showShippingRow = sale.source === 'أونلاين' || (deliveryFeeVal !== undefined && deliveryFeeVal > 0);
 
     let baseAmount = Math.round(sale.totalAmount);
     let taxAmount = 0;
@@ -262,8 +273,8 @@ export const generateInvoiceContent = (
     const renderSingleCopy = (copyLabel: string) => `
     <div class="invoice-box">
         <div class="text-center mb-2">
-            <h1 style="margin: 0; font-size: 20px; font-weight: bold;">أوتو هاوس لقطع غيار السيارات</h1>
-            <p style="margin: 0; font-size: 12px;">لقطع غيار السيارات</p>
+            <h1 style="margin: 0; font-size: 18px; font-weight: bold;">${branding.companyName}</h1>
+            ${branding.slogan ? `<p style="margin: 0; font-size: 11px;">${branding.slogan}</p>` : ''}
             ${isTaxable ? `
                 <p style="margin: 2px 0 0 0; font-size: 11px; font-weight: bold; color: #000;">فاتورة ضريبية</p>
             ` : ''}
@@ -279,6 +290,7 @@ export const generateInvoiceContent = (
             <div><strong>البائع:</strong> ${sale.sellerName}</div>
             ${sale.customerName ? `<div><strong>العميل:</strong> ${sale.customerName}</div>` : ''}
             ${sale.customerPhone ? `<div><strong>تليفون العميل:</strong> ${sale.customerPhone}</div>` : ''}
+            ${sale.customerAddress ? `<div><strong>العنوان:</strong> ${sale.customerAddress}</div>` : ''}
             ${sale.warrantyPeriod ? `<div><strong>الضمان:</strong> ${sale.warrantyPeriod}</div>` : ''}
         </div>
         <hr>
@@ -301,6 +313,18 @@ export const generateInvoiceContent = (
             <tr>
                 <td colspan="3" style="text-align:right; font-size: 10px;">خصم (${discountPercent}%):</td>
                 <td style="text-align:left; font-size: 10px;">-${formatCurrency(itemsTotal * (discountPercent/100))}</td>
+            </tr>
+            ` : ''}
+            ${flatDiscount > 0 ? `
+            <tr>
+                <td colspan="3" style="text-align:right; font-size: 10px;">الخصم:</td>
+                <td style="text-align:left; font-size: 10px;">-${formatCurrency(flatDiscount)}</td>
+            </tr>
+            ` : ''}
+            ${showShippingRow ? `
+            <tr>
+                <td colspan="3" style="text-align:right; font-size: 11px; font-weight: 600;">تكلفة الشحن${sale.shippingZone ? ` (${sale.shippingZone})` : ''}:</td>
+                <td style="text-align:left; font-size: 11px; font-weight: 600;">${deliveryFeeVal && deliveryFeeVal > 0 ? formatCurrency(deliveryFeeVal) : 'مجاني'}</td>
             </tr>
             ` : ''}
             ${isTaxable ? `

@@ -1,6 +1,6 @@
 import React from 'react';
 import useStore from '../../lib/store';
-import { getMainCategories, getStoreBranding } from '../../lib/appConfig';
+import { getMainCategories, getStoreBranding, getPaymentGatewaysConfig } from '../../lib/appConfig';
 
 interface StoreFooterProps {
     setViewMode: (mode: 'admin' | 'store') => void;
@@ -13,6 +13,8 @@ const StoreFooter: React.FC<StoreFooterProps> = ({ setViewMode }) => {
         products: state.appData?.products || [],
     }));
     const branding = getStoreBranding(storefrontSettings, 'المتجر الإلكتروني');
+    const paymentGateways = getPaymentGatewaysConfig(appCustomization);
+    const paymobAvailable = Boolean(paymentGateways.paymob?.enabled && paymentGateways.paymob?.configured);
     const allCategoriesCount = getMainCategories(appCustomization, products).length;
     const displayAddress = branding.address || 'جمهورية مصر العربية';
     const displayPhone = branding.contactPhone;
@@ -46,10 +48,26 @@ const StoreFooter: React.FC<StoreFooterProps> = ({ setViewMode }) => {
                                 )}
                             </div>
                         </div>
-                        <p className="text-sm text-slate-400 mb-6 max-w-md leading-relaxed">
+                        <p className="text-sm text-slate-400 mb-4 max-w-md leading-relaxed">
                             {branding.slogan ||
                                 'وجهتك الموثوقة للتسوق أونلاين بمنتجات عالية الجودة، أسعار تنافسية، وتوصيل سريع لجميع المحافظات.'}
                         </p>
+                        {(branding.commercialRegister || branding.taxCardNumber) && (
+                            <div className="flex flex-wrap gap-2 mb-5">
+                                {branding.commercialRegister && (
+                                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-white/[0.06] border border-white/10 text-xs font-bold text-slate-300">
+                                        <i className="fas fa-file-contract text-sky-400 text-[11px]" />
+                                        سجل تجاري: <span dir="ltr" className="text-white">{branding.commercialRegister}</span>
+                                    </span>
+                                )}
+                                {branding.taxCardNumber && (
+                                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-white/[0.06] border border-white/10 text-xs font-bold text-slate-300">
+                                        <i className="fas fa-id-card text-emerald-400 text-[11px]" />
+                                        بطاقة ضريبية: <span dir="ltr" className="text-white">{branding.taxCardNumber}</span>
+                                    </span>
+                                )}
+                            </div>
+                        )}
                         <div className="flex flex-wrap gap-2.5">
                             {branding.facebookUrl && (
                                 <a
@@ -179,16 +197,28 @@ const StoreFooter: React.FC<StoreFooterProps> = ({ setViewMode }) => {
                         &copy; {new Date().getFullYear()} {displayName}. جميع الحقوق محفوظة.
                     </p>
                     <div className="flex flex-wrap gap-2 items-center justify-center">
-                        <span className="h-8 bg-white/10 border border-white/10 rounded-lg text-slate-200 font-bold text-[11px] px-3 flex items-center gap-1.5">
-                            <i className="fas fa-money-bill-wave text-emerald-400" />
-                            الدفع عند الاستلام
-                        </span>
-                        <span className="flex items-center justify-center h-8 bg-[#E60000] rounded-lg text-white font-bold text-xs px-3 shadow-sm">
-                            Vodafone Cash
-                        </span>
-                        <span className="flex items-center justify-center h-8 bg-[#5A2D82] rounded-lg text-white font-bold text-xs px-3 shadow-sm">
-                            InstaPay
-                        </span>
+                        {paymentGateways.enableCod !== false && (
+                            <span className="h-8 bg-white/10 border border-white/10 rounded-lg text-slate-200 font-bold text-[11px] px-3 flex items-center gap-1.5">
+                                <i className="fas fa-money-bill-wave text-emerald-400" />
+                                الدفع عند الاستلام
+                            </span>
+                        )}
+                        {paymentGateways.enableManualElectronic !== false && (
+                            <>
+                                <span className="flex items-center justify-center h-8 bg-[#E60000] rounded-lg text-white font-bold text-xs px-3 shadow-sm">
+                                    Vodafone Cash
+                                </span>
+                                <span className="flex items-center justify-center h-8 bg-[#5A2D82] rounded-lg text-white font-bold text-xs px-3 shadow-sm">
+                                    InstaPay
+                                </span>
+                            </>
+                        )}
+                        {paymobAvailable && (
+                            <span className="flex items-center justify-center gap-1.5 h-8 bg-indigo-600 rounded-lg text-white font-bold text-xs px-3 shadow-sm">
+                                <i className="fab fa-cc-visa text-sm" />
+                                بطاقات بنكية (Paymob)
+                            </span>
+                        )}
                         <span className="h-8 bg-white/10 border border-white/10 rounded-lg text-slate-200 font-bold text-[11px] px-3 flex items-center gap-1.5">
                             <i className="fas fa-truck text-sky-400" />
                             شحن سريع

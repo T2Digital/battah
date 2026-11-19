@@ -219,9 +219,25 @@ const MyOrdersModal: React.FC<MyOrdersModalProps> = ({ isOpen, onClose }) => {
                                             )}
 
                                             {/* Order Footer */}
-                                            <div className="flex justify-between items-center pt-3 border-t border-gray-100 dark:border-gray-700">
-                                                <span className="text-sm text-gray-500 dark:text-gray-400">الإجمالي</span>
-                                                <span className="font-black text-lg text-primary dark:text-primary-light">{formatCurrency(order.totalAmount)}</span>
+                                            <div className="pt-3 border-t border-gray-100 dark:border-gray-700 space-y-1.5">
+                                                {Number(order.discountAmount || 0) > 0 && (
+                                                    <div className="flex justify-between items-center text-xs text-emerald-600 dark:text-emerald-400">
+                                                        <span>الخصم {order.discountCode ? `(${order.discountCode})` : ''}</span>
+                                                        <span className="font-bold">-{formatCurrency(Number(order.discountAmount || 0))}</span>
+                                                    </div>
+                                                )}
+                                                <div className="flex justify-between items-center text-xs text-gray-500 dark:text-gray-400">
+                                                    <span>تكلفة الشحن {order.shippingZone ? `(${order.shippingZone})` : ''}</span>
+                                                    <span className="font-bold text-gray-700 dark:text-gray-300">
+                                                        {typeof order.deliveryFee === 'number'
+                                                            ? (order.deliveryFee === 0 ? 'مجاني' : formatCurrency(order.deliveryFee))
+                                                            : 'يُحدد حسب المنطقة'}
+                                                    </span>
+                                                </div>
+                                                <div className="flex justify-between items-center pt-1">
+                                                    <span className="text-sm font-bold text-gray-700 dark:text-gray-300">الإجمالي</span>
+                                                    <span className="font-black text-lg text-primary dark:text-primary-light">{formatCurrency(order.totalAmount)}</span>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>

@@ -185,7 +185,11 @@ export interface DailySale {
     electronicAmount?: number;
     customerName?: string;
     customerPhone?: string;
+    customerAddress?: string;
     locationLink?: string; // Added
+    deliveryFee?: number;
+    shippingZone?: string;
+    discountAmount?: number;
     remainingDebt?: number;
     paidAmount?: number;
     isTaxable?: boolean;
@@ -405,6 +409,8 @@ export interface StorefrontSettings {
     facebookUrl?: string;
     instagramUrl?: string;
     tiktokUrl?: string;
+    commercialRegister?: string;
+    taxCardNumber?: string;
 }
 
 export interface CartItem {

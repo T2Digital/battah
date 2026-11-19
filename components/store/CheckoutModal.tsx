@@ -39,7 +39,6 @@ interface CheckoutModalProps {
 
 const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, cartItems, onPlaceOrder }) => {
     const [customerDetails, setCustomerDetails] = useState({ name: '', phone: '', address: '' });
-    const [paymentMethod, setPaymentMethod] = useState<Order['paymentMethod']>('cod');
     const [paymentProof, setPaymentProof] = useState<File | null>(null);
     const [isPlacingOrder, setIsPlacingOrder] = useState(false);
     const [isGettingLocation, setIsGettingLocation] = useState(false);
@@ -65,10 +64,30 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, cartItem
         [appData?.appCustomization]
     );
     const paymobAvailable = Boolean(paymentGateways.paymob?.enabled && paymentGateways.paymob?.configured);
+    const codEnabled = paymentGateways.enableCod !== false;
+    const electronicEnabled = paymentGateways.enableManualElectronic !== false;
+    const defaultPaymentMethod: Order['paymentMethod'] = codEnabled
+        ? 'cod'
+        : electronicEnabled
+            ? 'electronic'
+            : paymobAvailable
+                ? 'paymob'
+                : 'cod';
+    const [paymentMethod, setPaymentMethod] = useState<Order['paymentMethod']>(defaultPaymentMethod);
     const [shippingZone, setShippingZone] = useState<string>(() => shippingConfig.zones[0]?.name || '');
     const branding = getStoreBranding(appData?.storefrontSettings, 'المتجر الإلكتروني');
     const electronicPaymentNumber = appData?.settings?.electronicPaymentNumber || branding.contactPhone || '01013373634';
     const paymentSectionRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const isCurrentAllowed =
+            (paymentMethod === 'cod' && codEnabled) ||
+            (paymentMethod === 'electronic' && electronicEnabled) ||
+            (paymentMethod === 'paymob' && paymobAvailable);
+        if (!isCurrentAllowed) {
+            setPaymentMethod(defaultPaymentMethod);
+        }
+    }, [isOpen, codEnabled, electronicEnabled, paymobAvailable, paymentMethod, defaultPaymentMethod]);
 
     useEffect(() => {
         if (shippingConfig.zones.length > 0 && !shippingConfig.zones.some(z => z.name === shippingZone)) {
@@ -188,6 +207,11 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, cartItem
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (!codEnabled && paymentMethod === 'cod' && (electronicEnabled || paymobAvailable)) {
+            alert('الدفع عند الاستلام غير متاح حالياً، يرجى اختيار طريقة دفع أخرى.');
+            setPaymentMethod(defaultPaymentMethod);
+            return;
+        }
         if (paymentMethod === 'electronic' && !paymentProof) {
             alert('يرجى إرفاق إيصال الدفع لإتمام الطلب الإلكتروني.');
             return;
@@ -497,8 +521,8 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, cartItem
                         </div>
                         طريقة الدفع
                     </h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                        {(paymentGateways.enableCod !== false || (!paymentGateways.enableManualElectronic && !paymobAvailable)) && (
+                    <div className={`grid grid-cols-1 ${(Number(codEnabled) + Number(electronicEnabled) + Number(paymobAvailable)) > 1 ? 'sm:grid-cols-2' : ''} gap-3 sm:gap-4`}>
+                        {(codEnabled || (!electronicEnabled && !paymobAvailable)) && (
                             <label className={`flex items-center gap-3 p-3.5 sm:p-4 border-2 rounded-xl cursor-pointer transition-all ${paymentMethod === 'cod' ? 'border-primary bg-primary/5 dark:bg-primary/10 shadow-sm' : 'border-gray-200 dark:border-gray-700 hover:border-primary/30 hover:bg-gray-50 dark:hover:bg-gray-800'}`}>
                                 <div className={`w-6 h-6 shrink-0 rounded-full border-2 flex items-center justify-center ${paymentMethod === 'cod' ? 'border-primary' : 'border-gray-300 dark:border-gray-600'}`}>
                                     {paymentMethod === 'cod' && <div className="w-3 h-3 rounded-full bg-primary"></div>}

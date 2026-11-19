@@ -1,8 +1,9 @@
 import React, { useMemo, useState } from 'react';
 import * as XLSX from 'xlsx';
-import { Order, Role, ShippingCarrierProvider } from '../../types';
+import { Order, Role, ShippingCarrierProvider, DailySale } from '../../types';
 import SectionHeader from '../shared/SectionHeader';
 import { formatDate, formatCurrency, formatDateTime } from '../../lib/utils';
+import { triggerInvoicePrint } from '../../lib/reportTemplates';
 import useStore from '../../lib/store';
 import Modal from '../shared/Modal';
 import ConfirmationModal from '../shared/ConfirmationModal';
@@ -19,13 +20,29 @@ import {
 const escapeHtml = (str: any) =>
     String(str ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] || c));
 
-const printShippingWaybill = (order: Order, storeName: string, storePhone?: string, storeAddress?: string) => {
+const printShippingWaybill = (
+    order: Order,
+    storeName: string,
+    storePhone?: string,
+    storeAddress?: string,
+    commercialRegister?: string,
+    taxCardNumber?: string
+) => {
     const win = window.open('', '_blank', 'width=520,height=760');
     if (!win) {
         alert('يرجى السماح بالنوافذ المنبثقة لطباعة بوليصة الشحن.');
         return;
     }
     const isCod = order.paymentMethod === 'cod';
+    const itemsSubtotal = (order.items || []).reduce(
+        (sum, i) => sum + Number(i.unitPrice || 0) * Number(i.quantity || 1),
+        0
+    );
+    const discountAmt = Number(order.discountAmount || 0);
+    const shippingFee = typeof order.deliveryFee === 'number'
+        ? Math.max(0, order.deliveryFee)
+        : Math.max(0, Number(order.totalAmount || 0) - Math.max(0, itemsSubtotal - discountAmt));
+
     const itemsHtml = (order.items || [])
         .map(
             (i) =>
@@ -46,7 +63,12 @@ const printShippingWaybill = (order: Order, storeName: string, storePhone?: stri
   <div class="no-print" style="margin-bottom:8px;text-align:center;"><button onclick="window.print()" style="padding:8px 18px;background:#1e40af;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;">طباعة البوليصة (A6)</button></div>
   <div class="box">
     <div class="row" style="border-bottom:2px solid #111827;padding-bottom:6px;margin-bottom:8px;">
-      <div><div style="font-weight:900;font-size:15px;">${escapeHtml(storeName)}</div>${storePhone ? `<div style="font-size:11px;">${escapeHtml(storePhone)}</div>` : ''}${storeAddress ? `<div style="font-size:10px;color:#4b5563;">${escapeHtml(storeAddress)}</div>` : ''}</div>
+      <div>
+        <div style="font-weight:900;font-size:15px;">${escapeHtml(storeName)}</div>
+        ${storePhone ? `<div style="font-size:11px;">${escapeHtml(storePhone)}</div>` : ''}
+        ${storeAddress ? `<div style="font-size:10px;color:#4b5563;">${escapeHtml(storeAddress)}</div>` : ''}
+        ${(commercialRegister || taxCardNumber) ? `<div style="font-size:10px;color:#374151;margin-top:2px;">${commercialRegister ? `س.ت: ${escapeHtml(commercialRegister)}` : ''}${commercialRegister && taxCardNumber ? ' | ' : ''}${taxCardNumber ? `ب.ض: ${escapeHtml(taxCardNumber)}` : ''}</div>` : ''}
+      </div>
       <div style="text-align:left;"><div style="font-size:10px;color:#4b5563;">رقم الطلب</div><div style="font-weight:900;font-size:18px;">#${escapeHtml(order.id)}</div></div>
     </div>
     <div style="margin-bottom:6px;">
@@ -58,6 +80,12 @@ const printShippingWaybill = (order: Order, storeName: string, storePhone?: stri
     ${(order.shippingCompany || order.trackingNumber) ? `<div style="padding:6px;background:#f3f4f6;border-radius:6px;margin-bottom:6px;"><strong>الشحن:</strong> ${escapeHtml(order.shippingCompany || '')} ${order.trackingNumber ? `— بوليصة: <span dir="ltr">${escapeHtml(order.trackingNumber)}</span>` : ''}</div>` : ''}
     <div class="cod">${isCod ? `التحصيل عند الاستلام (COD): ${formatCurrency(order.totalAmount)}` : `مدفوع مسبقاً (تحصيل: 0 ج.م) — قيمة الطلب: ${formatCurrency(order.totalAmount)}`}</div>
     <table><thead><tr style="background:#f3f4f6;"><th style="text-align:right;padding:4px 6px;">الصنف</th><th>الكمية</th><th style="text-align:left;padding:4px 6px;">القيمة</th></tr></thead><tbody>${itemsHtml}</tbody></table>
+    <div style="margin-top:8px;padding-top:6px;border-top:1px dashed #9ca3af;font-size:11px;line-height:1.6;">
+      <div class="row"><span>قيمة المنتجات:</span><span>${escapeHtml(formatCurrency(itemsSubtotal))}</span></div>
+      ${discountAmt > 0 ? `<div class="row" style="color:#059669;"><span>الخصم:</span><span>-${escapeHtml(formatCurrency(discountAmt))}</span></div>` : ''}
+      <div class="row"><span>تكلفة الشحن${order.shippingZone ? ` (${escapeHtml(order.shippingZone)})` : ''}:</span><span>${shippingFee === 0 ? 'مجاني' : escapeHtml(formatCurrency(shippingFee))}</span></div>
+      <div class="row" style="font-weight:900;font-size:12px;border-top:1px solid #d1d5db;margin-top:3px;padding-top:3px;"><span>الإجمالي النهائي:</span><span>${escapeHtml(formatCurrency(order.totalAmount))}</span></div>
+    </div>
     ${order.shippingNotes ? `<div style="margin-top:6px;font-size:11px;color:#374151;"><strong>ملاحظات:</strong> ${escapeHtml(order.shippingNotes)}</div>` : ''}
     <div style="margin-top:8px;font-size:10px;color:#6b7280;text-align:center;">تاريخ الطلب: ${escapeHtml(formatDateTime(order.date, order.timestamp))}</div>
   </div>
@@ -69,7 +97,8 @@ const OrderDetailsModal: React.FC<{
     order: Order | null;
     isOpen: boolean;
     onClose: () => void;
-}> = ({ order, isOpen, onClose }) => {
+    onPrintInvoice?: (order: Order) => void;
+}> = ({ order, isOpen, onClose, onPrintInvoice }) => {
     if (!order) return null;
     const getWhatsAppLink = (phone: string, order: Order) => {
         let cleanPhone = phone.replace(/\D/g, '');
@@ -120,10 +149,40 @@ const OrderDetailsModal: React.FC<{
                         ))}
                     </ul>
                 </div>
-                 <div className="font-bold text-lg flex justify-between border-t pt-2">
-                    <span>الإجمالي:</span>
-                    <span>{formatCurrency(order.totalAmount)}</span>
+                <div className="border-t pt-3 space-y-1.5 text-sm">
+                    <div className="flex justify-between text-gray-600 dark:text-gray-300">
+                        <span>المجموع الفرعي:</span>
+                        <span>{formatCurrency(order.items.reduce((s, i) => s + Number(i.unitPrice || 0) * Number(i.quantity || 1), 0))}</span>
+                    </div>
+                    {Number(order.discountAmount || 0) > 0 && (
+                        <div className="flex justify-between text-emerald-600 dark:text-emerald-400">
+                            <span>الخصم {order.discountCode ? `(${order.discountCode})` : ''}:</span>
+                            <span>-{formatCurrency(Number(order.discountAmount || 0))}</span>
+                        </div>
+                    )}
+                    <div className="flex justify-between text-gray-600 dark:text-gray-300">
+                        <span>تكلفة الشحن {order.shippingZone ? `(${order.shippingZone})` : ''}:</span>
+                        <span className="font-bold">
+                            {typeof order.deliveryFee === 'number'
+                                ? (order.deliveryFee === 0 ? 'مجاني' : formatCurrency(order.deliveryFee))
+                                : 'غير محددة'}
+                        </span>
+                    </div>
+                    <div className="font-bold text-lg flex justify-between border-t pt-2 text-primary">
+                        <span>الإجمالي النهائي:</span>
+                        <span>{formatCurrency(order.totalAmount)}</span>
+                    </div>
                 </div>
+                {onPrintInvoice && (
+                    <button
+                        type="button"
+                        onClick={() => onPrintInvoice(order)}
+                        className="w-full py-2.5 px-4 bg-primary text-white rounded-xl font-bold hover:bg-primary-dark transition flex items-center justify-center gap-2 text-sm"
+                    >
+                        <i className="fas fa-file-invoice"></i>
+                        <span>طباعة فاتورة الطلب (تشمل الشحن والبيانات الضريبية)</span>
+                    </button>
+                )}
                  <div>
                     <h3 className="font-bold">طريقة الدفع</h3>
                     <p>{order.paymentMethod === 'cod' ? 'الدفع عند الاستلام' : order.paymentMethod === 'paymob' ? 'بطاقة بنكية (Paymob)' : 'دفع إلكتروني (محفظة / إنستاباي)'}</p>
@@ -156,14 +215,54 @@ const OrderDetailsModal: React.FC<{
 
 
 const Orders: React.FC = () => {
-    const { orders, appCustomization, storefrontSettings, updateOrderStatus, deleteOrder, fetchDataByDateRange } = useStore(state => ({
+    const { orders, products, appCustomization, storefrontSettings, updateOrderStatus, deleteOrder, fetchDataByDateRange } = useStore(state => ({
         orders: state.appData?.orders || [],
+        products: state.appData?.products || [],
         appCustomization: state.appData?.appCustomization,
         storefrontSettings: state.appData?.storefrontSettings,
         updateOrderStatus: state.updateOrderStatus,
         deleteOrder: state.deleteOrder,
         fetchDataByDateRange: state.fetchDataByDateRange
     }));
+
+    const handlePrintOrderInvoice = (order: Order) => {
+        const itemsSubtotal = (order.items || []).reduce(
+            (sum, i) => sum + Number(i.unitPrice || 0) * Number(i.quantity || 1),
+            0
+        );
+        const computedDeliveryFee =
+            typeof order.deliveryFee === 'number'
+                ? order.deliveryFee
+                : Math.max(0, Number(order.totalAmount || 0) - Math.max(0, itemsSubtotal - Number(order.discountAmount || 0)));
+        const saleForInvoice: DailySale = {
+            id: Number(order.id) || Date.now(),
+            date: order.date,
+            timestamp: order.timestamp,
+            invoiceNumber: `ONLINE-${order.id}`,
+            sellerId: 'online',
+            sellerName: 'المتجر الإلكتروني',
+            source: 'أونلاين',
+            branchSoldFrom: 'main',
+            direction: 'بيع',
+            items: (order.items || []).map(i => ({
+                productId: i.productId,
+                productName: i.productName,
+                quantity: i.quantity,
+                unitPrice: i.unitPrice,
+                itemType: 'أخرى',
+            })),
+            customerName: order.customerName,
+            customerPhone: order.customerPhone,
+            customerAddress: order.customerAddress,
+            deliveryFee: computedDeliveryFee,
+            shippingZone: order.shippingZone,
+            discountAmount: order.discountAmount,
+            totalAmount: order.totalAmount,
+            paymentMethod: order.paymentMethod === 'cod' ? 'نقدى' : 'إلكترونى',
+            notes: order.shippingNotes,
+        };
+        triggerInvoicePrint(saleForInvoice, products, false);
+    };
     const shippingConfig = useMemo(() => getShippingConfig(appCustomization), [appCustomization]);
     const branding = useMemo(() => getStoreBranding(storefrontSettings, 'المتجر الإلكتروني'), [storefrontSettings]);
     const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
@@ -549,7 +648,14 @@ const Orders: React.FC = () => {
                                         <i className="fas fa-eye"></i>
                                     </button>
                                     <button
-                                        onClick={() => printShippingWaybill(order, branding.companyName, branding.contactPhone, branding.address)}
+                                        onClick={() => handlePrintOrderInvoice(order)}
+                                        className="text-emerald-600 hover:text-emerald-800 text-lg"
+                                        title="طباعة الفاتورة"
+                                    >
+                                        <i className="fas fa-file-invoice"></i>
+                                    </button>
+                                    <button
+                                        onClick={() => printShippingWaybill(order, branding.companyName, branding.contactPhone, branding.address, branding.commercialRegister, branding.taxCardNumber)}
                                         className="text-indigo-500 hover:text-indigo-700 text-lg"
                                         title="طباعة بوليصة شحن (A6)"
                                     >
@@ -660,7 +766,7 @@ const Orders: React.FC = () => {
                                                 <i className="fas fa-edit"></i>
                                             </button>
                                             <button
-                                                onClick={() => printShippingWaybill(order, branding.companyName, branding.contactPhone, branding.address)}
+                                                onClick={() => printShippingWaybill(order, branding.companyName, branding.contactPhone, branding.address, branding.commercialRegister, branding.taxCardNumber)}
                                                 className="text-indigo-500 hover:text-indigo-700"
                                                 title="طباعة بوليصة شحن"
                                             >
@@ -686,6 +792,7 @@ const Orders: React.FC = () => {
                 isOpen={!!selectedOrder}
                 onClose={() => setSelectedOrder(null)}
                 order={selectedOrder}
+                onPrintInvoice={handlePrintOrderInvoice}
             />
 
             {orderToDelete && (

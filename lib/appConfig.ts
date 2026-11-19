@@ -266,6 +266,8 @@ export interface StoreBrandingInfo {
   facebookUrl: string;
   instagramUrl: string;
   tiktokUrl: string;
+  commercialRegister: string;
+  taxCardNumber: string;
 }
 
 export function getStoreBranding(
@@ -298,6 +300,8 @@ export function getStoreBranding(
     facebookUrl: String(s.facebookUrl || brand.facebookUrl || '').trim(),
     instagramUrl: String(s.instagramUrl || brand.instagramUrl || '').trim(),
     tiktokUrl: String(s.tiktokUrl || brand.tiktokUrl || '').trim(),
+    commercialRegister: String(s.commercialRegister || brand.commercialRegister || '').trim(),
+    taxCardNumber: String(s.taxCardNumber || brand.taxCardNumber || '').trim(),
   };
 }
 

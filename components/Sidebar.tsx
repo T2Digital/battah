@@ -56,10 +56,10 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, activeSection, setActiveSecti
                         : 'text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
                 }`}
             >
-                <i className={`fas ${item.icon} text-xl w-8 text-center ${isOpen ? 'mr-1' : ''}`}></i>
-                <span className={`transition-all duration-200 ${isOpen ? 'opacity-100' : 'opacity-0 w-0'}`}>{item.label}</span>
+                <i className={`fas ${item.icon} text-xl w-8 text-center shrink-0 ${isOpen ? 'mr-1' : ''}`}></i>
+                <span className={`transition-all duration-200 whitespace-nowrap overflow-hidden ${isOpen ? 'opacity-100' : 'opacity-0 w-0'}`}>{item.label}</span>
                 {item.badge && item.badge > 0 && (
-                    <span className={`absolute top-2 left-2 bg-red-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full ${!isOpen ? 'top-0 right-0' : ''}`}>
+                    <span className={`absolute bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full ${isOpen ? 'top-2 left-2' : 'top-1 left-1'}`}>
                         {item.badge}
                     </span>
                 )}
@@ -72,22 +72,16 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, activeSection, setActiveSecti
             {/* Mobile Overlay */}
             {isOpen && (
                 <div 
-                    className="fixed inset-0 bg-black bg-opacity-50 z-30 sm:hidden"
-                    onClick={() => setActiveSection(activeSection)} // Close sidebar logic should be passed or handled here. 
-                    // Actually, SidebarProps doesn't have onClose. We can just rely on the user clicking the toggle button or a close button.
-                    // But usually clicking overlay closes it.
-                    // For now, let's just make the sidebar an overlay.
+                    className="fixed inset-0 top-20 bg-black/50 z-30 sm:hidden"
+                    onClick={onClose}
                 ></div>
             )}
             <aside
-                className={`fixed top-0 right-0 h-full bg-white dark:bg-gray-800 shadow-lg z-40 transition-all duration-300 ease-in-out ${
+                className={`fixed top-20 right-0 h-[calc(100vh-5rem)] bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 shadow-lg z-40 transition-all duration-300 ease-in-out ${
                     isOpen ? 'w-64 sm:w-72 translate-x-0' : 'w-0 sm:w-20 translate-x-full sm:translate-x-0 overflow-hidden'
                 }`}
             >
-                <div className="flex items-center justify-center h-20 border-b dark:border-gray-700">
-                    {/* This space is intentionally left for the header to overlay */}
-                </div>
-                <nav className="pt-4 px-3 h-[calc(100vh-5rem)] overflow-y-auto custom-scrollbar">
+                <nav className="py-3 px-2.5 h-full overflow-y-auto custom-scrollbar">
                     <ul>
                         {navItems.map(item => (
                             <NavLink key={item.id} item={item} />
