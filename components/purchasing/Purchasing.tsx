@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { PurchaseOrder, Supplier, Product, PurchaseOrderItem } from '../../types';
+import { PurchaseOrder, Supplier, Product, PurchaseOrderItem, Branch } from '../../types';
 import SectionHeader from '../shared/SectionHeader';
 import PurchaseOrderModal from './PurchaseOrderModal';
 import ReceiveOrderModal from './ReceiveOrderModal';
@@ -85,7 +85,7 @@ const Purchasing: React.FC = () => {
         setOrderModalOpen(false);
     };
 
-    const handleConfirmReception = async (orderId: number, receivedItems: PurchaseOrderItem[], receivedInto: 'main' | 'branch1' | 'branch2' | 'branch3') => {
+    const handleConfirmReception = async (orderId: number, receivedItems: PurchaseOrderItem[], receivedInto: Branch) => {
         await updatePurchaseOrder(orderId, { 
             status: 'مكتمل', 
             items: receivedItems,

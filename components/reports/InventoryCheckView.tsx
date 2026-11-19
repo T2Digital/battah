@@ -4,18 +4,21 @@ import SectionHeader from '../shared/SectionHeader';
 import { formatCurrency } from '../../lib/utils';
 import useStore from '../../lib/store';
 import { generateInventoryReportContent } from '../../lib/reportTemplates';
+import { getActiveBranches, getBranchLabel } from '../../lib/appConfig';
 
 interface InventoryCheckViewProps {
     onBack: () => void;
 }
 
 const InventoryCheckView: React.FC<InventoryCheckViewProps> = ({ onBack }) => {
-    const { products, updateProductStock } = useStore(state => ({
+    const { products, updateProductStock, appCustomization } = useStore(state => ({
         products: state.appData?.products || [],
-        updateProductStock: state.updateProductStock
+        updateProductStock: state.updateProductStock,
+        appCustomization: state.appData?.appCustomization,
     }));
-    
-    const [selectedBranch, setSelectedBranch] = useState<Branch>('main');
+    const activeBranches = useMemo(() => getActiveBranches(appCustomization), [appCustomization]);
+
+    const [selectedBranch, setSelectedBranch] = useState<Branch>(() => activeBranches[0]?.key || 'main');
     const [searchQuery, setSearchQuery] = useState('');
     const [actualCounts, setActualCounts] = useState<Record<number, number | ''>>({});
     const [isSaving, setIsSaving] = useState(false);
@@ -69,10 +72,11 @@ const InventoryCheckView: React.FC<InventoryCheckViewProps> = ({ onBack }) => {
         const appData = useStore.getState().appData;
         if (!appData) return;
         
+        const selectedBranchLabel = getBranchLabel(selectedBranch, activeBranches);
         let html = `
         <html dir="rtl">
         <head>
-            <title>تقرير جرد المخزون - ${selectedBranch}</title>
+            <title>تقرير جرد المخزون - ${selectedBranchLabel}</title>
             <style>
                 body { font-family: 'Tajawal', sans-serif; padding: 20px; }
                 table { width: 100%; border-collapse: collapse; margin-top: 20px; }
@@ -86,7 +90,7 @@ const InventoryCheckView: React.FC<InventoryCheckViewProps> = ({ onBack }) => {
         <body>
             <div class="header">
                 <h2>تقرير جرد المخزون</h2>
-                <p>الفرع: ${selectedBranch}</p>
+                <p>الفرع: ${selectedBranchLabel}</p>
                 <p>التاريخ: ${new Date().toLocaleDateString('ar-EG')}</p>
             </div>
             <table>
@@ -161,10 +165,9 @@ const InventoryCheckView: React.FC<InventoryCheckViewProps> = ({ onBack }) => {
                             onChange={(e) => setSelectedBranch(e.target.value as Branch)}
                             className="p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-primary outline-none"
                         >
-                            <option value="main">الفرع الرئيسي</option>
-                            <option value="branch1">فرع 1</option>
-                            <option value="branch2">فرع 2</option>
-                            <option value="branch3">فرع 3</option>
+                            {activeBranches.map(b => (
+                                <option key={b.key} value={b.key}>{b.label}</option>
+                            ))}
                         </select>
                         <div className="relative flex-1 md:w-64">
                             <i className="fas fa-search absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>

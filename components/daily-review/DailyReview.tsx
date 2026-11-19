@@ -5,14 +5,22 @@ import SectionHeader from '../shared/SectionHeader';
 import Modal from '../shared/Modal';
 import ConfirmationModal from '../shared/ConfirmationModal';
 import { formatDate, formatCurrency } from '../../lib/utils';
+import { getActiveBranches, getBranchLabelMap } from '../../lib/appConfig';
 
 const DailyReviewModal: React.FC<{
     isOpen: boolean; onClose: () => void; onSave: (r: Omit<DailyReviewType, 'id'> & { id?: number }) => void; reviewToEdit: DailyReviewType | null;
     currentUser: User | null;
 }> = ({ isOpen, onClose, onSave, reviewToEdit, currentUser }) => {
+    const appCustomization = useStore(state => state.appData?.appCustomization);
+    const activeBranches = useMemo(() => getActiveBranches(appCustomization), [appCustomization]);
+    const branchNames = useMemo(() => getBranchLabelMap(activeBranches), [activeBranches]);
+    const defaultBranchKey = activeBranches.some(b => b.key === currentUser?.branch)
+        ? (currentUser?.branch as string)
+        : (activeBranches[0]?.key || 'main');
+
     const [formData, setFormData] = useState<Omit<DailyReviewType, 'id' | 'totalSales'>>({ 
         date: new Date().toISOString().split('T')[0], 
-        branch: currentUser?.branch || 'main', 
+        branch: defaultBranchKey, 
         salesCash: 0, 
         salesElectronic: 0, 
         salesParts: 0, 
@@ -27,7 +35,7 @@ const DailyReviewModal: React.FC<{
         } else {
             setFormData({ 
                 date: new Date().toISOString().split('T')[0], 
-                branch: currentUser?.branch || 'main', 
+                branch: defaultBranchKey, 
                 salesCash: 0, 
                 salesElectronic: 0, 
                 salesParts: 0, 
@@ -36,7 +44,7 @@ const DailyReviewModal: React.FC<{
                 notes: '' 
             });
         }
-    }, [reviewToEdit, isOpen, currentUser]);
+    }, [reviewToEdit, isOpen, currentUser, defaultBranchKey]);
     
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
@@ -58,18 +66,15 @@ const DailyReviewModal: React.FC<{
                     <label>الفرع *</label>
                     <select name="branch" value={formData.branch} onChange={handleChange} required className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700">
                         {currentUser?.role === 'admin' ? (
-                            <>
-                                <option value="main">المخزن</option>
-                                <option value="branch1">الرئيسي</option>
-                                <option value="branch2">فرع 1</option>
-                                <option value="branch3">فرع 2</option>
-                            </>
+                            activeBranches.map(b => (
+                                <option key={b.key} value={b.key}>{b.label}</option>
+                            ))
                         ) : (
-                            currentUser?.allowedBranches?.map(b => (
+                            (currentUser?.allowedBranches?.filter(bk => activeBranches.some(ab => ab.key === bk)).map(b => (
                                 <option key={b} value={b}>
-                                    {b === 'main' ? 'المخزن' : b === 'branch1' ? 'الرئيسي' : b === 'branch2' ? 'فرع 1' : 'فرع 2'}
+                                    {branchNames[b] || b}
                                 </option>
-                            )) || <option value={currentUser?.branch}>{currentUser?.branch === 'main' ? 'المخزن' : currentUser?.branch === 'branch1' ? 'الرئيسي' : currentUser?.branch === 'branch2' ? 'فرع 1' : 'فرع 2'}</option>
+                            ))) || <option value={defaultBranchKey}>{branchNames[defaultBranchKey] || defaultBranchKey}</option>
                         )}
                     </select>
                 </div>
@@ -86,12 +91,13 @@ const DailyReviewModal: React.FC<{
 
 
 const DailyReview: React.FC = () => {
-    const { dailyReviews, setDailyReviews, deleteDailyReview, fetchDataByDateRange, currentUser } = useStore(state => ({
+    const { dailyReviews, setDailyReviews, deleteDailyReview, fetchDataByDateRange, currentUser, appCustomization } = useStore(state => ({
         dailyReviews: state.appData?.dailyReview || [],
         setDailyReviews: state.setDailyReviews,
         deleteDailyReview: state.deleteDailyReview,
         fetchDataByDateRange: state.fetchDataByDateRange,
-        currentUser: state.currentUser
+        currentUser: state.currentUser,
+        appCustomization: state.appData?.appCustomization,
     }));
     const [isModalOpen, setModalOpen] = useState(false);
     const [reviewToEdit, setReviewToEdit] = useState<DailyReviewType | null>(null);
@@ -142,12 +148,8 @@ const DailyReview: React.FC = () => {
             .sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     }, [dailyReviews, filters]);
 
-    const branchNames = {
-        main: 'المخزن',
-        branch1: 'الرئيسي',
-        branch2: 'فرع 1',
-        branch3: 'فرع 2',
-    };
+    const activeBranches = useMemo(() => getActiveBranches(appCustomization), [appCustomization]);
+    const branchNames = useMemo(() => getBranchLabelMap(activeBranches), [activeBranches]);
 
     const handlePrintReport = () => {
         import('../../lib/reportTemplates').then(({ generateDailyReviewReportContent }) => {

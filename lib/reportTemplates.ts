@@ -2,6 +2,7 @@
 
 import { AppData, DailySale, Product, DailyReview } from '../types';
 import { formatCurrency, formatDate, formatDateTime, calculateHours, normalizeSaleItems, calculateSaleProfit, getActualSaleRevenue } from './utils';
+import { getActiveBranches, getBranchLabel, getProductTotalStock } from './appConfig';
 
 export const branchNames: Record<string, string> = {
     main: 'المخزن',
@@ -220,7 +221,8 @@ export const generateInvoiceContent = (
 
     const liveSf: any = (typeof window !== 'undefined' && (window as any).__TENANT_STOREFRONT_SETTINGS__) || {};
     const liveBrand: any = (typeof window !== 'undefined' && (window as any).__TENANT_BRAND__) || {};
-    const bName = branchNames[sale.branchSoldFrom] || sale.branchSoldFrom;
+    const dynamicBranches = getActiveBranches(liveBrand?.appCustomization || null);
+    const bName = getBranchLabel(sale.branchSoldFrom, dynamicBranches);
     const bAddress = liveSf?.address || liveBrand?.address || branchAddresses[sale.branchSoldFrom] || branchAddresses.main;
     const bPhone = liveSf?.contactPhone || liveBrand?.phone || '01013373634';
 
@@ -986,7 +988,7 @@ export const generateProductCardexReportContent = (appData: AppData, productId: 
     // Calculate running balance and filter by date
     let runningBalance = 0; // Ideally, we'd have an initial stock value, but we'll calculate from 0 or assume current stock is the end result.
     // Actually, it's better to calculate backwards from current stock to get the initial stock before the first movement.
-    const totalStock = product.stock.main + product.stock.branch1 + product.stock.branch2 + product.stock.branch3;
+    const totalStock = getProductTotalStock(product);
     
     let netChange = 0;
     allMovements.forEach(m => {
@@ -1086,7 +1088,7 @@ export const generateProductCardexReportContent = (appData: AppData, productId: 
 export const generateReorderPointReportContent = (appData: AppData) => {
     const { products } = appData;
     const lowStockProducts = products.filter(p => {
-        const totalStock = p.stock.main + p.stock.branch1 + p.stock.branch2 + p.stock.branch3;
+        const totalStock = getProductTotalStock(p);
         return totalStock <= (p.reorderPoint || 0);
     });
 
@@ -1096,7 +1098,7 @@ export const generateReorderPointReportContent = (appData: AppData) => {
             <thead><tr><th>الصنف</th><th>الكود</th><th>الرصيد الحالي</th><th>حد الطلب</th></tr></thead>
             <tbody>
                 ${lowStockProducts.length > 0 ? lowStockProducts.map(p => {
-                    const totalStock = p.stock.main + p.stock.branch1 + p.stock.branch2 + p.stock.branch3;
+                    const totalStock = getProductTotalStock(p);
                     return `<tr>
                         <td>${p.name}</td>
                         <td>${p.sku}</td>

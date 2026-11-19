@@ -4,6 +4,7 @@ import { PurchaseOrder, Supplier, Product, PurchaseOrderItem } from '../../types
 import Modal from '../shared/Modal';
 import { formatCurrency } from '../../lib/utils';
 import useStore from '../../lib/store';
+import { getActiveBranches, getMainCategories, createEmptyStockForBranches } from '../../lib/appConfig';
 
 interface PurchaseOrderModalProps {
     isOpen: boolean;
@@ -14,7 +15,7 @@ interface PurchaseOrderModalProps {
     products: Product[];
     addProduct?: (product: Omit<Product, 'id'>) => Promise<Product>;
     isDirectStatement?: boolean;
-    onSaveDirect?: (order: Omit<PurchaseOrder, 'id'> & { id?: number }, branch: 'main' | 'branch1' | 'branch2' | 'branch3') => void;
+    onSaveDirect?: (order: Omit<PurchaseOrder, 'id'> & { id?: number }, branch: string) => void;
     isViewOnly?: boolean;
     isReturn?: boolean;
 }
@@ -32,7 +33,10 @@ const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, onClose
         items: [] as EditablePurchaseOrderItem[],
         notes: ''
     });
-    const [receiveBranch, setReceiveBranch] = useState<'main' | 'branch1' | 'branch2' | 'branch3'>('main');
+    const appCustomization = useStore(state => state.appData?.appCustomization);
+    const activeBranches = useMemo(() => getActiveBranches(appCustomization), [appCustomization]);
+    const mainCategories = useMemo(() => getMainCategories(appCustomization), [appCustomization]);
+    const [receiveBranch, setReceiveBranch] = useState<string>(() => activeBranches[0]?.key || 'main');
     
     const [productSearch, setProductSearch] = useState('');
     const [showSuggestions, setShowSuggestions] = useState(false);
@@ -125,12 +129,12 @@ const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, onClose
             const newProductData: Omit<Product, 'id'> = {
                 name: productSearch.trim(),
                 sku: `NEW-${Date.now()}`,
-                mainCategory: 'قطع غيار',
+                mainCategory: mainCategories[0] || 'قطع غيار',
                 category: 'غير مصنف',
                 brand: 'غير محدد',
                 purchasePrice: 0,
                 sellingPrice: 0,
-                stock: { main: 0, branch1: 0, branch2: 0, branch3: 0 },
+                stock: createEmptyStockForBranches(activeBranches, 0),
                 images: []
             };
             
@@ -193,10 +197,9 @@ const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({ isOpen, onClose
                         <div className="md:col-span-2">
                             <label>استلام في الفرع *</label>
                             <select value={receiveBranch} onChange={e => setReceiveBranch(e.target.value as any)} disabled={isViewOnly} className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700 disabled:opacity-50">
-                                <option value="main">الرئيسي</option>
-                                <option value="branch1">فرع 1</option>
-                                <option value="branch2">فرع 2</option>
-                                <option value="branch3">فرع 3</option>
+                                {activeBranches.map(b => (
+                                    <option key={b.key} value={b.key}>{b.label}</option>
+                                ))}
                             </select>
                         </div>
                     )}

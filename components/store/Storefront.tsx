@@ -21,6 +21,7 @@ import FloatingCheckoutButton from './FloatingCheckoutButton';
 
 import StoreFooter from './StoreFooter';
 import { initStorePixels, trackStoreEvent } from '../../utils/pixels';
+import { StoreFilters, DEFAULT_STORE_FILTERS } from '../../lib/appConfig';
 
 interface StorefrontProps {
     setViewMode: (mode: 'admin' | 'store') => void;
@@ -48,7 +49,7 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
     const [isMyOrdersOpen, setMyOrdersOpen] = useState(false);
     const [cartItems, setCartItems] = useState<CartItem[]>([]);
     const [notification, setNotification] = useState('');
-    const [filters, setFilters] = useState({ category: 'all', brand: 'all', search: '' });
+    const [filters, setFilters] = useState<StoreFilters>(DEFAULT_STORE_FILTERS);
 
     // Fetch featured and new arrivals
     useEffect(() => {
@@ -331,7 +332,8 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
                     onProductClick={setSelectedProduct} 
                     addToCart={addToCart}
                     filters={filters}
-                    setFilters={setFilters} 
+                    setFilters={setFilters}
+                    loading={loading}
                 />
             </main>
 

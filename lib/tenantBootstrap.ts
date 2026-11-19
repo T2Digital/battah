@@ -28,6 +28,7 @@ export interface TenantBrandConfig {
   trialEndsAt?: string;
   trialDaysLeft?: number | null;
   upgradeUrl?: string;
+  appCustomization?: any;
 }
 
 function renderStarterLandingPageGate(brand: TenantBrandConfig) {
@@ -222,6 +223,7 @@ export async function bootstrapBattahTenant(): Promise<TenantBrandConfig | null>
           productsCatalog: Array.isArray(cfg.productsCatalog) ? cfg.productsCatalog : [],
           primaryColor: cfg.primaryColor || '#0284c7',
           accentColor: cfg.accentColor || '#0f172a',
+          appCustomization: cfg.appCustomization || undefined,
         };
       }
     }
@@ -247,6 +249,7 @@ export async function bootstrapBattahTenant(): Promise<TenantBrandConfig | null>
       const liveBrand: TenantBrandConfig = {
         ...data.brand,
         adminEmail: data.brand.adminEmail || brand?.adminEmail || '',
+        appCustomization: data.brand.appCustomization || brand?.appCustomization,
         productsCatalog:
           Array.isArray(data.brand.productsCatalog) && data.brand.productsCatalog.length > 0
             ? data.brand.productsCatalog

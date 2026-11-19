@@ -2,6 +2,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import useStore from './lib/store';
 import { Product, CartItem, OrderItem, Order } from './types';
+import { StoreFilters, DEFAULT_STORE_FILTERS } from './lib/appConfig';
 
 import StoreHeader from './components/store/StoreHeader';
 import StoreHero from './components/store/StoreHero';
@@ -34,7 +35,7 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
     const [isMyOrdersOpen, setMyOrdersOpen] = useState(false);
     const [cartItems, setCartItems] = useState<CartItem[]>([]);
     const [notification, setNotification] = useState('');
-    const [filters, setFilters] = useState({ category: 'all', brand: 'all', search: '' });
+    const [filters, setFilters] = useState<StoreFilters>(DEFAULT_STORE_FILTERS);
 
     // Load cart from localStorage on initial render
     useEffect(() => {

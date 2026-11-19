@@ -1,5 +1,12 @@
 import React from 'react';
 import { Product } from '../../types';
+import useStore from '../../lib/store';
+import {
+    StoreFilters,
+    DEFAULT_STORE_FILTERS,
+    getActiveBranches,
+    getProductTotalStock,
+} from '../../lib/appConfig';
 import StoreProductCard from './StoreProductCard';
 import StoreSidebar from './StoreSidebar';
 
@@ -7,8 +14,9 @@ interface StoreProductsProps {
     products: Product[];
     onProductClick: (product: Product) => void;
     addToCart: (product: Product, quantity: number) => void;
-    filters: { category: string; brand: string; search: string };
-    setFilters: React.Dispatch<React.SetStateAction<{ category: string; brand: string; search: string }>>;
+    filters: StoreFilters;
+    setFilters: React.Dispatch<React.SetStateAction<StoreFilters>>;
+    loading?: boolean;
 }
 
 const SkeletonCard = () => (
@@ -29,16 +37,39 @@ const SkeletonCard = () => (
 );
 
 
-const StoreProducts: React.FC<StoreProductsProps> = ({ products, onProductClick, addToCart, filters, setFilters }) => {
+const StoreProducts: React.FC<StoreProductsProps> = ({ products, onProductClick, addToCart, filters, setFilters, loading }) => {
+    const { appCustomization, globalLoading } = useStore(state => ({
+        appCustomization: state.appData?.appCustomization,
+        globalLoading: state.isLoading,
+    }));
+    const activeBranches = getActiveBranches(appCustomization);
 
     const filteredProducts = products.filter(p => {
         const matchesCategory = filters.category === 'all' || p.mainCategory === filters.category;
-        const matchesBrand = filters.brand === 'all' || (p.compatibility && p.compatibility.some(c => c.toLowerCase().startsWith(filters.brand.toLowerCase())));
-        const matchesSearch = String(p.name || '').toLowerCase().includes(filters.search.toLowerCase()) || String(p.sku || '').toLowerCase().includes(filters.search.toLowerCase());
-        return matchesCategory && matchesBrand && matchesSearch;
+        const matchesSubCategory =
+            !filters.subCategory ||
+            filters.subCategory === 'all' ||
+            p.subCategory === filters.subCategory ||
+            p.category === filters.subCategory;
+        const matchesBrand =
+            filters.brand === 'all' ||
+            Boolean(p.compatibility && p.compatibility.some(c => c.toLowerCase().includes(filters.brand.toLowerCase()))) ||
+            String(p.brand || '').toLowerCase() === filters.brand.toLowerCase();
+        const searchLower = filters.search.toLowerCase();
+        const matchesSearch =
+            !searchLower ||
+            String(p.name || '').toLowerCase().includes(searchLower) ||
+            String(p.sku || '').toLowerCase().includes(searchLower) ||
+            String(p.category || '').toLowerCase().includes(searchLower) ||
+            String(p.subCategory || '').toLowerCase().includes(searchLower);
+        const price = Number(p.sellingPrice || 0);
+        const matchesMinPrice = !filters.minPrice || price >= Number(filters.minPrice);
+        const matchesMaxPrice = !filters.maxPrice || price <= Number(filters.maxPrice);
+        const matchesStock = !filters.inStockOnly || getProductTotalStock(p, activeBranches) > 0;
+        return matchesCategory && matchesSubCategory && matchesBrand && matchesSearch && matchesMinPrice && matchesMaxPrice && matchesStock;
     });
 
-    const isLoading = products.length === 0;
+    const isLoading = (Boolean(loading) || globalLoading) && products.length === 0;
 
     return (
         <div id="store-products" className="container mx-auto px-4 sm:px-6 py-16">
@@ -70,7 +101,7 @@ const StoreProducts: React.FC<StoreProductsProps> = ({ products, onProductClick,
                                 <h4 className="font-bold text-xl text-gray-900 dark:text-white mb-2">لا توجد منتجات تطابق بحثك</h4>
                                 <p className="text-gray-500 dark:text-gray-400 max-w-md">حاول تعديل الفلاتر أو استخدام كلمات بحث مختلفة للعثور على ما تبحث عنه.</p>
                                 <button 
-                                    onClick={() => setFilters({ category: 'all', brand: 'all', search: '' })}
+                                    onClick={() => setFilters(DEFAULT_STORE_FILTERS)}
                                     className="mt-6 px-6 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 font-bold rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors shadow-sm"
                                 >
                                     مسح الفلاتر

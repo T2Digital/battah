@@ -2,7 +2,36 @@
 
 import { Timestamp } from 'firebase/firestore';
 
-export type Branch = 'main' | 'branch1' | 'branch2' | 'branch3';
+export type Branch = string;
+
+export interface BranchConfig {
+    key: Branch;
+    label: string;
+}
+
+export interface CashierConfig {
+    value: string;
+    label: string;
+}
+
+export interface StorefrontFiltersConfig {
+    showSearch?: boolean;
+    showCategoryFilter?: boolean;
+    showSubCategoryFilter?: boolean;
+    showBrandFilter?: boolean;
+    brandFilterLabel?: string;
+    brandFilterOptions?: string[];
+    showPriceFilter?: boolean;
+    showInStockOnlyFilter?: boolean;
+}
+
+export interface AppCustomization {
+    activeBranches?: BranchConfig[];
+    cashiers?: CashierConfig[];
+    mainCategories?: string[];
+    subCategories?: Record<string, string[]>;
+    storefrontFilters?: StorefrontFiltersConfig;
+}
 
 export enum Role {
     Admin = 'admin',
@@ -45,7 +74,7 @@ export interface User {
     password?: string; // Added to store password for display (Admin only)
 }
 
-export type MainCategory = 'قطع غيار' | 'كماليات و إكسسوارات' | 'زيوت وشحومات' | 'بطاريات' | 'إطارات';
+export type MainCategory = string;
 
 export interface Product {
     id: number;
@@ -53,13 +82,14 @@ export interface Product {
     sku: string;
     mainCategory: MainCategory;
     category: string;
+    subCategory?: string;
     brand: string;
     countryOfOrigin?: string; // Added
     purchasePrice: number;
     sellingPrice: number; // Default selling price (can be retail)
     wholesalePrice?: number; // Added
     retailPrice?: number; // Added
-    stock: Record<Branch, number>;
+    stock: Record<string, number>;
     reorderPoint?: number;
     description?: string;
     images: string[];
@@ -94,7 +124,7 @@ export interface DailySale {
     discount?: number; // Added (percentage)
     totalAmount: number;
     notes?: string;
-    cashierLocation?: 'فوق' | 'تحت'; // Added
+    cashierLocation?: string; // Dynamic cashier identifier
     warrantyPeriod?: string; // Added
     paymentMethod?: 'نقدى' | 'إلكترونى' | 'مختلط' | 'آجل';
     cashAmount?: number;
@@ -191,7 +221,7 @@ export interface PurchaseOrder {
     timestamp?: string;
     status: 'معلق' | 'مكتمل' | 'ملغي';
     type?: 'شراء' | 'مرتجع'; // Added for purchase returns
-    branch?: 'main' | 'branch1' | 'branch2' | 'branch3';
+    branch?: Branch;
     items: PurchaseOrderItem[];
     totalAmount: number;
     notes?: string;
@@ -359,6 +389,7 @@ export interface AppData {
     discountCodes: DiscountCode[];
     toasts: Toast[];
     settings: Settings;
+    appCustomization?: AppCustomization;
 }
 
 export interface Settings {

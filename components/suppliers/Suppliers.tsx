@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Supplier, Payment, PurchaseOrder } from '../../types';
+import { Supplier, Payment, PurchaseOrder, Branch } from '../../types';
 import SectionHeader from '../shared/SectionHeader';
 import Modal from '../shared/Modal';
 import ConfirmationModal from '../shared/ConfirmationModal';
@@ -447,7 +447,7 @@ const Suppliers: React.FC<SuppliersProps> = ({ suppliers, payments, addPayment, 
         }
     };
     
-    const handleSaveDirectStatement = async (order: Omit<PurchaseOrder, 'id'> & { id?: number }, branch: 'main' | 'branch1' | 'branch2' | 'branch3') => {
+    const handleSaveDirectStatement = async (order: Omit<PurchaseOrder, 'id'> & { id?: number }, branch: Branch) => {
         try {
             // 1. Add the purchase order (it will be marked as 'مكتمل' by the modal)
             await addPurchaseOrder(order);
@@ -460,7 +460,7 @@ const Suppliers: React.FC<SuppliersProps> = ({ suppliers, payments, addPayment, 
         }
     };
 
-    const handleSaveReturn = async (order: Omit<PurchaseOrder, 'id'> & { id?: number }, branch: 'main' | 'branch1' | 'branch2' | 'branch3') => {
+    const handleSaveReturn = async (order: Omit<PurchaseOrder, 'id'> & { id?: number }, branch: Branch) => {
         try {
             await addPurchaseOrder({ ...order, type: 'مرتجع', status: 'مكتمل' });
             

@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, FormEvent } from 'react';
 import { GoogleGenAI } from "@google/genai";
 import { AppData } from '../../types';
+import { getActiveBranches, getProductTotalStock } from '../../lib/appConfig';
 
 interface AdminAIChatbotProps {
     appData: AppData;
@@ -28,7 +29,7 @@ const AdminAIChatbot: React.FC<AdminAIChatbotProps> = ({ appData }) => {
                 mainCategory: p.mainCategory,
                 brand: p.brand,
                 sellingPrice: p.sellingPrice,
-                totalStock: p.stock.main + p.stock.branch1 + p.stock.branch2 + p.stock.branch3,
+                totalStock: getProductTotalStock(p, getActiveBranches(appData?.appCustomization)),
             })),
             dailySalesSummary: {
                 totalSalesToday: (appData.dailySales || [])
@@ -62,7 +63,7 @@ const AdminAIChatbot: React.FC<AdminAIChatbotProps> = ({ appData }) => {
             const dataForAI = createDataSummaryForAI();
 
             const systemInstruction = `
-                أنت "AdminInsight"، محلل بيانات وخبير أعمال فائق الذكاء تعمل لدى المدير العام لشركة "بطاح الأصلي" لقطع غيار السيارات.
+                أنت "AdminInsight"، محلل بيانات وخبير أعمال فائق الذكاء تعمل لدى المدير العام لشركة "أوتو هاوس لقطع غيار السيارات" لقطع غيار السيارات.
                 مهمتك هي تحليل بيانات النظام التالية (بصيغة JSON) والإجابة على سؤال المدير بدقة. يجب أن تبحث داخل البيانات للعثور على إجابات محددة.
                 تحدث باللهجة المصرية العامية بشكل احترافي وواضح.
                 قدم إجابات مباشرة مدعومة بالأرقام من البيانات. لا تخترع معلومات.

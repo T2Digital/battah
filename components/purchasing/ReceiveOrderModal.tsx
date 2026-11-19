@@ -3,11 +3,13 @@ import React, { useState } from 'react';
 // Fix: Corrected import path
 import { PurchaseOrder, Product, PurchaseOrderItem } from '../../types';
 import Modal from '../shared/Modal';
+import useStore from '../../lib/store';
+import { getActiveBranches } from '../../lib/appConfig';
 
 interface ReceiveOrderModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onConfirm: (orderId: number, receivedItems: PurchaseOrderItem[], receivedInto: 'main' | 'branch1' | 'branch2' | 'branch3') => void;
+    onConfirm: (orderId: number, receivedItems: PurchaseOrderItem[], receivedInto: string) => void;
     order: PurchaseOrder;
     products: Product[];
 }
@@ -15,8 +17,10 @@ interface ReceiveOrderModalProps {
 import ProductName from '../shared/ProductName';
 
 const ReceiveOrderModal: React.FC<ReceiveOrderModalProps> = ({ isOpen, onClose, onConfirm, order, products }) => {
+    const appCustomization = useStore(state => state.appData?.appCustomization);
+    const activeBranches = getActiveBranches(appCustomization);
     const [receivedItems, setReceivedItems] = useState(order.items);
-    const [receivedInto, setReceivedInto] = useState<'main' | 'branch1' | 'branch2' | 'branch3'>('main');
+    const [receivedInto, setReceivedInto] = useState<string>(activeBranches[0]?.key || 'main');
 
     const handleQuantityChange = (index: number, quantity: number) => {
         const newItems = [...receivedItems];
@@ -37,10 +41,9 @@ const ReceiveOrderModal: React.FC<ReceiveOrderModalProps> = ({ isOpen, onClose, 
                 <div>
                     <label>استلام في مخزن *</label>
                     <select value={receivedInto} onChange={e => setReceivedInto(e.target.value as any)} required className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700">
-                        <option value="main">المخزن</option>
-                        <option value="branch1">الرئيسي</option>
-                        <option value="branch2">فرع 1</option>
-                        <option value="branch3">فرع 2</option>
+                        {activeBranches.map(b => (
+                            <option key={b.key} value={b.key}>{b.label}</option>
+                        ))}
                     </select>
                 </div>
 

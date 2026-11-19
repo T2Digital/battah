@@ -1,30 +1,67 @@
-import React from 'react';
+import React, { useMemo } from 'react';
+import useStore from '../../lib/store';
+import {
+    StoreFilters,
+    DEFAULT_STORE_FILTERS,
+    getMainCategories,
+    getSubCategoriesMap,
+} from '../../lib/appConfig';
 
 interface CategoryHighlightsProps {
-    setFilters: React.Dispatch<React.SetStateAction<{ category: string; brand: string; search: string }>>;
+    setFilters: React.Dispatch<React.SetStateAction<StoreFilters>>;
 }
 
-const categories = [
-    { name: 'قطع غيار', icon: 'fa-cogs', filterValue: 'قطع غيار', desc: 'أصلية ومضمونة', color: 'from-blue-500 to-blue-600' },
-    { name: 'ميكانيكا', icon: 'fa-wrench', filterValue: 'قطع غيار', desc: 'لجميع الموديلات', color: 'from-emerald-500 to-emerald-600' },
-    { name: 'كماليات وإكسسوارات', icon: 'fa-star', filterValue: 'كماليات و إكسسوارات', desc: 'أضف لمسة لسيارتك', color: 'from-amber-500 to-amber-600' },
+const PALETTE = [
+    { icon: 'fa-cogs', color: 'from-blue-500 to-blue-600' },
+    { icon: 'fa-car-battery', color: 'from-emerald-500 to-emerald-600' },
+    { icon: 'fa-star', color: 'from-amber-500 to-amber-600' },
+    { icon: 'fa-oil-can', color: 'from-purple-500 to-purple-600' },
+    { icon: 'fa-dot-circle', color: 'from-rose-500 to-rose-600' },
+    { icon: 'fa-wrench', color: 'from-cyan-500 to-cyan-600' },
 ];
 
 const CategoryHighlights: React.FC<CategoryHighlightsProps> = ({ setFilters }) => {
+    const { appCustomization, products } = useStore(state => ({
+        appCustomization: state.appData?.appCustomization,
+        products: state.appData?.products || [],
+    }));
+
+    const categories = useMemo(() => {
+        const mainCats = getMainCategories(appCustomization, products);
+        const subMap = getSubCategoriesMap(appCustomization);
+        return mainCats.map((name, idx) => {
+            const theme = PALETTE[idx % PALETTE.length];
+            const subs = subMap[name] || [];
+            return {
+                name,
+                filterValue: name,
+                icon: theme.icon,
+                color: theme.color,
+                desc: subs.length > 0 ? subs.slice(0, 3).join(' • ') : 'تصفح كافة المنتجات المتاحة في هذا القسم',
+            };
+        });
+    }, [appCustomization, products]);
 
     const handleCategoryClick = (filterValue: string) => {
-        setFilters({ category: filterValue, brand: 'all', search: '' });
+        setFilters({ ...DEFAULT_STORE_FILTERS, category: filterValue });
         document.getElementById('store-products')?.scrollIntoView({ behavior: 'smooth' });
     };
+
+    const gridColsClass =
+        categories.length <= 2
+            ? 'sm:grid-cols-2'
+            : categories.length === 4
+                ? 'sm:grid-cols-2 lg:grid-cols-4'
+                : 'sm:grid-cols-2 lg:grid-cols-3';
 
     return (
         <div id="category-highlights" className="bg-slate-50 dark:bg-gray-900 py-16">
             <div className="container mx-auto px-4 sm:px-6">
                 <div className="text-center mb-12">
                     <h2 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white mb-4">تسوق حسب القسم</h2>
-                    <p className="text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">اختر القسم المناسب لاحتياجات سيارتك وتصفح آلاف المنتجات عالية الجودة</p>
+                    <p className="text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">اختر القسم المناسب لاحتياجاتك وتصفح أحدث المنتجات عالية الجودة</p>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 lg:gap-8">
+                <div className={`grid grid-cols-1 ${gridColsClass} gap-6 lg:gap-8`}>
                     {categories.map(cat => (
                         <div 
                             key={cat.name}

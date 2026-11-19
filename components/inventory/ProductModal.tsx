@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { GoogleGenAI } from "@google/genai";
 import CreatableSelect from 'react-select/creatable';
 import { Product, MainCategory } from '../../types';
@@ -8,6 +8,12 @@ import BarcodeScannerModal from '../shared/BarcodeScannerModal';
 import AdminPasswordModal from '../shared/AdminPasswordModal';
 import CameraCaptureModal from '../shared/CameraCaptureModal';
 import useStore from '../../lib/store';
+import {
+    getActiveBranches,
+    getMainCategories,
+    getSubCategoriesMap,
+    createEmptyStockForBranches,
+} from '../../lib/appConfig';
 
 interface ProductModalProps {
     isOpen: boolean;
@@ -17,21 +23,29 @@ interface ProductModalProps {
 }
 
 const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, existingProduct }) => {
-    const { uploadImage, storefrontSettings, products, currentUser, updateProduct } = useStore(state => ({
+    const { uploadImage, storefrontSettings, products, currentUser, updateProduct, appCustomization } = useStore(state => ({
         uploadImage: state.uploadImage,
         storefrontSettings: state.appData?.storefrontSettings,
         products: state.appData?.products || [],
         currentUser: state.currentUser,
-        updateProduct: state.updateProduct
+        updateProduct: state.updateProduct,
+        appCustomization: state.appData?.appCustomization,
     }));
+
+    const activeBranches = useMemo(() => getActiveBranches(appCustomization), [appCustomization]);
+    const mainCategories = useMemo(
+        () => getMainCategories(appCustomization, products),
+        [appCustomization, products]
+    );
+    const subCategoriesMap = useMemo(() => getSubCategoriesMap(appCustomization), [appCustomization]);
     
     // Extract unique brands from existing products
     const existingBrands = Array.from(new Set(products.map(p => p.brand))).map(b => ({ value: b, label: b }));
 
     const [formData, setFormData] = useState<Omit<Product, 'id'>>({
-        name: '', sku: '', mainCategory: 'قطع غيار', category: '', brand: '', countryOfOrigin: '',
+        name: '', sku: '', mainCategory: mainCategories[0] || 'قطع غيار', category: '', subCategory: '', brand: '', countryOfOrigin: '',
         purchasePrice: 0, sellingPrice: 0, wholesalePrice: 0, retailPrice: 0,
-        stock: { main: 0, branch1: 0, branch2: 0, branch3: 0 },
+        stock: createEmptyStockForBranches(activeBranches, 0),
         reorderPoint: 5, description: '', images: [], compatibility: [], hasSerialNumber: false,
     });
     const [isGenerating, setIsGenerating] = useState(false);
@@ -44,22 +58,21 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, ex
     const [showScanner, setShowScanner] = useState(false);
     const [showCamera, setShowCamera] = useState(false);
 
-    const mainCategories: MainCategory[] = [
-        'قطع غيار',
-        'كماليات و إكسسوارات',
-        'زيوت وشحومات',
-        'بطاريات',
-        'إطارات'
-    ];
-
     useEffect(() => {
         if (existingProduct) {
+            const normalizedCategory = existingProduct.category || existingProduct.subCategory || '';
             setFormData({
                 ...existingProduct,
                 mainCategory: (existingProduct.mainCategory as string) === 'كماليات واكسسوارات' || (existingProduct.mainCategory as string) === 'كماليات' ? 'كماليات و إكسسوارات' : existingProduct.mainCategory, // Migration helper
+                category: normalizedCategory,
+                subCategory: existingProduct.subCategory || normalizedCategory,
                 countryOfOrigin: existingProduct.countryOfOrigin || '',
                 wholesalePrice: existingProduct.wholesalePrice || 0,
                 retailPrice: existingProduct.retailPrice || existingProduct.sellingPrice || 0,
+                stock: {
+                    ...createEmptyStockForBranches(activeBranches, 0),
+                    ...(existingProduct.stock || {}),
+                },
                 reorderPoint: existingProduct.reorderPoint || 5,
                 description: existingProduct.description || '',
                 images: existingProduct.images || [],
@@ -69,9 +82,9 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, ex
             setImagePreview(existingProduct.images?.[0] || (existingProduct as any).imageUrl || null);
         } else {
             setFormData({
-                name: '', sku: '', mainCategory: 'قطع غيار', category: '', brand: '', countryOfOrigin: '',
+                name: '', sku: '', mainCategory: mainCategories[0] || 'قطع غيار', category: '', subCategory: '', brand: '', countryOfOrigin: '',
                 purchasePrice: 0, sellingPrice: 0, wholesalePrice: 0, retailPrice: 0,
-                stock: { main: 0, branch1: 0, branch2: 0, branch3: 0 },
+                stock: createEmptyStockForBranches(activeBranches, 0),
                 reorderPoint: 5, description: '', images: [], compatibility: [], hasSerialNumber: false,
             });
             setImagePreview(null);
@@ -364,14 +377,38 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, ex
                             required 
                             className="mt-1 w-full input-base"
                         >
-                            {mainCategories.map(cat => (
+                            {(formData.mainCategory && !mainCategories.includes(formData.mainCategory)
+                                ? [formData.mainCategory, ...mainCategories]
+                                : mainCategories
+                            ).map(cat => (
                                 <option key={cat} value={cat}>{cat}</option>
                             ))}
                         </select>
                     </div>
                     <div>
                         <label>الفئة الفرعية</label>
-                        <input type="text" name="category" value={formData.category} onChange={handleChange} className="mt-1 w-full input-base" placeholder="مثال: فلاتر، سيور..." />
+                        <CreatableSelect
+                            isClearable
+                            options={Array.from(new Set([
+                                ...(subCategoriesMap[formData.mainCategory] || []),
+                                ...products
+                                    .filter(p => p.mainCategory === formData.mainCategory)
+                                    .map(p => p.subCategory || p.category)
+                                    .filter(Boolean) as string[],
+                            ])).map(sub => ({ value: sub, label: sub }))}
+                            value={formData.category ? { value: formData.category, label: formData.category } : null}
+                            onChange={(newVal: any) =>
+                                setFormData(prev => ({
+                                    ...prev,
+                                    category: newVal ? newVal.value : '',
+                                    subCategory: newVal ? newVal.value : '',
+                                }))
+                            }
+                            placeholder="اختر أو اكتب فئة فرعية..."
+                            formatCreateLabel={(val) => `إضافة "${val}"`}
+                            className="mt-1 react-select-container"
+                            classNamePrefix="react-select"
+                        />
                     </div>
                     <div>
                         <label>الماركة *</label>
@@ -445,12 +482,26 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, ex
             </div>
 
             <div className="mt-4">
-                <h4 className="font-medium mb-2 text-gray-700 dark:text-gray-300">الكميات بالمخازن</h4>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 p-3 bg-gray-50 dark:bg-gray-900 rounded-lg">
-                    <div><label>المخزن</label><input type="number" name="main" value={formData.stock.main === 0 ? '' : formData.stock.main} onChange={handleStockChange} min="0" className="mt-1 w-full input-base"/></div>
-                    <div><label>الرئيسي</label><input type="number" name="branch1" value={formData.stock.branch1 === 0 ? '' : formData.stock.branch1} onChange={handleStockChange} min="0" className="mt-1 w-full input-base"/></div>
-                    <div><label>فرع 1</label><input type="number" name="branch2" value={formData.stock.branch2 === 0 ? '' : formData.stock.branch2} onChange={handleStockChange} min="0" className="mt-1 w-full input-base"/></div>
-                    <div><label>فرع 2</label><input type="number" name="branch3" value={formData.stock.branch3 === 0 ? '' : formData.stock.branch3} onChange={handleStockChange} min="0" className="mt-1 w-full input-base"/></div>
+                <h4 className="font-medium mb-2 text-gray-700 dark:text-gray-300">
+                    {activeBranches.length <= 1 ? 'الرصيد المتاح بالمخزن' : 'الكميات بالمخازن'}
+                </h4>
+                <div className={`grid gap-3 p-3 bg-gray-50 dark:bg-gray-900 rounded-lg ${activeBranches.length === 1 ? 'grid-cols-1 sm:grid-cols-2' : activeBranches.length === 2 ? 'grid-cols-2' : 'grid-cols-2 md:grid-cols-4'}`}>
+                    {activeBranches.map(b => {
+                        const val = formData.stock?.[b.key] ?? 0;
+                        return (
+                            <div key={b.key}>
+                                <label>{b.label}</label>
+                                <input
+                                    type="number"
+                                    name={b.key}
+                                    value={val === 0 ? '' : val}
+                                    onChange={handleStockChange}
+                                    min="0"
+                                    className="mt-1 w-full input-base"
+                                />
+                            </div>
+                        );
+                    })}
                 </div>
             </div>
 

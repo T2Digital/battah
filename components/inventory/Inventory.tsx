@@ -11,13 +11,19 @@ import StockTransferModal from './StockTransferModal';
 import PriceIncreaseModal from './PriceIncreaseModal';
 import * as XLSX from 'xlsx';
 
+import {
+    getActiveBranches,
+    getBranchLabel,
+    getBranchLabelMap,
+    getMainCategories,
+    getProductTotalStock,
+    getSubCategoriesMap,
+} from '../../lib/appConfig';
+
 const StockTransfersList: React.FC<{ transfers: StockTransfer[] }> = ({ transfers }) => {
-    const branchNames: Record<Branch, string> = {
-        main: 'المخزن',
-        branch1: 'الرئيسي',
-        branch2: 'فرع 1',
-        branch3: 'فرع 2',
-    };
+    const appCustomization = useStore(state => state.appData?.appCustomization);
+    const activeBranches = useMemo(() => getActiveBranches(appCustomization), [appCustomization]);
+    const branchNames: Record<string, string> = useMemo(() => getBranchLabelMap(activeBranches), [activeBranches]);
 
     const sortedTransfers = useMemo(() => 
         [...transfers].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
@@ -70,7 +76,8 @@ const Inventory: React.FC = () => {
         fetchProducts,
         searchProducts,
         globalProducts, // Get global products from store
-        currentUser
+        currentUser,
+        appCustomization,
     } = useStore(state => ({
         stockTransfers: state.appData?.stockTransfers || [],
         setProducts: state.setProducts,
@@ -82,8 +89,17 @@ const Inventory: React.FC = () => {
         fetchProducts: state.fetchProducts,
         searchProducts: state.searchProducts,
         globalProducts: state.appData?.products || [], // Access global products
-        currentUser: state.currentUser
+        currentUser: state.currentUser,
+        appCustomization: state.appData?.appCustomization,
     }));
+
+    const activeBranches = useMemo(() => getActiveBranches(appCustomization), [appCustomization]);
+    const branchLabelMap = useMemo(() => getBranchLabelMap(activeBranches), [activeBranches]);
+    const configuredCategories = useMemo(
+        () => getMainCategories(appCustomization, globalProducts),
+        [appCustomization, globalProducts]
+    );
+    const subCategoriesMap = useMemo(() => getSubCategoriesMap(appCustomization), [appCustomization]);
 
     const [products, setLocalProducts] = useState<Product[]>([]);
     const [lastDoc, setLastDoc] = useState<any>(null);
@@ -105,20 +121,23 @@ const Inventory: React.FC = () => {
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const handleDownloadTemplate = () => {
+        const dynamicStockColumns: Record<string, number> = {};
+        activeBranches.forEach((b, idx) => {
+            dynamicStockColumns[`رصيد ${b.label}`] = idx === 0 ? 10 : 0;
+        });
+        const defaultMainCat = configuredCategories[0] || 'قطع غيار';
+        const defaultSubCat = subCategoriesMap[defaultMainCat]?.[0] || '';
         const templateData = [
             {
                 'الاسم': 'منتج تجريبي',
                 'الباركود': '123456789',
-                'القسم الرئيسي': 'قطع غيار',
-                'القسم الفرعي': 'محرك',
+                'القسم الرئيسي': defaultMainCat,
+                'القسم الفرعي': defaultSubCat,
                 'سعر الشراء': 100,
                 'سعر البيع قطاعي': 150,
                 'سعر البيع جملة': 130,
                 'حد الطلب': 5,
-                'رصيد المخزن': 10,
-                'رصيد الرئيسي': 5,
-                'رصيد فرع 1': 0,
-                'رصيد فرع 2': 0,
+                ...dynamicStockColumns,
                 'رابط الصورة': 'https://example.com/image.jpg',
                 'الوصف': 'وصف المنتج هنا',
                 'يتطلب رقم تسلسلي': 'لا'
@@ -152,12 +171,18 @@ const Inventory: React.FC = () => {
                 sellingPrice: Number(row['سعر البيع قطاعي']) || 0,
                 wholesalePrice: Number(row['سعر البيع جملة']) || 0,
                 reorderPoint: Number(row['حد الطلب']) || 0,
-                stock: {
-                    main: Number(row['رصيد المخزن']) || 0,
-                    branch1: Number(row['رصيد الرئيسي']) || 0,
-                    branch2: Number(row['رصيد فرع 1']) || 0,
-                    branch3: Number(row['رصيد فرع 2']) || 0,
-                },
+                stock: activeBranches.reduce((acc, b, idx) => {
+                    const colVal =
+                        row[`رصيد ${b.label}`] ??
+                        row[b.label] ??
+                        (b.key === 'main' ? row['رصيد المخزن'] : undefined) ??
+                        (b.key === 'branch1' ? row['رصيد الرئيسي'] : undefined) ??
+                        (b.key === 'branch2' ? row['رصيد فرع 1'] : undefined) ??
+                        (b.key === 'branch3' ? row['رصيد فرع 2'] : undefined) ??
+                        (idx === 0 ? row['الرصيد'] : undefined);
+                    acc[b.key] = Number(colVal) || 0;
+                    return acc;
+                }, {} as Record<string, number>),
                 imageUrl: row['رابط الصورة'] || '',
                 images: row['رابط الصورة'] ? [row['رابط الصورة']] : [],
                 description: row['الوصف'] || '',
@@ -283,7 +308,7 @@ const Inventory: React.FC = () => {
     // Client-side filtering for the currently loaded batch (mostly for category/stock status)
     const filteredProducts = useMemo(() => {
         return products.filter(p => {
-            const totalStock = p.stock.main + p.stock.branch1 + p.stock.branch2 + p.stock.branch3;
+            const totalStock = getProductTotalStock(p, activeBranches);
             // Search is handled server-side now, but we keep this for local filtering if needed
             const matchesSearch = filters.search 
                 ? (String(p.name || '').toLowerCase().includes(filters.search.toLowerCase()) || String(p.sku || '').toLowerCase().includes(filters.search.toLowerCase()))
@@ -292,7 +317,7 @@ const Inventory: React.FC = () => {
             const matchesStock = filters.stockStatus === 'all' || (filters.stockStatus === 'low' && totalStock <= (p.reorderPoint || 0)) || (filters.stockStatus === 'out' && totalStock === 0);
             return matchesCategory && matchesStock && matchesSearch;
         });
-    }, [products, filters.category, filters.stockStatus, filters.search]);
+    }, [products, filters.category, filters.stockStatus, filters.search, activeBranches]);
 
     return (
         <div className="animate-fade-in space-y-6">
@@ -343,7 +368,7 @@ const Inventory: React.FC = () => {
                             </button>
                         </form>
                         
-                        {(currentUser?.role === 'admin' || (currentUser?.allowedBranches && currentUser.allowedBranches.length > 1)) && (
+                        {activeBranches.length > 1 && (currentUser?.role === 'admin' || (currentUser?.allowedBranches && currentUser.allowedBranches.length > 1)) && (
                             <select 
                                 value={filterBranch} 
                                 onChange={(e) => setFilterBranch(e.target.value)}
@@ -352,19 +377,20 @@ const Inventory: React.FC = () => {
                                 {currentUser?.role === 'admin' ? (
                                     <>
                                         <option value="all">كل الفروع</option>
-                                        <option value="main">المخزن</option>
-                                        <option value="branch1">الرئيسي</option>
-                                        <option value="branch2">فرع 1</option>
-                                        <option value="branch3">فرع 2</option>
+                                        {activeBranches.map(b => (
+                                            <option key={b.key} value={b.key}>{b.label}</option>
+                                        ))}
                                     </>
                                 ) : (
                                     <>
                                         <option value="all">كل الفروع (الرصيد الكلي)</option>
-                                        {currentUser?.allowedBranches?.map(b => (
-                                            <option key={b} value={b}>
-                                                {b === 'main' ? 'المخزن' : b === 'branch1' ? 'الرئيسي' : b === 'branch2' ? 'فرع 1' : 'فرع 2'}
-                                            </option>
-                                        ))}
+                                        {currentUser?.allowedBranches
+                                            ?.filter(b => activeBranches.some(ab => ab.key === b))
+                                            .map(b => (
+                                                <option key={b} value={b}>
+                                                    {branchLabelMap[b] || getBranchLabel(b, activeBranches)}
+                                                </option>
+                                            ))}
                                     </>
                                 )}
                             </select>
@@ -372,7 +398,7 @@ const Inventory: React.FC = () => {
 
                         <select value={filters.category} onChange={e => setFilters(f => ({ ...f, category: e.target.value }))} className="p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600">
                             <option value="">كل الفئات</option>
-                            {(['قطع غيار', 'كماليات و إكسسوارات', 'زيوت وشحومات', 'بطاريات', 'إطارات'] as MainCategory[]).map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                            {configuredCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
                         </select>
                         <select value={filters.stockStatus} onChange={e => setFilters(f => ({ ...f, stockStatus: e.target.value }))} className="p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600">
                             <option value="all">كل المخزون</option>
@@ -390,18 +416,19 @@ const Inventory: React.FC = () => {
                                     {currentUser?.role === 'admin' && <th className="px-6 py-3">سعر الشراء</th>}
                                     <th className="px-6 py-3">سعر البيع</th>
                                     <th className="px-6 py-3">
-                                        {filterBranch === 'all' ? 'الرصيد الكلي' : 
-                                         filterBranch === 'main' ? 'رصيد المخزن' : 
-                                         filterBranch === 'branch1' ? 'رصيد الرئيسي' : 
-                                         filterBranch === 'branch2' ? 'رصيد فرع 1' : 'رصيد فرع 2'}
+                                        {activeBranches.length <= 1
+                                            ? `الرصيد (${activeBranches[0]?.label || 'الفرع الرئيسي'})`
+                                            : filterBranch === 'all'
+                                                ? 'الرصيد الكلي'
+                                                : `رصيد ${branchLabelMap[filterBranch] || getBranchLabel(filterBranch, activeBranches)}`}
                                     </th>
                                     <th className="px-6 py-3">الإجراءات</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {filteredProducts.map(p => {
-                                    const totalStock = (p.stock?.main || 0) + (p.stock?.branch1 || 0) + (p.stock?.branch2 || 0) + (p.stock?.branch3 || 0);
-                                    const displayStock = filterBranch === 'all' ? totalStock : (p.stock?.[filterBranch as keyof typeof p.stock] || 0);
+                                    const totalStock = getProductTotalStock(p, activeBranches);
+                                    const displayStock = (filterBranch === 'all' || activeBranches.length <= 1) ? totalStock : (p.stock?.[filterBranch] || 0);
                                     return (
                                         <tr key={p.id} className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
                                             <td className="px-6 py-4 font-medium text-gray-900 dark:text-white flex items-center gap-3">
@@ -413,12 +440,13 @@ const Inventory: React.FC = () => {
                                             <td className="px-6 py-4">{formatCurrency(p.sellingPrice)}</td>
                                             <td className={`px-6 py-4 font-bold ${displayStock <= (p.reorderPoint || 0) ? 'text-red-500' : ''}`}>
                                                 <div className="text-base">{displayStock}</div>
-                                                {filterBranch === 'all' && (
+                                                {filterBranch === 'all' && activeBranches.length > 1 && (
                                                     <div className="text-xs text-gray-500 dark:text-gray-400 font-normal mt-1.5 flex flex-wrap gap-1 justify-end max-w-[220px]">
-                                                        <span className="bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded text-[10px] whitespace-nowrap">المخزن: {p.stock?.main || 0}</span>
-                                                        <span className="bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded text-[10px] whitespace-nowrap">الرئيسي: {p.stock?.branch1 || 0}</span>
-                                                        <span className="bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded text-[10px] whitespace-nowrap">فرع 1: {p.stock?.branch2 || 0}</span>
-                                                        <span className="bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded text-[10px] whitespace-nowrap">فرع 2: {p.stock?.branch3 || 0}</span>
+                                                        {activeBranches.map(b => (
+                                                            <span key={b.key} className="bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded text-[10px] whitespace-nowrap">
+                                                                {b.label}: {p.stock?.[b.key] || 0}
+                                                            </span>
+                                                        ))}
                                                     </div>
                                                 )}
                                             </td>
@@ -455,12 +483,18 @@ const Inventory: React.FC = () => {
 
             {activeTab === 'transfers' && (
                 <>
-                    <div className="flex justify-end">
-                        <button onClick={() => setTransferModalOpen(true)} className="px-4 py-2 bg-secondary text-white rounded-lg flex items-center gap-2 hover:bg-secondary-dark transition shadow-md">
-                            <i className="fas fa-exchange-alt"></i>
-                            تحويل جديد
-                        </button>
-                    </div>
+                    {activeBranches.length < 2 ? (
+                        <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl text-sm text-blue-800 dark:text-blue-200 flex items-center justify-between">
+                            <span>التحويلات بين الفروع متاحة عند تفعيل فرعين أو أكثر من الإعدادات. حالياً المتجر يعمل بفرع واحد ({activeBranches[0]?.label || 'الفرع الرئيسي'}).</span>
+                        </div>
+                    ) : (
+                        <div className="flex justify-end">
+                            <button onClick={() => setTransferModalOpen(true)} className="px-4 py-2 bg-secondary text-white rounded-lg flex items-center gap-2 hover:bg-secondary-dark transition shadow-md">
+                                <i className="fas fa-exchange-alt"></i>
+                                تحويل جديد
+                            </button>
+                        </div>
+                    )}
                     <StockTransfersList transfers={stockTransfers} />
                 </>
             )}

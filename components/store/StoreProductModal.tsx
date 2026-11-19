@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { Product } from '../../types';
 import { formatCurrency } from '../../lib/utils';
 import Modal from '../shared/Modal';
+import useStore from '../../lib/store';
+import { getActiveBranches, getProductTotalStock } from '../../lib/appConfig';
 
 interface StoreProductModalProps {
     isOpen: boolean;
@@ -11,6 +13,8 @@ interface StoreProductModalProps {
 }
 
 const StoreProductModal: React.FC<StoreProductModalProps> = ({ isOpen, onClose, product, onAddToCart }) => {
+    const appCustomization = useStore(state => state.appData?.appCustomization);
+    const activeBranches = getActiveBranches(appCustomization);
     const [quantity, setQuantity] = useState(1);
     const [activeImage, setActiveImage] = useState(0);
 
@@ -21,7 +25,7 @@ const StoreProductModal: React.FC<StoreProductModalProps> = ({ isOpen, onClose, 
 
     if (!isOpen) return null;
 
-    const totalStock = product.stock.main + product.stock.branch1 + product.stock.branch2 + product.stock.branch3;
+    const totalStock = getProductTotalStock(product, activeBranches);
     const hasDiscount = product.discount && product.discount > 0;
     const originalPrice = hasDiscount ? product.sellingPrice / (1 - product.discount! / 100) : product.sellingPrice;
 

@@ -2,35 +2,40 @@ import React, { useMemo } from 'react';
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } from 'recharts';
 import { DailySale } from '../../types';
 import { formatCurrency } from '../../lib/utils';
+import useStore from '../../lib/store';
+import { getActiveBranches, getBranchLabel } from '../../lib/appConfig';
 
 interface BranchSalesChartProps {
     dailySales: DailySale[];
 }
 
 const BranchSalesChart: React.FC<BranchSalesChartProps> = ({ dailySales }) => {
+    const appCustomization = useStore(state => state.appData?.appCustomization);
+    const activeBranches = useMemo(() => getActiveBranches(appCustomization), [appCustomization]);
+
     const data = useMemo(() => {
-        const branchSales: Record<string, number> = {
-            'main': 0,
-            'branch1': 0,
-            'branch2': 0,
-            'branch3': 0
-        };
+        const branchSales: Record<string, number> = {};
+        for (const b of activeBranches) {
+            branchSales[b.key] = 0;
+        }
         
         dailySales.forEach(sale => {
+            const key = sale.branchSoldFrom || activeBranches[0]?.key || 'main';
+            if (!(key in branchSales)) branchSales[key] = 0;
             if (sale.direction === 'بيع') {
-                branchSales[sale.branchSoldFrom] += sale.totalAmount;
+                branchSales[key] += sale.totalAmount;
             } else if (sale.direction === 'مرتجع') {
-                branchSales[sale.branchSoldFrom] -= sale.totalAmount;
+                branchSales[key] -= sale.totalAmount;
             }
         });
 
-        return [
-            { name: 'الرئيسي', value: Math.max(0, branchSales['main']) },
-            { name: 'فرع 1', value: Math.max(0, branchSales['branch1']) },
-            { name: 'فرع 2', value: Math.max(0, branchSales['branch2']) },
-            { name: 'فرع 3', value: Math.max(0, branchSales['branch3']) }
-        ].filter(b => b.value > 0);
-    }, [dailySales]);
+        return Object.entries(branchSales)
+            .map(([key, val]) => ({
+                name: getBranchLabel(key, activeBranches),
+                value: Math.max(0, val),
+            }))
+            .filter(b => b.value > 0);
+    }, [dailySales, activeBranches]);
 
     if (data.length === 0) {
         return (

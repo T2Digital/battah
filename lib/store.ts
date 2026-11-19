@@ -40,6 +40,7 @@ import {
 import { auth, db, firebaseConfig, handleFirestoreError, OperationType } from './firebase';
 import { 
     AppData, 
+    AppCustomization,
     User, 
     Product, 
     DailySale,
@@ -70,6 +71,7 @@ import {
 } from '../types';
 import { initialData } from './initialData';
 import { formatCurrency, normalizeSaleItems } from './utils';
+import { getActiveBranches, createEmptyStockForBranches } from './appConfig';
 
 let publicUnsubscribers: Unsubscribe[] = [];
 let adminUnsubscribers: Unsubscribe[] = [];
@@ -183,9 +185,11 @@ function buildSaleTreasuryTxs(mergedSale: DailySale, startId: number): TreasuryT
     return out;
 }
 
-function mapCatalogToProducts(tenantBrand: any): Product[] {
+function mapCatalogToProducts(tenantBrand: any, appCustomization?: AppCustomization | null): Product[] {
     const catalog = Array.isArray(tenantBrand?.productsCatalog) ? tenantBrand.productsCatalog : [];
     const fallbackLogo = String(tenantBrand?.logoUrl || '');
+    const activeBranches = getActiveBranches(appCustomization || tenantBrand?.appCustomization || null);
+    const defaultStock = createEmptyStockForBranches(activeBranches, 25);
     return catalog.map((item: any, idx: number) => {
         const price = Number(item.numericPrice || String(item.price || '').replace(/[^\d.]/g, '')) || 500;
         const images = Array.isArray(item.images) && item.images.length > 0
@@ -202,11 +206,12 @@ function mapCatalogToProducts(tenantBrand: any): Product[] {
             brand: String(item.brand || tenantBrand?.name || ''),
             sku: item.sku || `SKU-${idx + 101}`,
             category: cat,
+            subCategory: item.subCategory || cat,
             mainCategory: (item.mainCategory || cat) as MainCategory,
             description: item.description || '',
             purchasePrice: Math.round(price * 0.7),
             sellingPrice: price,
-            stock: item.stock || { main: 25, branch1: 10, branch2: 10, branch3: 10 },
+            stock: item.stock || { ...defaultStock },
             imageUrl: item.imageUrl || images[0] || fallbackLogo,
             images,
         } as Product;
@@ -310,6 +315,7 @@ type AppActions = {
     updateUser: (userId: string, updates: Partial<User>) => Promise<void>;
     deleteUser: (userId: string) => Promise<void>;
     updateSettings: (settings: Partial<Settings>) => Promise<void>;
+    updateAppCustomization: (customization: Partial<AppCustomization>) => Promise<void>;
     sendBroadcast: (message: string) => Promise<void>;
     saveDeviceToken: (token: string) => Promise<void>;
     resetTreasury: (initialBalance: number) => Promise<void>;
@@ -367,17 +373,19 @@ const useStore = create<AppState & AppActions>((set, get) => ({
             const hasAdminToken = Boolean(getTenantSessionToken(activeSlug));
 
             const localCache = loadLocalErpCache(activeSlug);
-            if (localCache) {
+            const brandCustom = (typeof window !== 'undefined' && (window as any).__TENANT_BRAND__?.appCustomization) || undefined;
+            if (localCache || brandCustom) {
                 isHydratingFromCloud = true;
                 set(state => ({
                     appData: {
                         ...(state.appData as AppData),
-                        ...(Array.isArray(localCache.products) && localCache.products.length > 0 ? { products: localCache.products } : {}),
-                        ...(Array.isArray(localCache.broadcasts) ? { broadcasts: localCache.broadcasts } : {}),
-                        ...(Array.isArray(localCache.discountCodes) ? { discountCodes: localCache.discountCodes } : {}),
-                        ...(localCache.storefrontSettings ? { storefrontSettings: localCache.storefrontSettings } : {}),
-                        ...(localCache.settings ? { settings: localCache.settings } : {}),
-                        ...(hasAdminToken ? localCache : {}),
+                        ...(Array.isArray(localCache?.products) && localCache.products.length > 0 ? { products: localCache.products } : {}),
+                        ...(Array.isArray(localCache?.broadcasts) ? { broadcasts: localCache.broadcasts } : {}),
+                        ...(Array.isArray(localCache?.discountCodes) ? { discountCodes: localCache.discountCodes } : {}),
+                        ...(localCache?.storefrontSettings ? { storefrontSettings: localCache.storefrontSettings } : {}),
+                        ...(localCache?.settings ? { settings: localCache.settings } : {}),
+                        ...((localCache?.appCustomization || brandCustom) ? { appCustomization: localCache?.appCustomization || brandCustom } : {}),
+                        ...(hasAdminToken && localCache ? localCache : {}),
                     }
                 }));
                 isHydratingFromCloud = false;
@@ -395,6 +403,7 @@ const useStore = create<AppState & AppActions>((set, get) => ({
                             ...(Array.isArray(cloudState.discountCodes) ? { discountCodes: cloudState.discountCodes } : {}),
                             ...(cloudState.storefrontSettings ? { storefrontSettings: cloudState.storefrontSettings } : {}),
                             ...(cloudState.settings ? { settings: cloudState.settings } : {}),
+                            ...(cloudState.appCustomization ? { appCustomization: cloudState.appCustomization } : {}),
                             ...(hasAdminToken ? cloudState : {}),
                         }
                     }));
@@ -404,7 +413,10 @@ const useStore = create<AppState & AppActions>((set, get) => ({
 
                 const curProducts = get().appData?.products || [];
                 if (curProducts.length === 0) {
-                    const seeded = mapCatalogToProducts((typeof window !== 'undefined' && (window as any).__TENANT_BRAND__) || null);
+                    const seeded = mapCatalogToProducts(
+                        (typeof window !== 'undefined' && (window as any).__TENANT_BRAND__) || null,
+                        get().appData?.appCustomization || null
+                    );
                     if (seeded.length > 0) {
                         isHydratingFromCloud = true;
                         set(state => ({ appData: { ...(state.appData as AppData), products: seeded } }));
@@ -541,7 +553,16 @@ const useStore = create<AppState & AppActions>((set, get) => ({
 
             const curState = get();
             const curAppData = (curState.appData || {}) as AppData;
-            const seededProducts = mapCatalogToProducts((typeof window !== 'undefined' && (window as any).__TENANT_BRAND__) || null);
+            const resolvedCustomization =
+                cloudState?.appCustomization ||
+                localCache?.appCustomization ||
+                curAppData.appCustomization ||
+                (typeof window !== 'undefined' && (window as any).__TENANT_BRAND__?.appCustomization) ||
+                undefined;
+            const seededProducts = mapCatalogToProducts(
+                (typeof window !== 'undefined' && (window as any).__TENANT_BRAND__) || null,
+                resolvedCustomization
+            );
             const resolvedUsers =
                 (Array.isArray(cloudState?.users) && cloudState.users.length > 0 && cloudState.users) ||
                 (Array.isArray(localCache?.users) && localCache.users.length > 0 && localCache.users) ||
@@ -555,6 +576,7 @@ const useStore = create<AppState & AppActions>((set, get) => ({
                     ...curAppData,
                     ...(localCache || {}),
                     ...(cloudState && typeof cloudState === 'object' ? cloudState : {}),
+                    ...(resolvedCustomization ? { appCustomization: resolvedCustomization } : {}),
                     users: resolvedUsers,
                     ...(((cloudState?.products?.length || localCache?.products?.length || curAppData.products?.length || 0) === 0 && seededProducts.length > 0)
                         ? { products: seededProducts }
@@ -704,13 +726,22 @@ const useStore = create<AppState & AppActions>((set, get) => ({
             } catch {}
             set({ currentUser: data.user as any });
             const cloudState = await fetchTenantErpState(brandSlug, data.token);
-            const seededProducts = mapCatalogToProducts((typeof window !== 'undefined' && (window as any).__TENANT_BRAND__) || null);
+            const resolvedCustom =
+                cloudState?.appCustomization ||
+                get().appData?.appCustomization ||
+                (typeof window !== 'undefined' && (window as any).__TENANT_BRAND__?.appCustomization) ||
+                undefined;
+            const seededProducts = mapCatalogToProducts(
+                (typeof window !== 'undefined' && (window as any).__TENANT_BRAND__) || null,
+                resolvedCustom
+            );
             isHydratingFromCloud = true;
             set(state => {
                 const prev = state.appData as AppData;
                 const merged = {
                     ...prev,
                     ...(cloudState && typeof cloudState === 'object' ? cloudState : {}),
+                    ...(resolvedCustom ? { appCustomization: resolvedCustom } : {}),
                 } as AppData;
                 if (!Array.isArray(merged.users) || merged.users.length === 0) {
                     merged.users = [data.user as User];
@@ -2812,6 +2843,57 @@ const useStore = create<AppState & AppActions>((set, get) => ({
         if (resolveTenantBrandId()) return;
         await setDoc(doc(db, "settings", "general"), merged, { merge: true });
     },
+    updateAppCustomization: async (customization) => {
+        const curCustom = get().appData?.appCustomization || {};
+        const merged: AppCustomization = {
+            ...curCustom,
+            ...customization,
+            ...(customization.storefrontFilters
+                ? {
+                    storefrontFilters: {
+                        ...(curCustom.storefrontFilters || {}),
+                        ...customization.storefrontFilters,
+                    },
+                }
+                : {}),
+        };
+
+        set(state => ({
+            appData: { ...(state.appData as AppData), appCustomization: merged }
+        }));
+
+        if (typeof window !== 'undefined') {
+            if ((window as any).__TENANT_BRAND__) {
+                (window as any).__TENANT_BRAND__.appCustomization = merged;
+            }
+        }
+
+        const curUser = get().currentUser;
+        if (curUser && curUser.role === Role.Admin && Array.isArray(merged.activeBranches) && merged.activeBranches.length > 0) {
+            const allowedKeys = merged.activeBranches.map(b => b.key).filter(Boolean);
+            const nextBranch = allowedKeys.includes(curUser.branch) ? curUser.branch : allowedKeys[0];
+            const updatedUser: User = {
+                ...curUser,
+                branch: nextBranch,
+                allowedBranches: allowedKeys,
+            };
+            set({ currentUser: updatedUser });
+            const slug = resolveTenantBrandId();
+            if (slug && typeof localStorage !== 'undefined') {
+                try {
+                    const raw = localStorage.getItem(`t2_tenant_session_${slug}`);
+                    if (raw) {
+                        const parsed = JSON.parse(raw);
+                        parsed.user = { ...(parsed.user || {}), ...updatedUser };
+                        localStorage.setItem(`t2_tenant_session_${slug}`, JSON.stringify(parsed));
+                    }
+                } catch {}
+            }
+        }
+
+        if (resolveTenantBrandId()) return;
+        await setDoc(doc(db, "settings", "customization"), merged, { merge: true });
+    },
     saveDeviceToken: async (token: string) => {
         if (isTenantMode()) return;
         try {
@@ -3041,6 +3123,7 @@ if (typeof window !== 'undefined') {
             ...(Array.isArray(cloudState.discountCodes) ? { discountCodes: cloudState.discountCodes } : {}),
             ...(cloudState.storefrontSettings ? { storefrontSettings: cloudState.storefrontSettings } : {}),
             ...(cloudState.settings ? { settings: cloudState.settings } : {}),
+            ...(cloudState.appCustomization ? { appCustomization: cloudState.appCustomization } : {}),
             ...(token ? cloudState : {}),
         };
         if (JSON.stringify(nextMerged) !== JSON.stringify(curData)) {

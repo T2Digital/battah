@@ -7,7 +7,15 @@ const FIRESTORE_PROJECT_ID = process.env.TITO_STUDIO_PROJECT_ID || 't2-content-s
 const FIRESTORE_SETTINGS_URL = `https://firestore.googleapis.com/v1/projects/${FIRESTORE_PROJECT_ID}/databases/(default)/documents/agency_settings`;
 
 const SHARD_KEYS = {
-  catalog: ['products', 'broadcasts', 'discountCodes', 'storefrontSettings', 'settings', 'counters'] as const,
+  catalog: [
+    'products',
+    'broadcasts',
+    'discountCodes',
+    'storefrontSettings',
+    'settings',
+    'counters',
+    'appCustomization',
+  ] as const,
   orders: ['orders', 'notifications'] as const,
   sales: ['dailySales', 'treasury', 'expenses', 'dailyReview'] as const,
   ops: [
@@ -168,6 +176,19 @@ async function writeShard(docId: string, slug: string, shard: string, data: Reco
 function seedProductsFromConfig(cfg: Record<string, any>): any[] {
   const catalog = Array.isArray(cfg?.productsCatalog) ? cfg.productsCatalog : [];
   const defaultImg = String(cfg?.logoUrl || '').trim();
+  const cfgBranches = Array.isArray(cfg?.appCustomization?.activeBranches) && cfg.appCustomization.activeBranches.length > 0
+    ? cfg.appCustomization.activeBranches
+    : null;
+  const buildDefaultStock = () => {
+    if (cfgBranches) {
+      const s: Record<string, number> = {};
+      cfgBranches.forEach((b: any, i: number) => {
+        if (b?.key) s[b.key] = i === 0 ? 25 : 10;
+      });
+      return s;
+    }
+    return { main: 25 };
+  };
   return catalog.map((item: any, idx: number) => {
     const price = Number(item.numericPrice || String(item.price || '').replace(/[^\d.]/g, '')) || 500;
     const images = Array.isArray(item.images) && item.images.length > 0
@@ -183,11 +204,13 @@ function seedProductsFromConfig(cfg: Record<string, any>): any[] {
       name: item.name || `منتج ${idx + 1}`,
       sku: item.sku || `SKU-${idx + 101}`,
       category: cat,
+      subCategory: item.subCategory || cat,
       mainCategory: item.mainCategory || cat,
+      brand: item.brand || cfg?.name || '',
       description: item.description || '',
       purchasePrice: Math.round(price * 0.7),
       sellingPrice: price,
-      stock: item.stock || { main: 25, branch1: 10, branch2: 10, branch3: 10 },
+      stock: item.stock || buildDefaultStock(),
       imageUrl: item.imageUrl || images[0] || defaultImg,
       images,
     };
@@ -276,6 +299,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             newArrivalProductIds: [],
           },
           settings: catalog.settings || DEFAULT_SETTINGS,
+          appCustomization: catalog.appCustomization || cfg.appCustomization || null,
         },
       });
     }
@@ -308,6 +332,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           newArrivalProductIds: [],
         },
         settings: catalog.settings || DEFAULT_SETTINGS,
+        appCustomization: catalog.appCustomization || cfg.appCustomization || null,
         counters: catalog.counters || { orderCount: 0 },
         orders: Array.isArray(ordersShard.orders) ? ordersShard.orders : [],
         notifications: Array.isArray(ordersShard.notifications) ? ordersShard.notifications : [],

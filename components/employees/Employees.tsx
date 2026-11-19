@@ -6,6 +6,7 @@ import Modal from '../shared/Modal';
 import AdminPasswordModal from '../shared/AdminPasswordModal';
 import useStore from '../../lib/store';
 import ConfirmationModal from '../shared/ConfirmationModal';
+import { getActiveBranches } from '../../lib/appConfig';
 
 // Fix: Correctly define EmployeeModal as a functional component.
 const EmployeeModal: React.FC<{
@@ -175,14 +176,21 @@ const CreateUserModal: React.FC<{
     onClose: () => void;
     employee: Employee | null;
 }> = ({ isOpen, onClose, employee }) => {
-    const { createUser } = useStore();
+    const { createUser, appCustomization } = useStore(state => ({
+        createUser: state.createUser,
+        appCustomization: state.appData?.appCustomization,
+    }));
+    const activeBranches = useMemo(() => getActiveBranches(appCustomization), [appCustomization]);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [role, setRole] = useState<Role>(Role.Seller);
-    const [branch, setBranch] = useState<Branch>('main');
+    const [branch, setBranch] = useState<Branch>(activeBranches[0]?.key || 'main');
     const [loading, setLoading] = useState(false);
 
     React.useEffect(() => {
+        if (isOpen && activeBranches.length > 0 && !activeBranches.some(b => b.key === branch)) {
+            setBranch(activeBranches[0].key);
+        }
         if (employee) {
             setEmail(employee.email || '');
             // Guess role based on position
@@ -232,10 +240,9 @@ const CreateUserModal: React.FC<{
                 <div>
                     <label>الفرع *</label>
                     <select value={branch} onChange={e => setBranch(e.target.value as Branch)} className="w-full mt-1 p-2 border rounded dark:bg-gray-700">
-                        <option value="main">المخزن</option>
-                        <option value="branch1">الرئيسي</option>
-                        <option value="branch2">فرع 1</option>
-                        <option value="branch3">فرع 2</option>
+                        {activeBranches.map(b => (
+                            <option key={b.key} value={b.key}>{b.label}</option>
+                        ))}
                     </select>
                 </div>
                 {loading && <p className="text-blue-500">جاري إنشاء الحساب...</p>}

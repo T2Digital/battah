@@ -8,6 +8,7 @@ import useStore from './lib/store';
 import { useBarcodeScanner } from './hooks/useBarcodeScanner';
 import { bootstrapBattahTenant, resolveTenantBrandId, TenantBrandConfig } from './lib/tenantBootstrap';
 import { verifyTenantSession } from './lib/tenantErpSync';
+import { getActiveBranches } from './lib/appConfig';
 
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
@@ -273,9 +274,10 @@ const App: React.FC = () => {
 
                 const drawerBalance = salesCash - yesterdayExpenses;
 
+                const defaultReviewBranch = getActiveBranches((appData as any).appCustomization)[0]?.key || 'main';
                 const autoReview = {
                     date: yesterdayStr,
-                    branch: 'branch1' as const,
+                    branch: defaultReviewBranch,
                     salesCash,
                     salesElectronic,
                     totalSales,

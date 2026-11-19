@@ -4,13 +4,15 @@ import { User, Role, Branch } from '../../types';
 import SectionHeader from '../shared/SectionHeader';
 import UserModal from './UserModal';
 import ConfirmationModal from '../shared/ConfirmationModal';
+import { getActiveBranches, getBranchLabelMap } from '../../lib/appConfig';
 
 const Users: React.FC = () => {
-    const { users, createUser, updateUser, deleteUser } = useStore(state => ({
+    const { users, createUser, updateUser, deleteUser, appCustomization } = useStore(state => ({
         users: state.appData?.users || [],
         createUser: state.createUser,
         updateUser: state.updateUser,
-        deleteUser: state.deleteUser
+        deleteUser: state.deleteUser,
+        appCustomization: state.appData?.appCustomization,
     }));
 
     const [isModalOpen, setModalOpen] = useState(false);
@@ -72,12 +74,7 @@ const Users: React.FC = () => {
         [Role.Cashier]: 'كاشير',
     };
 
-    const branchLabels: Record<Branch, string> = {
-        'main': 'المخزن',
-        'branch1': 'الرئيسي',
-        'branch2': 'فرع 1',
-        'branch3': 'فرع 2',
-    };
+    const branchLabels = getBranchLabelMap(getActiveBranches(appCustomization));
 
     return (
         <div className="animate-fade-in space-y-6">

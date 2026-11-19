@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import useStore from '../../lib/store';
+import { StoreFilters, DEFAULT_STORE_FILTERS, getMainCategories } from '../../lib/appConfig';
 
 interface StoreHeroProps {
-    setFilters?: React.Dispatch<React.SetStateAction<{ category: string; brand: string; search: string }>>;
+    setFilters?: React.Dispatch<React.SetStateAction<StoreFilters>>;
 }
 
 const slides = [
@@ -33,6 +35,10 @@ const slides = [
 
 const StoreHero: React.FC<StoreHeroProps> = ({ setFilters }) => {
     const [currentSlide, setCurrentSlide] = useState(0);
+    const { appCustomization, products } = useStore(state => ({
+        appCustomization: state.appData?.appCustomization,
+        products: state.appData?.products || [],
+    }));
 
     useEffect(() => {
         const timer = setInterval(() => {
@@ -43,7 +49,9 @@ const StoreHero: React.FC<StoreHeroProps> = ({ setFilters }) => {
 
     const handleShopNow = (category: string) => {
         if (setFilters) {
-            setFilters({ category, brand: 'all', search: '' });
+            const configured = getMainCategories(appCustomization, products);
+            const targetCategory = configured.includes(category) ? category : 'all';
+            setFilters({ ...DEFAULT_STORE_FILTERS, category: targetCategory });
         }
         document.getElementById('store-products')?.scrollIntoView({ behavior: 'smooth' });
     };

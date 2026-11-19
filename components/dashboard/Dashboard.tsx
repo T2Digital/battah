@@ -13,6 +13,7 @@ import ActionableAlerts from './ActionableAlerts';
 import { AppData, User, DailySale, Product, Role, Section } from '../../types';
 import useStore from '../../lib/store';
 import { normalizeSaleItems, calculateSaleProfit, getActualSaleRevenue } from '../../lib/utils';
+import { getActiveBranches, getProductTotalStock } from '../../lib/appConfig';
 import CustomizeDashboardModal from './CustomizeDashboardModal';
 
 interface DashboardProps {
@@ -39,13 +40,13 @@ const AIInsights: React.FC<{ profit: number; balance: number }> = ({ profit, bal
                 .reduce((sum, e) => sum + e.amount, 0);
 
             const prompt = `
-                أنت محلل أعمال خبير في شركة "بطاح الأصلي" لقطع غيار السيارات. بناءً على ملخص البيانات التالي لليوم، قدم 3 رؤى أو توصيات قابلة للتنفيذ باللغة العربية. اجعلها موجزة وفي نقاط.
+                أنت محلل أعمال خبير في شركة "أوتو هاوس لقطع غيار السيارات" لقطع غيار السيارات. بناءً على ملخص البيانات التالي لليوم، قدم 3 رؤى أو توصيات قابلة للتنفيذ باللغة العربية. اجعلها موجزة وفي نقاط.
 
                 - صافي الربح اليومي: ${profit.toFixed(2)} جنيه مصري
                 - رصيد الخزينة الحالي: ${balance.toFixed(2)} جنيه مصري
                 - عدد فواتير المبيعات اليومية: ${todaySalesCount}
                 - إجمالي المصروفات اليومية: ${todayExpenses.toFixed(2)} جنيه مصري
-                - عدد الأصناف التي وصلت لحد الطلب: ${(appData.products || []).filter(p => (p.stock.main + p.stock.branch1 + p.stock.branch2 + p.stock.branch3) <= (p.reorderPoint || 0)).length}
+                - عدد الأصناف التي وصلت لحد الطلب: ${(appData.products || []).filter(p => getProductTotalStock(p, getActiveBranches(appData.appCustomization)) <= (p.reorderPoint || 0)).length}
             `;
             
             const response = await ai.models.generateContent({
@@ -132,8 +133,10 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveSection }) => {
         users = [],
         orders = [],
         purchaseOrders = [],
-        payments = []
+        payments = [],
+        appCustomization
     } = appData || {};
+    const activeBranches = useMemo(() => getActiveBranches(appCustomization), [appCustomization]);
 
     const todayStr = new Date().toISOString().split('T')[0];
 
@@ -179,7 +182,7 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveSection }) => {
         const invoicesCount = todaySales.length;
         const expensesTotal = (expenses || []).filter(e => e.date === todayStr).reduce((sum, e) => sum + e.amount, 0);
         const lowStockCount = (products || []).filter(p => {
-            const totalStock = p.stock.main + p.stock.branch1 + p.stock.branch2 + p.stock.branch3;
+            const totalStock = getProductTotalStock(p, activeBranches);
             return totalStock <= (p.reorderPoint || 0);
         }).length;
         const pendingCount = (orders || []).filter(o => o.status === 'pending').length;
@@ -221,14 +224,14 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveSection }) => {
             customersDebt: cDebt,
             todaySupplierPayments
         };
-    }, [treasury, dailySales, products, expenses, orders, todayStr, currentUser, users, purchaseOrders, payments]);
+    }, [treasury, dailySales, products, expenses, orders, todayStr, currentUser, users, purchaseOrders, payments, activeBranches]);
 
     const lowStockProducts = useMemo(() => {
         return (products || []).filter(p => {
-            const totalStock = p.stock.main + p.stock.branch1 + p.stock.branch2 + p.stock.branch3;
+            const totalStock = getProductTotalStock(p, activeBranches);
             return totalStock <= (p.reorderPoint || 0);
         });
-    }, [products]);
+    }, [products, activeBranches]);
 
 
     return (

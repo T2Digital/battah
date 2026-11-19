@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import Modal from '../shared/Modal';
 import AdminPasswordModal from '../shared/AdminPasswordModal';
 import { MainCategory } from '../../types';
 import useStore from '../../lib/store';
+import { getMainCategories } from '../../lib/appConfig';
 
 interface PriceIncreaseModalProps {
     isOpen: boolean;
@@ -11,6 +12,10 @@ interface PriceIncreaseModalProps {
 
 const PriceIncreaseModal: React.FC<PriceIncreaseModalProps> = ({ isOpen, onClose }) => {
     const { increasePrices, appData } = useStore();
+    const configuredCategories = useMemo(
+        () => getMainCategories(appData?.appCustomization, appData?.products),
+        [appData?.appCustomization, appData?.products]
+    );
     const [percentage, setPercentage] = useState<number>(5);
     const [category, setCategory] = useState<MainCategory | 'all'>('all');
     const [isProcessing, setIsProcessing] = useState(false);
@@ -65,7 +70,7 @@ const PriceIncreaseModal: React.FC<PriceIncreaseModalProps> = ({ isOpen, onClose
                         className="w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600"
                     >
                         <option value="all">جميع المنتجات</option>
-                        {(['قطع غيار', 'كماليات و إكسسوارات', 'زيوت وشحومات', 'بطاريات', 'إطارات'] as MainCategory[]).map(cat => (
+                        {configuredCategories.map(cat => (
                             <option key={cat} value={cat}>{cat}</option>
                         ))}
                     </select>

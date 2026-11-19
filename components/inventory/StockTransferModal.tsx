@@ -1,7 +1,8 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import useStore from '../../lib/store';
 import { Product, Branch, StockTransfer } from '../../types';
+import { getActiveBranches, getBranchLabelMap, getBranchLabel } from '../../lib/appConfig';
 import Modal from '../shared/Modal';
 
 interface StockTransferModalProps {
@@ -9,28 +10,37 @@ interface StockTransferModalProps {
     onClose: () => void;
 }
 
-const branchNames: Record<Branch, string> = {
-    main: 'المخزن',
-    branch1: 'الرئيسي',
-    branch2: 'فرع 1',
-    branch3: 'فرع 2',
-};
-
 const StockTransferModal: React.FC<StockTransferModalProps> = ({ isOpen, onClose }) => {
-    const { products, addStockTransfer, storefrontSettings, currentUser } = useStore(state => ({
+    const { products, addStockTransfer, storefrontSettings, currentUser, appCustomization } = useStore(state => ({
         products: state.appData?.products || [],
         addStockTransfer: state.addStockTransfer,
         storefrontSettings: state.appData?.storefrontSettings,
-        currentUser: state.currentUser
+        currentUser: state.currentUser,
+        appCustomization: state.appData?.appCustomization,
     }));
 
+    const activeBranches = useMemo(() => getActiveBranches(appCustomization), [appCustomization]);
+    const branchNames = useMemo(() => getBranchLabelMap(activeBranches), [activeBranches]);
+
     const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-    const [fromBranch, setFromBranch] = useState<Branch>(currentUser?.branch || 'main');
+    const [fromBranch, setFromBranch] = useState<Branch>(currentUser?.branch || activeBranches[0]?.key || 'main');
     const [toBranch, setToBranch] = useState<Branch>(
-        currentUser?.allowedBranches && currentUser.allowedBranches.length > 1 
-        ? currentUser.allowedBranches.find(b => b !== (currentUser.branch || 'main')) || 'branch1'
-        : 'branch1'
+        (currentUser?.allowedBranches && currentUser.allowedBranches.length > 1
+            ? currentUser.allowedBranches.find(b => b !== (currentUser.branch || activeBranches[0]?.key || 'main'))
+            : undefined) ||
+        activeBranches.find(b => b.key !== (currentUser?.branch || activeBranches[0]?.key || 'main'))?.key ||
+        activeBranches[0]?.key ||
+        'main'
     );
+
+    useEffect(() => {
+        if (!isOpen) return;
+        const firstKey = currentUser?.branch || activeBranches[0]?.key || 'main';
+        const secondKey =
+            activeBranches.find(b => b.key !== firstKey)?.key || firstKey;
+        setFromBranch(firstKey);
+        setToBranch(secondKey);
+    }, [isOpen, activeBranches, currentUser?.branch]);
     const [quantity, setQuantity] = useState(1);
     const [notes, setNotes] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -147,7 +157,7 @@ const StockTransferModal: React.FC<StockTransferModalProps> = ({ isOpen, onClose
                 {selectedProduct && (
                     <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg text-sm">
                         <p><strong>المنتج المختار:</strong> {selectedProduct.name}</p>
-                        <p><strong>الرصيد في الفروع:</strong> المخزن({selectedProduct.stock.main}), الرئيسي({selectedProduct.stock.branch1}), ف1({selectedProduct.stock.branch2}), ف2({selectedProduct.stock.branch3})</p>
+                        <p><strong>الرصيد في الفروع:</strong> {activeBranches.map(b => `${b.label}(${selectedProduct.stock?.[b.key] || 0})`).join('، ')}</p>
                     </div>
                 )}
                 
@@ -156,17 +166,19 @@ const StockTransferModal: React.FC<StockTransferModalProps> = ({ isOpen, onClose
                         <label>من فرع *</label>
                         <select value={fromBranch} onChange={e => setFromBranch(e.target.value as Branch)} className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700">
                             {currentUser?.role === 'admin' ? (
-                                Object.entries(branchNames).map(([key, name]) => <option key={key} value={key as Branch}>{name}</option>)
+                                activeBranches.map(b => <option key={b.key} value={b.key}>{b.label}</option>)
                             ) : (
-                                currentUser?.allowedBranches?.map(b => <option key={b} value={b}>{branchNames[b]}</option>)
-                                || <option value={currentUser?.branch}>{branchNames[currentUser?.branch as Branch] || currentUser?.branch}</option>
+                                (currentUser?.allowedBranches && currentUser.allowedBranches.length > 0
+                                    ? currentUser.allowedBranches.filter(b => activeBranches.some(ab => ab.key === b))
+                                    : [currentUser?.branch || activeBranches[0]?.key || 'main']
+                                ).map(b => <option key={b} value={b}>{branchNames[b] || getBranchLabel(b, activeBranches)}</option>)
                             )}
                         </select>
                     </div>
                      <div>
                         <label>إلى فرع *</label>
                         <select value={toBranch} onChange={e => setToBranch(e.target.value as Branch)} className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm dark:bg-gray-700">
-                            {Object.entries(branchNames).map(([key, name]) => <option key={key} value={key as Branch}>{name}</option>)}
+                            {activeBranches.map(b => <option key={b.key} value={b.key}>{b.label}</option>)}
                         </select>
                     </div>
                 </div>

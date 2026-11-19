@@ -7,6 +7,7 @@ import Modal from '../shared/Modal';
 import { formatCurrency, normalizeSaleItems, formatDateTime } from '../../lib/utils';
 import { generateInvoiceContent, triggerInvoicePrint } from '../../lib/reportTemplates';
 import useStore from '../../lib/store';
+import { getActiveBranches, getBranchLabel } from '../../lib/appConfig';
 
 import ProductName from '../shared/ProductName';
 
@@ -26,7 +27,8 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
         pendingScan,
         setPendingScan,
         dailyReviews,
-        setDailyReviews
+        setDailyReviews,
+        appCustomization
     } = useStore(state => ({
         dailySales: state.appData?.dailySales || [],
         products: state.appData?.products || [],
@@ -42,8 +44,11 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
         pendingScan: state.pendingScan,
         setPendingScan: state.setPendingScan,
         dailyReviews: state.appData?.dailyReview || [],
-        setDailyReviews: state.setDailyReviews
+        setDailyReviews: state.setDailyReviews,
+        appCustomization: state.appData?.appCustomization
     }));
+
+    const activeBranches = useMemo(() => getActiveBranches(appCustomization), [appCustomization]);
     
     const [filterDate, setFilterDate] = useState(new Date().toISOString().split('T')[0]);
     const [filterPeriod, setFilterPeriod] = useState<'daily' | 'weekly' | 'monthly' | 'yearly'>('daily');
@@ -559,7 +564,7 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
                     </div>
                 )}
 
-                {(currentUser?.role === 'admin' || (currentUser?.allowedBranches && currentUser.allowedBranches.length > 1)) && (
+                {activeBranches.length > 1 && (currentUser?.role === 'admin' || (currentUser?.allowedBranches && currentUser.allowedBranches.length > 1)) && (
                     <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">الفرع</label>
                         <select 
@@ -570,19 +575,14 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
                             {currentUser.role === 'admin' ? (
                                 <>
                                     <option value="all">الكل</option>
-                                    <option value="main">المخزن</option>
-                                    <option value="branch1">الرئيسي</option>
-                                    <option value="branch2">فرع 1</option>
-                                    <option value="branch3">فرع 2</option>
-                                </>
-                            ) : (
-                                <>
-                                    {currentUser.allowedBranches?.map(b => (
-                                        <option key={b} value={b}>
-                                            {b === 'main' ? 'المخزن' : b === 'branch1' ? 'الرئيسي' : b === 'branch2' ? 'فرع 1' : 'فرع 2'}
-                                        </option>
+                                    {activeBranches.map(b => (
+                                        <option key={b.key} value={b.key}>{b.label}</option>
                                     ))}
                                 </>
+                            ) : (
+                                activeBranches
+                                    .filter(b => currentUser.allowedBranches?.includes(b.key))
+                                    .map(b => <option key={b.key} value={b.key}>{b.label}</option>)
                             )}
                         </select>
                     </div>
@@ -792,7 +792,7 @@ const DailySales: React.FC<{ currentUser: User }> = ({ currentUser }) => {
                 <Modal 
                     isOpen={isCloseDayModalOpen} 
                     onClose={() => setCloseDayModalOpen(false)} 
-                    title={`تقفيل يومية: ${filterDate} - فرع: ${filterBranch === 'all' ? (currentUser.branch === 'main' ? 'الرئيسي' : currentUser.branch === 'branch1' ? 'فرع التوفيقية' : currentUser.branch) : (filterBranch === 'main' ? 'الرئيسي' : filterBranch === 'branch1' ? 'فرع التوفيقية' : filterBranch)}`} 
+                    title={`تقفيل يومية: ${filterDate} - فرع: ${getBranchLabel(filterBranch === 'all' ? (currentUser.branch || activeBranches[0]?.key || 'main') : filterBranch, activeBranches)}`} 
                     onSave={handleSaveCloseDay}
                     saveLabel="حفظ التقفيل"
                 >

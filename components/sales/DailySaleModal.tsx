@@ -4,6 +4,7 @@ import { formatCurrency, normalizeSaleItems } from '../../lib/utils';
 import Modal from '../shared/Modal';
 import BarcodeScannerModal from '../shared/BarcodeScannerModal';
 import useStore from '../../lib/store';
+import { getActiveBranches, getActiveCashiers, getBranchLabelMap } from '../../lib/appConfig';
 
 type EditableSaleItem = SaleItem & { productName: string; stock: number; hasSerialNumber?: boolean };
 
@@ -32,7 +33,7 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
     const [invoiceType, setInvoiceType] = useState<'wholesale' | 'retail'>('retail');
     const [discount, setDiscount] = useState<number>(0);
     const [isTaxable, setIsTaxable] = useState(false);
-    const [cashierLocation, setCashierLocation] = useState<'فوق' | 'تحت'>('تحت');
+    const [cashierLocation, setCashierLocation] = useState<string>('main');
     const [warrantyPeriod, setWarrantyPeriod] = useState<string>('');
     const [paymentMethod, setPaymentMethod] = useState<'نقدى' | 'إلكترونى' | 'مختلط' | 'آجل'>('نقدى');
     const [cashAmount, setCashAmount] = useState<number>(0);
@@ -51,24 +52,10 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
     const [showSecurityCheck, setShowSecurityCheck] = useState(false);
     const [securityError, setSecurityError] = useState('');
 
-    const appCustomization = useStore(state => (state.appData as any)?.appCustomization || {});
-    const defaultBranchNames: Record<Branch, string> = {
-        main: 'المخزن',
-        branch1: 'الرئيسي',
-        branch2: 'فرع 1',
-        branch3: 'فرع 2',
-    };
-    const configuredBranches: Array<{ key: Branch; label: string }> =
-        Array.isArray(appCustomization?.activeBranches) && appCustomization.activeBranches.length > 0
-            ? appCustomization.activeBranches
-            : (Object.entries(defaultBranchNames).map(([key, label]) => ({ key: key as Branch, label })));
-    const branchNames: Record<string, string> = Object.fromEntries(
-        configuredBranches.map(b => [b.key, b.label])
-    );
-    const configuredCashiers: Array<{ value: string; label: string }> =
-        Array.isArray(appCustomization?.cashiers) && appCustomization.cashiers.length > 0
-            ? appCustomization.cashiers
-            : [{ value: 'تحت', label: 'كاشير تحت' }, { value: 'فوق', label: 'كاشير فوق' }];
+    const appCustomization = useStore(state => state.appData?.appCustomization);
+    const configuredBranches = getActiveBranches(appCustomization);
+    const branchNames = getBranchLabelMap(configuredBranches);
+    const configuredCashiers = getActiveCashiers(appCustomization);
 
     const getStockBreakdown = (product: Product): string => {
         return configuredBranches
@@ -94,7 +81,7 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
                 setInvoiceType(existingSale.invoiceType || 'retail');
                 setDiscount(existingSale.discount || 0);
                 setIsTaxable(existingSale.isTaxable || false);
-                setCashierLocation(existingSale.cashierLocation || 'تحت');
+                setCashierLocation(existingSale.cashierLocation || configuredCashiers[0]?.value || 'main');
                 setWarrantyPeriod(existingSale.notes?.match(/ضمان: (.*)/)?.[1] || '');
                 setPaymentMethod(existingSale.paymentMethod || 'نقدى');
                 setCashAmount(existingSale.cashAmount || 0);
@@ -115,16 +102,20 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
                 });
                 setItems(editableItems);
             } else {
+                const defaultBranch = configuredBranches.some(b => b.key === currentUser.branch)
+                    ? currentUser.branch
+                    : (configuredBranches[0]?.key || 'main');
+                const defaultCashier = configuredCashiers[0]?.value || 'main';
                 setInvoiceNumber(generateInvoiceNumber());
                 setDate(new Date().toISOString().split('T')[0]);
                 setDirection('بيع');
-                setBranchSoldFrom('branch1');
+                setBranchSoldFrom(defaultBranch);
                 setNotes('');
                 setItems([]);
                 setInvoiceType('retail');
                 setIsTaxable(false);
                 setDiscount(0);
-                setCashierLocation('تحت');
+                setCashierLocation(defaultCashier);
                 setWarrantyPeriod('');
                 setPaymentMethod('نقدى');
                 setCashAmount(0);
@@ -509,6 +500,7 @@ const DailySaleModal: React.FC<DailySaleModalProps> = ({ isOpen, onClose, onSave
                             value={cashierLocation} 
                             onChange={e => setCashierLocation(e.target.value as any)} 
                             className="w-full mt-1 p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
+                            disabled={configuredCashiers.length <= 1}
                         >
                             {configuredCashiers.map((c) => (
                                 <option key={c.value} value={c.value}>{c.label}</option>

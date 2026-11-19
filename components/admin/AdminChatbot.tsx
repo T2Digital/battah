@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, FormEvent } from 'react';
 import useStore from '../../lib/store';
+import { getActiveBranches, getProductTotalStock } from '../../lib/appConfig';
 
 const AdminChatbot: React.FC = () => {
     const [isOpen, setIsOpen] = useState(false);
@@ -9,7 +10,7 @@ const AdminChatbot: React.FC = () => {
     
     const chatBodyRef = useRef<HTMLDivElement>(null);
 
-    const { products, orders, dailySales, treasury, employees, expenses, suppliers, advances, payroll } = useStore(state => ({
+    const { products, orders, dailySales, treasury, employees, expenses, suppliers, advances, payroll, appCustomization } = useStore(state => ({
         products: state.appData?.products || [],
         orders: state.appData?.orders || [],
         dailySales: state.appData?.dailySales || [],
@@ -19,7 +20,9 @@ const AdminChatbot: React.FC = () => {
         suppliers: state.appData?.suppliers || [],
         advances: state.appData?.advances || [],
         payroll: state.appData?.payroll || [],
+        appCustomization: state.appData?.appCustomization,
     }));
+    const activeBranches = getActiveBranches(appCustomization);
 
     useEffect(() => {
         if (chatBodyRef.current) {
@@ -38,7 +41,7 @@ const AdminChatbot: React.FC = () => {
             const balance = treasury.reduce((sum, t) => sum + (t.amountIn || 0) - (t.amountOut || 0), 0);
             const pendingOrders = orders.filter(o => o.status === 'pending').length;
             const confirmedOrders = orders.filter(o => o.status === 'confirmed').length;
-            const lowStockCount = products.filter(p => p.stock.main + p.stock.branch1 + p.stock.branch2 + p.stock.branch3 <= (p.reorderPoint || 3)).length;
+            const lowStockCount = products.filter(p => getProductTotalStock(p, activeBranches) <= (p.reorderPoint || 3)).length;
 
             return `تحت أمرك يا فندم، ده ملخص شامل لحركة اليوم (${today}):\n\n` +
                    `💰 **المبيعات:** ${todaySales.toLocaleString()} جنيه.\n` +
@@ -72,7 +75,7 @@ const AdminChatbot: React.FC = () => {
         // 4. Inventory Value & Capital
         if (/(قيمة البضاعة|راس المال|رأس المال|إجمالي المخزون|بضاعتنا بكام)/.test(lowerText)) {
             const totalValue = products.reduce((sum, p) => {
-                const totalStock = p.stock.main + p.stock.branch1 + p.stock.branch2 + p.stock.branch3;
+                const totalStock = getProductTotalStock(p, activeBranches);
                 return sum + (totalStock * p.purchasePrice);
             }, 0);
             return `إجمالي قيمة البضاعة الموجودة في كل الفروع (بسعر الشراء) هي: ${totalValue.toLocaleString()} جنيه يا فندم.`;
@@ -80,11 +83,11 @@ const AdminChatbot: React.FC = () => {
 
         // 5. Inventory / Low Stock
         if (/(نواقص|ناقص|خلصان|مخزون|بضاعة|جرد)/.test(lowerText)) {
-            const lowStock = products.filter(p => (p.stock.main + p.stock.branch1 + p.stock.branch2 + p.stock.branch3) <= (p.reorderPoint || 3));
+            const lowStock = products.filter(p => getProductTotalStock(p, activeBranches) <= (p.reorderPoint || 3));
             if (lowStock.length === 0) {
                 return "المخزون كله تمام يا فندم، مفيش أي نواقص حالياً والحمد لله.";
             }
-            const items = lowStock.slice(0, 5).map(p => `🔸 ${p.name} (باقي ${p.stock.main + p.stock.branch1 + p.stock.branch2 + p.stock.branch3})`).join('\n');
+            const items = lowStock.slice(0, 5).map(p => `🔸 ${p.name} (باقي ${getProductTotalStock(p, activeBranches)})`).join('\n');
             return `خلي بالك يا هندسة، عندنا ${lowStock.length} أصناف رصيدهم قل جداً ومحتاجين نطلبهم. دي أهم 5 أصناف:\n${items}\nتقدر تراجع قسم التقارير عشان تشوف القائمة كاملة.`;
         }
 
@@ -99,11 +102,11 @@ const AdminChatbot: React.FC = () => {
                 
                 if (foundProducts.length === 1) {
                     const p = foundProducts[0];
-                    const totalStock = p.stock.main + p.stock.branch1 + p.stock.branch2 + p.stock.branch3;
+                    const totalStock = getProductTotalStock(p, activeBranches);
                     return `المنتج: ${p.name}\nالكود: ${p.sku}\nسعر البيع: ${p.sellingPrice} جنيه\nالرصيد الكلي: ${totalStock} قطعة.`;
                 }
                 
-                const items = foundProducts.slice(0, 3).map(p => `- ${p.name} (${p.sellingPrice} ج) - رصيد: ${p.stock.main + p.stock.branch1 + p.stock.branch2 + p.stock.branch3}`).join('\n');
+                const items = foundProducts.slice(0, 3).map(p => `- ${p.name} (${p.sellingPrice} ج) - رصيد: ${getProductTotalStock(p, activeBranches)}`).join('\n');
                 return `لقيت أكتر من منتج بالاسم ده، دي أقرب نتايج:\n${items}`;
             }
         }

@@ -303,7 +303,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Path A: Brand Owner Admin
     if (safeEqualText(emailInput, expectedEmail)) {
-      const authRec = await readShard(`t2_erp_${slug}__auth`);
+      const [authRec, catalogRec] = await Promise.all([
+        readShard(`t2_erp_${slug}__auth`),
+        readShard(`t2_erp_${slug}__catalog`),
+      ]);
       const passMatch = authRec?.hash && authRec?.salt
         ? verifyPasswordScrypt(passInput, String(authRec.hash), String(authRec.salt))
         : defaultPass.length > 0 && safeEqualText(passInput, defaultPass);
@@ -312,6 +315,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(401).json({ ok: false, error: 'بيانات الدخول غير صحيحة لهذا البراند' });
       }
 
+      const activeBranches: Array<{ key: string; label: string }> =
+        (Array.isArray(catalogRec?.appCustomization?.activeBranches) && catalogRec.appCustomization.activeBranches.length > 0
+          ? catalogRec.appCustomization.activeBranches
+          : Array.isArray(cfg?.appCustomization?.activeBranches) && cfg.appCustomization.activeBranches.length > 0
+            ? cfg.appCustomization.activeBranches
+            : [{ key: 'main', label: 'الفرع الرئيسي' }]);
+      const defaultBranchKey = String(activeBranches[0]?.key || 'main');
+      const allowedBranchKeys = activeBranches.map((b) => String(b.key)).filter(Boolean);
+
       const brandName = String(cfg.name || slug);
       const userObj = {
         id: `admin_${slug}`,
@@ -319,8 +331,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         email: expectedEmail,
         name: `مدير ${brandName}`,
         role: 'admin',
-        branch: 'main',
-        allowedBranches: ['main', 'branch1', 'branch2', 'branch3'],
+        branch: defaultBranchKey,
+        allowedBranches: allowedBranchKeys.length > 0 ? allowedBranchKeys : [defaultBranchKey],
         brandSlug: slug,
         permissions: FULL_ADMIN_PERMISSIONS,
       };

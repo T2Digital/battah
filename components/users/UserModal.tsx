@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { User, Role, Branch, Section } from '../../types';
 import { motion, AnimatePresence } from 'framer-motion';
+import useStore from '../../lib/store';
+import { getActiveBranches } from '../../lib/appConfig';
 
 interface UserModalProps {
     isOpen: boolean;
@@ -10,12 +12,16 @@ interface UserModalProps {
 }
 
 const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose, onSave, existingUser }) => {
+    const appCustomization = useStore(state => state.appData?.appCustomization);
+    const activeBranches = getActiveBranches(appCustomization);
+    const defaultBranchKey = activeBranches[0]?.key || 'main';
+
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [role, setRole] = useState<Role>(Role.Seller);
-    const [branch, setBranch] = useState<Branch>('main');
-    const [allowedBranches, setAllowedBranches] = useState<Branch[]>(['main']);
+    const [branch, setBranch] = useState<Branch>(defaultBranchKey);
+    const [allowedBranches, setAllowedBranches] = useState<Branch[]>([defaultBranchKey]);
     const [permissions, setPermissions] = useState<Section[]>([]);
     const [loading, setLoading] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
@@ -33,11 +39,11 @@ const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose, onSave, existing
             setEmail('');
             setPassword('');
             setRole(Role.Seller);
-            setBranch('main');
-            setAllowedBranches(['main']);
+            setBranch(defaultBranchKey);
+            setAllowedBranches([defaultBranchKey]);
             setPermissions([]);
         }
-    }, [existingUser]);
+    }, [existingUser, defaultBranchKey]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -188,28 +194,27 @@ const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose, onSave, existing
                                     onChange={e => setBranch(e.target.value as Branch)}
                                     className="w-full p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                                 >
-                                    <option value="main">المخزن</option>
-                                    <option value="branch1">الرئيسي</option>
-                                    <option value="branch2">فرع 1</option>
-                                    <option value="branch3">فرع 2</option>
+                                    {activeBranches.map(b => (
+                                        <option key={b.key} value={b.key}>{b.label}</option>
+                                    ))}
                                 </select>
                             </div>
                             <div className="md:col-span-2">
                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">الفروع المتاحة للمستخدم (يستطيع التبديل بينها)</label>
                                 <div className="flex flex-wrap gap-3 p-3 border rounded-lg dark:border-gray-600 bg-gray-50 dark:bg-gray-800">
-                                    {(['main', 'branch1', 'branch2', 'branch3'] as Branch[]).map(b => (
-                                        <label key={b} className="flex items-center gap-2 cursor-pointer">
+                                    {activeBranches.map(b => (
+                                        <label key={b.key} className="flex items-center gap-2 cursor-pointer">
                                             <input 
                                                 type="checkbox"
-                                                checked={allowedBranches.includes(b)}
+                                                checked={allowedBranches.includes(b.key)}
                                                 onChange={(e) => {
-                                                    if (e.target.checked) setAllowedBranches([...allowedBranches, b]);
-                                                    else setAllowedBranches(allowedBranches.filter(br => br !== b));
+                                                    if (e.target.checked) setAllowedBranches([...allowedBranches, b.key]);
+                                                    else setAllowedBranches(allowedBranches.filter(br => br !== b.key));
                                                 }}
                                                 className="w-4 h-4 text-primary focus:ring-primary rounded"
                                             />
                                             <span className="text-sm dark:text-gray-300">
-                                                {b === 'main' ? 'المخزن' : b === 'branch1' ? 'الرئيسي' : b === 'branch2' ? 'فرع 1' : 'فرع 2'}
+                                                {b.label}
                                             </span>
                                         </label>
                                     ))}
