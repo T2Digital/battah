@@ -1,35 +1,103 @@
-import React from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import useStore from '../../lib/store';
+import { formatCurrency } from '../../lib/utils';
+import { getShippingConfig } from '../../lib/appConfig';
 
-const PromotionBanner: React.FC = () => {
-    const { appData } = useStore();
-    const tickerMessages = appData?.settings?.tickerMessages || [
-        "🔥 شحن مجاني للطلبات فوق 2000 جنيه! 🔥",
-        "خصم 10% على فلاتر Bosch هذا الأسبوع!",
-        "🚗 كل ما تحتاجه سيارتك في مكان واحد 🚗"
-    ];
+interface PromotionBannerProps {
+    cartSubtotal?: number;
+    onExploreDeals?: () => void;
+}
+
+const DEFAULT_TICKER_MESSAGES = [
+    'شحن سريع وموثوق لجميع محافظات مصر مع تتبع مباشر للطلب',
+    'منتجات أصلية 100% مضمونة ومفحوصة قبل التغليف',
+    'دفع آمن عند الاستلام أو عبر المحافظ الإلكترونية وإنستاباي',
+];
+
+const PromotionBanner: React.FC<PromotionBannerProps> = ({ cartSubtotal = 0, onExploreDeals }) => {
+    const appData = useStore(state => state.appData);
+    const shippingConfig = useMemo(
+        () => getShippingConfig(appData?.appCustomization),
+        [appData?.appCustomization]
+    );
+
+    const tickerMessages = useMemo(() => {
+        const msgs = appData?.settings?.tickerMessages;
+        if (Array.isArray(msgs) && msgs.filter(Boolean).length > 0) {
+            return msgs.filter(Boolean);
+        }
+        if (shippingConfig.freeShippingThreshold > 0) {
+            return [
+                `شحن مجاني للطلبات فوق ${formatCurrency(shippingConfig.freeShippingThreshold)} 🚚`,
+                ...DEFAULT_TICKER_MESSAGES.slice(1),
+            ];
+        }
+        return DEFAULT_TICKER_MESSAGES;
+    }, [appData?.settings?.tickerMessages, shippingConfig.freeShippingThreshold]);
+
+    const [activeIndex, setActiveIndex] = useState(0);
+
+    useEffect(() => {
+        if (tickerMessages.length <= 1) return;
+        const timer = setInterval(() => {
+            setActiveIndex(prev => (prev + 1) % tickerMessages.length);
+        }, 4500);
+        return () => clearInterval(timer);
+    }, [tickerMessages.length]);
+
+    const freeThreshold = shippingConfig.freeShippingThreshold || 0;
+    const showLiveCartIncentive = cartSubtotal > 0 && freeThreshold > 0;
+    const remaining = showLiveCartIncentive ? Math.max(0, freeThreshold - cartSubtotal) : 0;
+    const progress = showLiveCartIncentive ? Math.min(100, (cartSubtotal / freeThreshold) * 100) : 0;
 
     return (
-        <div className="bg-gradient-to-r from-gray-900 via-primary-dark to-gray-900 dark:from-black dark:via-primary-dark dark:to-black text-white text-xs sm:text-sm font-bold py-2.5 overflow-hidden whitespace-nowrap relative shadow-sm z-50">
-            {/* Decorative elements */}
-            <div className="absolute inset-y-0 left-0 w-16 bg-gradient-to-r from-gray-900 dark:from-black to-transparent z-10 pointer-events-none"></div>
-            <div className="absolute inset-y-0 right-0 w-16 bg-gradient-to-l from-gray-900 dark:from-black to-transparent z-10 pointer-events-none"></div>
-            
-            <div className="inline-block animate-ticker">
-                {tickerMessages.map((msg, index) => (
-                    <span key={index} className="mx-8 inline-flex items-center gap-2">
-                        <span className="w-1.5 h-1.5 rounded-full bg-primary-light animate-pulse"></span>
-                        <span className="tracking-wide">{msg}</span>
-                    </span>
-                ))}
-                 {/* Duplicate for seamless loop */}
-                 {tickerMessages.map((msg, index) => (
-                    <span key={`dup-${index}`} className="mx-8 inline-flex items-center gap-2">
-                        <span className="w-1.5 h-1.5 rounded-full bg-primary-light animate-pulse"></span>
-                        <span className="tracking-wide">{msg}</span>
-                    </span>
-                ))}
+        <div className="relative bg-[#060913] text-white border-b border-white/10 py-2 px-3 sm:px-6 z-50 overflow-hidden">
+            <div className="container mx-auto flex items-center justify-center gap-3 text-[11px] sm:text-xs font-bold leading-snug">
+                {showLiveCartIncentive ? (
+                    <div className="flex items-center justify-center gap-2 text-center">
+                        <span
+                            className={`w-2 h-2 rounded-full shrink-0 ${
+                                remaining === 0 ? 'bg-emerald-400 animate-ping' : 'bg-primary animate-pulse'
+                            }`}
+                        />
+                        {remaining > 0 ? (
+                            <span className="text-slate-100">
+                                أضف <strong className="text-sky-300 tabular-nums">{formatCurrency(remaining)}</strong> فقط للحصول على شحن مجاني! 🚚
+                            </span>
+                        ) : (
+                            <span className="text-emerald-300">
+                                🎉 مبروك! طلبك مؤهل للشحن المجاني الآن
+                            </span>
+                        )}
+                    </div>
+                ) : (
+                    <div key={activeIndex} className="flex items-center justify-center gap-2.5 text-center animate-fade-in">
+                        <span className="w-2 h-2 rounded-full bg-primary animate-pulse shrink-0" />
+                        <span className="text-slate-100 tracking-wide truncate max-w-[82vw] sm:max-w-2xl">
+                            {tickerMessages[activeIndex % tickerMessages.length]}
+                        </span>
+                        {onExploreDeals && (
+                            <button
+                                type="button"
+                                onClick={onExploreDeals}
+                                className="hidden sm:inline-flex items-center gap-1 text-[11px] font-extrabold text-sky-300 hover:text-white bg-white/10 hover:bg-white/15 px-2.5 py-0.5 rounded-full border border-white/10 transition-colors shrink-0"
+                            >
+                                <span>تصفح العروض</span>
+                                <i className="fas fa-arrow-left text-[9px]" />
+                            </button>
+                        )}
+                    </div>
+                )}
             </div>
+
+            {showLiveCartIncentive && (
+                <div className="absolute bottom-0 inset-x-0 h-[2px] bg-white/10">
+                    <div
+                        className={`h-full transition-all duration-500 ${remaining === 0 ? 'bg-emerald-400' : 'bg-primary'}`}
+                        style={{ width: `${progress}%` }}
+                    />
+                </div>
+            )}
         </div>
     );
 };

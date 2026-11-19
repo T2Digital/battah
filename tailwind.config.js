@@ -66,6 +66,18 @@ export default {
           '0%, 100%': { transform: 'translateY(0)' },
           '50%': { transform: 'translateY(-6px)' },
         },
+        shimmer: {
+          '0%': { backgroundPosition: '200% 0' },
+          '100%': { backgroundPosition: '-200% 0' },
+        },
+        floatSlow: {
+          '0%, 100%': { transform: 'translateY(0px)' },
+          '50%': { transform: 'translateY(-8px)' },
+        },
+        scaleIn: {
+          '0%': { opacity: '0', transform: 'scale(0.96)' },
+          '100%': { opacity: '1', transform: 'scale(1)' },
+        },
       },
       animation: {
         ticker: 'ticker 60s linear infinite',
@@ -76,6 +88,9 @@ export default {
         'slow-zoom': 'slowZoom 14s ease-out forwards',
         'bounce-short': 'bounceShort 0.9s ease-in-out infinite',
         'bounce-slow': 'bounceSlow 2.6s ease-in-out infinite',
+        shimmer: 'shimmer 1.6s linear infinite',
+        'float-slow': 'floatSlow 5s ease-in-out infinite',
+        'scale-in': 'scaleIn 0.25s ease-out forwards',
       },
     },
   },

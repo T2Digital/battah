@@ -8,9 +8,15 @@ interface AIChatbotProps {
     setSelectedProduct: (product: Product | null) => void;
     addToCart: (product: Product, quantity: number) => void;
     openCart: () => void;
+    hasCartItems?: boolean;
 }
 
-const AIChatbot: React.FC<AIChatbotProps> = ({ setSelectedProduct, addToCart, openCart }) => {
+const AIChatbot: React.FC<AIChatbotProps> = ({
+    setSelectedProduct,
+    addToCart,
+    openCart,
+    hasCartItems = false,
+}) => {
     const [isOpen, setIsOpen] = useState(false);
     const [messages, setMessages] = useState<{ text: string; sender: 'user' | 'bot' }[]>([]);
     const [input, setInput] = useState('');
@@ -84,24 +90,23 @@ const AIChatbot: React.FC<AIChatbotProps> = ({ setSelectedProduct, addToCart, op
                 }
             ];
 
-            const systemInstruction = `أنت "مساعد أوتو هاوس الذكي"، شخصيتك هي مهندس صيانة سيارات مخضرم وموظف مبيعات محترف في متجر "أوتو هاوس" لقطع غيار السيارات.
-لديك خبرة واسعة في تشخيص أعطال السيارات وتقديم النصائح الفنية الدقيقة.
-أسلوبك في الكلام: ودود، شعبي مصري (يا ريس، يا هندسة، يا باشا)، واثق، ومساعد جداً.
+            const systemInstruction = `أنت "مساعد ${branding.companyName} الذكي"، مستشار مبيعات محترف وودود في متجر "${branding.companyName}".
+أسلوبك في الكلام: ودود، مصري احترافي وبسيط، ومساعد جداً.
 
 مهامك:
-1. تشخيص أعطال السيارات بناءً على وصف العميل واقتراح قطع الغيار المناسبة.
-2. مساعدة العميل في العثور على المنتجات في المتجر باستخدام أداة search_products.
-3. عند عرض المنتجات للعميل، يجب عليك دائماً ذكر السعر بوضوح وتنسيق الرد في شكل قائمة منظمة وسهلة القراءة.
+1. مساعدة العميل في اختيار المنتج الأنسب لاحتياجاته واقتراح بدائل مناسبة.
+2. البحث عن المنتجات المتاحة في المتجر باستخدام أداة search_products.
+3. عند عرض المنتجات للعميل، ذكر السعر بوضوح وتنسيق الرد في قائمة منظمة وسهلة القراءة.
 4. إضافة المنتجات للسلة للعميل باستخدام أداة add_to_cart عند طلبه ذلك.
 5. توجيه العميل لإتمام الطلب باستخدام أداة open_checkout.
-6. تقديم معلومات المتجر (الفروع: رمسيس والتوفيقية، التليفون: 01080444447).
+6. تقديم معلومات المتجر المتوفرة (العنوان: ${branding.address || 'مصر'}، رقم التواصل: ${branding.contactPhone || 'عبر المتجر'}).
 
 قواعد هامة للتنسيق:
 - عند عرض المنتجات، استخدم التنسيق التالي لكل منتج:
   * [اسم المنتج]
   * السعر: [السعر] ج.م
   * كود المنتج (ID): [رقم الكود]
-- افصل بين كل منتج والآخر بسطر فارغ ليكون الكلام واضح.
+- افصل بين كل منتج والآخر بسطر فارغ.
 - لا تخترع منتجات غير موجودة، استخدم دائماً أداة البحث للتأكد.
 - إذا طلب العميل إضافة شيء للسلة، ابحث عنه أولاً ثم استخدم add_to_cart.`;
 
@@ -184,48 +189,60 @@ const AIChatbot: React.FC<AIChatbotProps> = ({ setSelectedProduct, addToCart, op
             {/* Floating Button */}
             {!isOpen && (
                 <button
+                    type="button"
                     onClick={() => setIsOpen(true)}
-                    className="fixed bottom-24 left-4 md:bottom-5 md:left-5 z-50 w-12 h-12 sm:w-14 sm:h-14 bg-primary text-white rounded-full shadow-lg flex items-center justify-center hover:bg-primary-dark transition-transform hover:scale-110 animate-bounce-slow"
+                    className={`fixed ${
+                        hasCartItems ? 'bottom-[9.2rem]' : 'bottom-[5rem]'
+                    } left-3.5 md:bottom-6 md:left-6 z-[45] w-12 h-12 sm:w-14 sm:h-14 bg-primary text-white rounded-full brand-glow shadow-xl flex items-center justify-center hover:bg-primary-dark transition-all hover:scale-110`}
                     aria-label="افتح المساعد الذكي"
                 >
-                    <i className="fas fa-robot text-xl sm:text-2xl"></i>
+                    <i className="fas fa-robot text-lg sm:text-2xl" />
                 </button>
             )}
 
             {/* Chat Window */}
             {isOpen && (
-                <div className="fixed bottom-0 left-0 right-0 md:bottom-5 md:left-5 md:right-auto md:w-[380px] h-[85dvh] md:h-[550px] bg-white dark:bg-gray-800 md:rounded-2xl shadow-2xl flex flex-col overflow-hidden border-t md:border border-gray-200 dark:border-gray-700 font-cairo z-[60]">
+                <div className="fixed bottom-0 left-0 right-0 md:bottom-6 md:left-6 md:right-auto md:w-[380px] h-[85dvh] md:h-[550px] bg-white dark:bg-[#0d1323] md:rounded-2xl shadow-2xl flex flex-col overflow-hidden border-t md:border border-slate-200 dark:border-white/10 font-cairo z-[95]">
                     {/* Header */}
                     <div className="bg-primary p-4 flex justify-between items-center text-white shadow-md">
                         <div className="flex items-center gap-3">
                             <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-primary shadow-inner">
-                                <i className="fas fa-user-astronaut text-xl"></i>
+                                <i className="fas fa-robot text-lg" />
                             </div>
                             <div>
                                 <h3 className="font-bold text-sm truncate max-w-[200px]">مساعد {branding.companyName}</h3>
                                 <p className="text-xs text-blue-100 flex items-center gap-1">
-                                    <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
-                                    متصل الآن
+                                    <span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
+                                    متصل الآن للمساعدة الفورية
                                 </p>
                             </div>
                         </div>
-                        <button onClick={() => setIsOpen(false)} className="text-white hover:text-gray-200 p-2 rounded-full hover:bg-white/10 transition-colors">
-                            <i className="fas fa-times text-xl"></i>
+                        <button
+                            type="button"
+                            onClick={() => setIsOpen(false)}
+                            aria-label="إغلاق المساعد"
+                            className="text-white hover:text-gray-200 p-2 rounded-full hover:bg-white/10 transition-colors"
+                        >
+                            <i className="fas fa-times text-xl" />
                         </button>
                     </div>
 
                     {/* Messages Body */}
-                    <div ref={chatBodyRef} className="flex-grow overflow-y-auto p-4 space-y-4 bg-gray-50 dark:bg-gray-900">
+                    <div ref={chatBodyRef} className="flex-grow overflow-y-auto p-4 space-y-4 bg-slate-50 dark:bg-[#060913]">
                         {messages.length === 0 && (
-                            <div className="text-center text-gray-500 text-sm mt-10">
-                                <i className="fas fa-robot text-5xl mb-4 text-gray-300 dark:text-gray-600"></i>
-                                <p className="font-bold text-gray-700 dark:text-gray-300 mb-2">أهلاً يا باشا! 👋</p>
-                                <p className="leading-relaxed mb-4">أنا "مساعد أوتو هاوس"، معاك لو محتاج أي قطعة غيار أو عندك مشكلة في عربيتك.</p>
+                            <div className="text-center text-slate-500 text-sm mt-8">
+                                <i className="fas fa-robot text-5xl mb-4 text-slate-300 dark:text-slate-600" />
+                                <p className="font-extrabold text-slate-800 dark:text-slate-200 mb-2">
+                                    أهلاً بك في {branding.companyName}! 👋
+                                </p>
+                                <p className="leading-relaxed mb-4 text-xs sm:text-sm">
+                                    أنا المساعد الذكي للمتجر، اسألني عن أي منتج أو عرض وسأساعدك فوراً.
+                                </p>
                                 <div className="flex flex-wrap justify-center gap-2">
-                                    <button onClick={() => handleQuickReply('العربية بتسخن')} className="px-3 py-1.5 bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 rounded-full text-xs hover:bg-blue-200 transition-colors border border-blue-200 dark:border-blue-800">العربية بتسخن</button>
-                                    <button onClick={() => handleQuickReply('صوت تصفير في الفرامل')} className="px-3 py-1.5 bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 rounded-full text-xs hover:bg-blue-200 transition-colors border border-blue-200 dark:border-blue-800">تصفير في الفرامل</button>
-                                    <button onClick={() => handleQuickReply('عنوان المحل فين؟')} className="px-3 py-1.5 bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 rounded-full text-xs hover:bg-blue-200 transition-colors border border-blue-200 dark:border-blue-800">عنوان المحل فين؟</button>
-                                    <button onClick={() => handleQuickReply('رقم التليفون للتواصل')} className="px-3 py-1.5 bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 rounded-full text-xs hover:bg-blue-200 transition-colors border border-blue-200 dark:border-blue-800">رقم التليفون</button>
+                                    <button type="button" onClick={() => handleQuickReply('أقوى العروض المتاحة؟')} className="px-3 py-1.5 bg-primary/10 text-primary rounded-full text-xs font-bold hover:bg-primary hover:text-white transition-colors border border-primary/20">أقوى العروض المتاحة؟</button>
+                                    <button type="button" onClick={() => handleQuickReply('ساعدني أختار منتج مناسب')} className="px-3 py-1.5 bg-primary/10 text-primary rounded-full text-xs font-bold hover:bg-primary hover:text-white transition-colors border border-primary/20">ساعدني أختار منتج مناسب</button>
+                                    <button type="button" onClick={() => handleQuickReply('سياسة الشحن والتوصيل؟')} className="px-3 py-1.5 bg-primary/10 text-primary rounded-full text-xs font-bold hover:bg-primary hover:text-white transition-colors border border-primary/20">سياسة الشحن والتوصيل؟</button>
+                                    <button type="button" onClick={() => handleQuickReply('طرق التواصل والعنوان؟')} className="px-3 py-1.5 bg-primary/10 text-primary rounded-full text-xs font-bold hover:bg-primary hover:text-white transition-colors border border-primary/20">طرق التواصل والعنوان؟</button>
                                 </div>
                             </div>
                         )}

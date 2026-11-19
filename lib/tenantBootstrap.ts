@@ -91,14 +91,29 @@ function renderTrialExpiredPaywall(brand: TenantBrandConfig) {
   document.body.appendChild(overlay);
 }
 
+function hexToRgbString(hex: string): string {
+  const cleaned = String(hex || '').replace('#', '').trim();
+  let full = cleaned;
+  if (cleaned.length === 3) {
+    full = cleaned.split('').map((c) => c + c).join('');
+  }
+  if (!/^[0-9a-fA-F]{6}$/.test(full)) {
+    return '2, 132, 199';
+  }
+  const num = parseInt(full, 16);
+  return `${(num >> 16) & 255}, ${(num >> 8) & 255}, ${num & 255}`;
+}
+
 export function applyDynamicPwaAndTheme(brand: Partial<TenantBrandConfig>) {
   if (typeof document === 'undefined') return;
   const rawPrimary = String(brand.primaryColor || '#0284c7').trim();
   const primary = rawPrimary.toLowerCase() === '#00f0ff' ? '#0284c7' : rawPrimary;
   const accent = brand.accentColor || '#0f172a';
+  const primaryRgb = hexToRgbString(primary);
 
   document.documentElement.style.setProperty('--primary', primary);
   document.documentElement.style.setProperty('--brand-primary', primary);
+  document.documentElement.style.setProperty('--brand-primary-rgb', primaryRgb);
   document.documentElement.style.setProperty('--brand-accent', accent);
 
   // Inject dynamic theme override so primary buttons, headers & badges match brand logo identity
@@ -109,9 +124,10 @@ export function applyDynamicPwaAndTheme(brand: Partial<TenantBrandConfig>) {
     document.head.appendChild(styleEl);
   }
   styleEl.textContent = `
-    .bg-primary, .bg-emerald-600, .bg-cyan-600, .bg-teal-600 { background-color: ${primary} !important; }
+    .bg-primary, .bg-cyan-600, .bg-teal-600 { background-color: ${primary} !important; }
     .text-primary { color: ${primary} !important; }
     .border-primary { border-color: ${primary} !important; }
+    .ring-primary { --tw-ring-color: ${primary} !important; }
   `;
 
   let themeMeta = document.querySelector('meta[name="theme-color"]') as HTMLMetaElement | null;

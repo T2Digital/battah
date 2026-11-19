@@ -1,35 +1,48 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { Helmet } from 'react-helmet-async';
 import useStore from '../../lib/store';
-import { Product, CartItem, OrderItem, Order, Broadcast } from '../../types';
+import { Product, CartItem, OrderItem, Order } from '../../types';
 
 import StoreHeader from './StoreHeader';
 import StoreHero from './StoreHero';
+import TrustValueBar from './TrustValueBar';
 import StoreProducts from './StoreProducts';
 import StoreProductModal from './StoreProductModal';
 import StoreCart from './StoreCart';
-import CheckoutModal from './CheckoutModal';
+import CheckoutModal, { PlacedOrderResult } from './CheckoutModal';
 import FeaturedProductsSection from './FeaturedProductsSection';
 import NewArrivalsSection from './NewArrivalsSection';
+import RecentlyViewedSection from './RecentlyViewedSection';
 import PromotionBanner from './PromotionBanner';
 import CustomerNotifications from './CustomerNotifications';
 import CategoryHighlights from './CategoryHighlights';
+import SocialProofBand from './SocialProofBand';
+import MobileBottomNav from './MobileBottomNav';
 import AIChatbot from '../shared/AIChatbot';
 import MyOrdersModal from './MyOrdersModal';
 import InstallPrompt from '../shared/InstallPrompt';
 import FloatingCheckoutButton from './FloatingCheckoutButton';
-
 import StoreFooter from './StoreFooter';
 import { initStorePixels, trackStoreEvent } from '../../utils/pixels';
 import { StoreFilters, DEFAULT_STORE_FILTERS, getStoreBranding } from '../../lib/appConfig';
-import { PlacedOrderResult } from './CheckoutModal';
 
 interface StorefrontProps {
     setViewMode: (mode: 'admin' | 'store') => void;
 }
 
 const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
-    const { storefrontSettings, createOrder, broadcasts, fetchProducts, searchProducts, fetchProductsByIds, pendingScan, setPendingScan } = useStore(state => ({
+    const {
+        storefrontSettings,
+        createOrder,
+        broadcasts,
+        fetchProducts,
+        searchProducts,
+        fetchProductsByIds,
+        pendingScan,
+        setPendingScan,
+        storeProducts,
+        globalLoading,
+    } = useStore(state => ({
         storefrontSettings: state.appData?.storefrontSettings,
         createOrder: state.createOrder,
         broadcasts: state.appData?.broadcasts || [],
@@ -37,7 +50,9 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
         searchProducts: state.searchProducts,
         fetchProductsByIds: state.fetchProductsByIds,
         pendingScan: state.pendingScan,
-        setPendingScan: state.setPendingScan
+        setPendingScan: state.setPendingScan,
+        storeProducts: state.appData?.products || [],
+        globalLoading: state.isLoading,
     }));
 
     const [products, setProducts] = useState<Product[]>([]);
@@ -51,8 +66,37 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
     const [cartItems, setCartItems] = useState<CartItem[]>([]);
     const [notification, setNotification] = useState('');
     const [filters, setFilters] = useState<StoreFilters>(DEFAULT_STORE_FILTERS);
+    const [onlyDiscounted, setOnlyDiscounted] = useState(false);
+    const [showWishlistOnly, setShowWishlistOnly] = useState(false);
 
-    // Fetch featured and new arrivals
+    const [wishlistIds, setWishlistIds] = useState<number[]>(() => {
+        try {
+            const raw = localStorage.getItem('storeWishlist');
+            const parsed = raw ? JSON.parse(raw) : [];
+            return Array.isArray(parsed) ? parsed.filter((x): x is number => typeof x === 'number') : [];
+        } catch {
+            return [];
+        }
+    });
+
+    const [recentlyViewedIds, setRecentlyViewedIds] = useState<number[]>(() => {
+        try {
+            const raw = localStorage.getItem('storeRecentlyViewed');
+            const parsed = raw ? JSON.parse(raw) : [];
+            return Array.isArray(parsed) ? parsed.filter((x): x is number => typeof x === 'number') : [];
+        } catch {
+            return [];
+        }
+    });
+
+    // Clear quick deals/wishlist flags when switching main categories
+    useEffect(() => {
+        if (filters.category !== 'all') {
+            setShowWishlistOnly(false);
+        }
+    }, [filters.category]);
+
+    // Fetch pinned featured and new arrivals
     useEffect(() => {
         const loadFeatured = async () => {
             if (storefrontSettings?.featuredProductIds?.length) {
@@ -65,7 +109,7 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
             }
         };
         loadFeatured();
-    }, [storefrontSettings]);
+    }, [storefrontSettings, fetchProductsByIds]);
 
     // Initialize Multi-Platform Tracking Pixels (Meta / TikTok / Google / Snapchat)
     useEffect(() => {
@@ -90,8 +134,6 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
         }
     }, [selectedProduct]);
 
-    const storeProducts = useStore(state => state.appData?.products || []);
-
     // Fetch products based on filters or live storeProducts updates
     useEffect(() => {
         const load = async () => {
@@ -110,14 +152,12 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
                 setLoading(false);
             }
         };
-        
-        // Debounce search
-        const timer = setTimeout(load, filters.search ? 500 : 0);
+
+        const timer = setTimeout(load, filters.search ? 350 : 0);
         return () => clearTimeout(timer);
-    }, [filters.category, filters.search, storeProducts]);
+    }, [filters.category, filters.search, storeProducts, fetchProducts, searchProducts]);
 
     // Handle Smart Scanning from Hash or pendingScan
-    const globalLoading = useStore(state => state.isLoading);
     useEffect(() => {
         const handleScan = async (sku: string) => {
             let finalSku = sku.trim();
@@ -127,33 +167,41 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
             if (!finalSku) return;
             setLoading(true);
             try {
-                // Try to find in local products first to speed up
-                let exactMatch = useStore.getState().appData?.products?.find(p => String(p.sku || '').toLowerCase() === finalSku.toLowerCase() || String(p.id) === finalSku);
-                
+                let exactMatch = useStore
+                    .getState()
+                    .appData?.products?.find(
+                        p =>
+                            String(p.sku || '').toLowerCase() === finalSku.toLowerCase() ||
+                            String(p.id) === finalSku
+                    );
+
                 if (!exactMatch) {
                     const results = await searchProducts(finalSku);
-                    exactMatch = results.find(p => String(p.sku || '').toLowerCase() === finalSku.toLowerCase() || String(p.id) === finalSku);
+                    exactMatch = results.find(
+                        p =>
+                            String(p.sku || '').toLowerCase() === finalSku.toLowerCase() ||
+                            String(p.id) === finalSku
+                    );
                 }
-                
+
                 if (exactMatch) {
-                    setSelectedProduct(exactMatch);
+                    handleSelectProduct(exactMatch);
                 } else {
-                    alert(`لم يتم العثور على المنتج بالباركود: ${finalSku}`);
+                    setNotification(`لم يتم العثور على المنتج بالباركود: ${finalSku}`);
                 }
             } catch (error) {
-                console.error("Error finding scanned product:", error);
+                console.error('Error finding scanned product:', error);
             } finally {
                 setLoading(false);
             }
         };
 
         const scanEventObj = (e: CustomEvent<string>) => handleScan(e.detail);
-        
         window.addEventListener('scan-store-product', scanEventObj as EventListener);
-        
+
         if (!globalLoading && pendingScan) {
             handleScan(pendingScan);
-            setPendingScan(null); // clear it
+            setPendingScan(null);
         }
 
         return () => window.removeEventListener('scan-store-product', scanEventObj as EventListener);
@@ -164,21 +212,25 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
         if (broadcasts.length > 0) {
             const latestBroadcast = broadcasts[0];
             const seenBroadcasts = JSON.parse(localStorage.getItem('seenBroadcasts') || '[]');
-            
-            // Check if latest broadcast is seen
             if (!seenBroadcasts.includes(latestBroadcast.id)) {
-                // Show notification
                 setNotification(`📢 ${latestBroadcast.message}`);
-                
-                // Mark as seen
                 seenBroadcasts.push(latestBroadcast.id);
                 localStorage.setItem('seenBroadcasts', JSON.stringify(seenBroadcasts));
             }
         }
     }, [broadcasts]);
 
-    const handleSelectProduct = (product: Product | null) => {
+    const handleSelectProduct = useCallback((product: Product | null) => {
         setSelectedProduct(product);
+        if (product) {
+            setRecentlyViewedIds(prev => {
+                const updated = [product.id, ...prev.filter(id => id !== product.id)].slice(0, 8);
+                try {
+                    localStorage.setItem('storeRecentlyViewed', JSON.stringify(updated));
+                } catch {}
+                return updated;
+            });
+        }
         if (typeof window !== 'undefined') {
             try {
                 const url = new URL(window.location.href);
@@ -190,7 +242,7 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
                 window.history.replaceState({}, '', url.pathname + url.search + url.hash);
             } catch {}
         }
-    };
+    }, []);
 
     // Auto-open product modal when visiting direct product permalink (?product=101)
     useEffect(() => {
@@ -199,61 +251,66 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
         if (!param || selectedProduct) return;
         const pool = storeProducts.length > 0 ? storeProducts : products;
         const match = pool.find(
-            (p) => String(p.id) === param || String(p.sku || '').toLowerCase() === param.toLowerCase()
+            p => String(p.id) === param || String(p.sku || '').toLowerCase() === param.toLowerCase()
         );
         if (match) {
-            setSelectedProduct(match);
+            handleSelectProduct(match);
         }
-    }, [storeProducts, products, selectedProduct]);
+    }, [storeProducts, products, selectedProduct, handleSelectProduct]);
+
+    const allCatalogProducts = storeProducts.length > 0 ? storeProducts : products;
 
     const branding = useMemo(
         () => getStoreBranding(storefrontSettings, 'المتجر الإلكتروني'),
         [storefrontSettings]
     );
 
-    // SEO Structured Data (JSON-LD)
     const structuredData = useMemo(() => {
         const originUrl = typeof window !== 'undefined' ? window.location.origin : '';
         return {
-            "@context": "https://schema.org",
-            "@type": "Store",
-            "name": branding.companyName,
-            "image": branding.logoUrl || 'https://i.ibb.co/3yL3ZXm5/aa2f6315c6fc.jpg',
-            "description": branding.slogan || `${branding.companyName} - تسوق أونلاين بمنتجات أصلية وأفضل الأسعار.`,
-            "address": {
-                "@type": "PostalAddress",
-                "streetAddress": branding.address || 'جمهورية مصر العربية',
-                "addressLocality": "القاهرة",
-                "addressCountry": "EG"
+            '@context': 'https://schema.org',
+            '@type': 'Store',
+            name: branding.companyName,
+            image: branding.logoUrl || 'https://i.ibb.co/3yL3ZXm5/aa2f6315c6fc.jpg',
+            description:
+                branding.slogan || `${branding.companyName} - تسوق أونلاين بمنتجات أصلية وأفضل الأسعار.`,
+            address: {
+                '@type': 'PostalAddress',
+                streetAddress: branding.address || 'جمهورية مصر العربية',
+                addressLocality: 'القاهرة',
+                addressCountry: 'EG',
             },
-            ...(branding.contactPhone ? { "telephone": branding.contactPhone } : {}),
-            "priceRange": "$$",
-            "url": originUrl ? `${originUrl}/` : ''
+            ...(branding.contactPhone ? { telephone: branding.contactPhone } : {}),
+            priceRange: '$$',
+            url: originUrl ? `${originUrl}/` : '',
         };
     }, [branding]);
 
-    // Load cart from localStorage on initial render (supporting variant names cleanly)
+    // Load cart from localStorage
     useEffect(() => {
         try {
             const savedCart = localStorage.getItem('battahCart');
             if (savedCart) {
-                const parsedCart: { productId: number; quantity: number; variantName?: string }[] = JSON.parse(savedCart);
-                const reconstructedCart: CartItem[] = parsedCart.map(item => {
-                    const baseProduct = products.find(p => p.id === item.productId);
-                    if (!baseProduct) return null;
-                    const product = item.variantName && item.variantName !== baseProduct.name
-                        ? { ...baseProduct, name: item.variantName }
-                        : baseProduct;
-                    return { product, quantity: item.quantity };
-                }).filter((item): item is CartItem => item !== null);
+                const parsedCart: { productId: number; quantity: number; variantName?: string }[] =
+                    JSON.parse(savedCart);
+                const reconstructedCart: CartItem[] = parsedCart
+                    .map(item => {
+                        const baseProduct = allCatalogProducts.find(p => p.id === item.productId);
+                        if (!baseProduct) return null;
+                        const product =
+                            item.variantName && item.variantName !== baseProduct.name
+                                ? { ...baseProduct, name: item.variantName }
+                                : baseProduct;
+                        return { product, quantity: item.quantity };
+                    })
+                    .filter((item): item is CartItem => item !== null);
                 setCartItems(reconstructedCart);
             }
         } catch (error) {
-            console.error("Failed to parse cart from localStorage", error);
+            console.error('Failed to parse cart from localStorage', error);
         }
-    }, [products]);
+    }, [allCatalogProducts]);
 
-    // Save cart to localStorage whenever it changes
     useEffect(() => {
         const lightCart = cartItems.map(item => ({
             productId: item.product.id,
@@ -309,11 +366,82 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
         setCheckoutOpen(true);
         const totalVal = cartItems.reduce((sum, item) => sum + item.product.sellingPrice * item.quantity, 0);
         trackStoreEvent('InitiateCheckout', {
-            content_ids: cartItems.map((i) => i.product.id),
+            content_ids: cartItems.map(i => i.product.id),
             value: totalVal,
             currency: 'EGP',
             num_items: cartItems.reduce((sum, i) => sum + i.quantity, 0),
         });
+    };
+
+    const handleBuyNow = (product: Product, quantity: number) => {
+        addToCart(product, quantity);
+        handleSelectProduct(null);
+        trackStoreEvent('InitiateCheckout', {
+            content_ids: [product.id],
+            value: Number(product.sellingPrice || 0) * quantity,
+            currency: 'EGP',
+            num_items: quantity,
+        });
+        setCheckoutOpen(true);
+    };
+
+    const toggleWishlist = (product: Product) => {
+        setWishlistIds(prev => {
+            const exists = prev.includes(product.id);
+            const updated = exists ? prev.filter(id => id !== product.id) : [...prev, product.id];
+            try {
+                localStorage.setItem('storeWishlist', JSON.stringify(updated));
+            } catch {}
+            setNotification(
+                exists ? `تم إزالة "${product.name}" من المفضلة` : `تم حفظ "${product.name}" في المفضلة ❤️`
+            );
+            return updated;
+        });
+    };
+
+    const handleQuickShare = async (product: Product) => {
+        const shareUrl = `${window.location.origin}/?product=${encodeURIComponent(String(product.id || product.sku))}`;
+        try {
+            if (navigator.share) {
+                await navigator.share({ title: product.name, url: shareUrl });
+                return;
+            }
+        } catch {}
+        try {
+            await navigator.clipboard.writeText(shareUrl);
+            setNotification('تم نسخ رابط المنتج للمشاركة ✨');
+        } catch {}
+    };
+
+    const handleShareStore = async () => {
+        const shareUrl = window.location.origin;
+        try {
+            if (navigator.share) {
+                await navigator.share({
+                    title: branding.companyName,
+                    text: branding.slogan || `تسوق من ${branding.companyName}`,
+                    url: shareUrl,
+                });
+                return;
+            }
+        } catch {}
+        try {
+            await navigator.clipboard.writeText(shareUrl);
+            setNotification('تم نسخ رابط المتجر لمشاركته مع أصدقائك ✨');
+        } catch {}
+    };
+
+    const handleExploreDeals = () => {
+        setOnlyDiscounted(true);
+        setShowWishlistOnly(false);
+        setFilters(prev => ({ ...prev, category: 'all' }));
+        document.getElementById('store-products')?.scrollIntoView({ behavior: 'smooth' });
+    };
+
+    const handleWishlistFilterJump = () => {
+        setShowWishlistOnly(prev => !prev);
+        setOnlyDiscounted(false);
+        document.getElementById('store-products')?.scrollIntoView({ behavior: 'smooth' });
     };
 
     const handlePlaceOrder = async (
@@ -331,7 +459,7 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
             unitPrice: item.product.sellingPrice,
         }));
         const subtotal = cartItems.reduce((sum, item) => sum + item.product.sellingPrice * item.quantity, 0);
-        
+
         try {
             const result = await createOrder(
                 customerDetails,
@@ -344,7 +472,7 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
                 shippingInfo
             );
             trackStoreEvent('Purchase', {
-                content_ids: orderItems.map((i) => i.productId),
+                content_ids: orderItems.map(i => i.productId),
                 value: result?.totalAmount ?? subtotal,
                 currency: 'EGP',
                 num_items: orderItems.reduce((sum, i) => sum + i.quantity, 0),
@@ -353,45 +481,170 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
             setNotification('تم إرسال طلبك بنجاح! سيتم التواصل معك للتأكيد.');
             return result;
         } catch (error) {
-            console.error("Failed to create order:", error);
-            alert("حدث خطأ أثناء إرسال الطلب. يرجى المحاولة مرة أخرى.");
+            console.error('Failed to create order:', error);
+            alert('حدث خطأ أثناء إرسال الطلب. يرجى المحاولة مرة أخرى.');
             throw error;
         }
     };
 
+    const cartSubtotal = useMemo(
+        () => cartItems.reduce((sum, item) => sum + item.product.sellingPrice * item.quantity, 0),
+        [cartItems]
+    );
+    const cartCount = useMemo(() => cartItems.reduce((sum, item) => sum + item.quantity, 0), [cartItems]);
+
+    const curatedDeals = useMemo(
+        () => allCatalogProducts.filter(p => Number(p.discount || 0) > 0).slice(0, 8),
+        [allCatalogProducts]
+    );
+    const showPinnedFeatured = featuredProducts.length > 0;
+    const showFeaturedSection =
+        showPinnedFeatured || curatedDeals.length >= 2 || allCatalogProducts.length >= 8;
+    const featuredShelfProducts = showPinnedFeatured
+        ? featuredProducts
+        : curatedDeals.length >= 2
+            ? curatedDeals
+            : allCatalogProducts.slice(0, 6);
+
+    const detectedNewArrivals = useMemo(
+        () =>
+            newArrivals.length > 0
+                ? newArrivals
+                : allCatalogProducts.filter(p => p.isNew).slice(0, 8),
+        [newArrivals, allCatalogProducts]
+    );
+
+    const recentlyViewedProducts = useMemo(
+        () =>
+            recentlyViewedIds
+                .map(id => allCatalogProducts.find(p => p.id === id))
+                .filter((p): p is Product => Boolean(p)),
+        [recentlyViewedIds, allCatalogProducts]
+    );
+
+    const whatsappHref = branding.whatsappFormatted
+        ? `https://wa.me/${branding.whatsappFormatted}?text=${encodeURIComponent(
+              `مرحباً ${branding.companyName}، أريد الاستفسار عن المنتجات`
+          )}`
+        : '';
+
     return (
-        <div className="font-cairo bg-slate-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 overflow-x-clip">
+        <div className="font-cairo bg-[#f8fafc] dark:bg-[#060913] text-slate-900 dark:text-slate-100 overflow-x-clip min-h-screen">
             <Helmet>
-                <title>{branding.companyName} | {branding.slogan || 'تسوق أونلاين'}</title>
-                <meta name="description" content={branding.slogan || `تسوق أفضل المنتجات من ${branding.companyName} بجودة عالية وتوصيل سريع.`} />
+                <title>
+                    {branding.companyName} | {branding.slogan || 'تسوق أونلاين'}
+                </title>
+                <meta
+                    name="description"
+                    content={
+                        branding.slogan ||
+                        `تسوق أفضل المنتجات من ${branding.companyName} بجودة عالية وتوصيل سريع.`
+                    }
+                />
                 <meta property="og:title" content={branding.companyName} />
                 <meta property="og:description" content={branding.slogan || `تسوق من ${branding.companyName}`} />
-                <meta property="og:image" content={branding.logoUrl || 'https://i.ibb.co/3yL3ZXm5/aa2f6315c6fc.jpg'} />
+                <meta
+                    property="og:image"
+                    content={branding.logoUrl || 'https://i.ibb.co/3yL3ZXm5/aa2f6315c6fc.jpg'}
+                />
                 <meta property="og:type" content="website" />
                 <meta name="twitter:card" content="summary_large_image" />
-                <script type="application/ld+json">
-                    {JSON.stringify(structuredData)}
-                </script>
+                <script type="application/ld+json">{JSON.stringify(structuredData)}</script>
             </Helmet>
-            <PromotionBanner />
+
+            <PromotionBanner cartSubtotal={cartSubtotal} onExploreDeals={handleExploreDeals} />
+
             <StoreHeader
                 onCartClick={() => setCartOpen(true)}
-                cartItemCount={cartItems.reduce((sum, item) => sum + item.quantity, 0)}
+                cartItemCount={cartCount}
                 setViewMode={setViewMode}
                 onMyOrdersClick={() => setMyOrdersOpen(true)}
+                products={allCatalogProducts}
+                onSelectProduct={handleSelectProduct}
+                searchQuery={filters.search}
+                onSearchChange={q => setFilters(prev => ({ ...prev, search: q }))}
+                wishlistCount={wishlistIds.length}
+                onWishlistClick={handleWishlistFilterJump}
+                cartSubtotal={cartSubtotal}
             />
+
             <main>
-                <StoreHero setFilters={setFilters} />
+                <StoreHero
+                    setFilters={setFilters}
+                    onProductClick={handleSelectProduct}
+                    onAddToCart={addToCart}
+                    onExploreDeals={handleExploreDeals}
+                />
+
+                <TrustValueBar />
+
                 <CategoryHighlights setFilters={setFilters} />
-                <FeaturedProductsSection products={featuredProducts} onProductClick={handleSelectProduct} addToCart={addToCart} />
-                <NewArrivalsSection products={newArrivals} onProductClick={handleSelectProduct} addToCart={addToCart} />
-                <StoreProducts 
-                    products={products} 
-                    onProductClick={handleSelectProduct} 
+
+                {showFeaturedSection && (
+                    <FeaturedProductsSection
+                        products={featuredShelfProducts}
+                        onProductClick={handleSelectProduct}
+                        addToCart={addToCart}
+                        title={
+                            showPinnedFeatured
+                                ? 'الأكثر مبيعاً'
+                                : curatedDeals.length >= 2
+                                    ? 'أقوى العروض والتخفيضات'
+                                    : 'مختارات المتجر'
+                        }
+                        badge={
+                            showPinnedFeatured
+                                ? '⭐ الأكثر طلباً'
+                                : curatedDeals.length >= 2
+                                    ? '🔥 وفر أكثر'
+                                    : '⭐ مختاراتنا لك'
+                        }
+                        wishlistIds={wishlistIds}
+                        onToggleWishlist={toggleWishlist}
+                        onQuickShare={handleQuickShare}
+                        onViewAll={curatedDeals.length >= 2 ? handleExploreDeals : undefined}
+                    />
+                )}
+
+                {detectedNewArrivals.length > 0 && (
+                    <NewArrivalsSection
+                        products={detectedNewArrivals}
+                        onProductClick={handleSelectProduct}
+                        addToCart={addToCart}
+                        wishlistIds={wishlistIds}
+                        onToggleWishlist={toggleWishlist}
+                        onQuickShare={handleQuickShare}
+                    />
+                )}
+
+                <StoreProducts
+                    products={products}
+                    onProductClick={handleSelectProduct}
                     addToCart={addToCart}
                     filters={filters}
                     setFilters={setFilters}
                     loading={loading}
+                    wishlistIds={wishlistIds}
+                    onToggleWishlist={toggleWishlist}
+                    showWishlistOnly={showWishlistOnly}
+                    setShowWishlistOnly={setShowWishlistOnly}
+                    onlyDiscounted={onlyDiscounted}
+                    setOnlyDiscounted={setOnlyDiscounted}
+                    onQuickShare={handleQuickShare}
+                />
+
+                <RecentlyViewedSection
+                    products={recentlyViewedProducts}
+                    onProductClick={handleSelectProduct}
+                    addToCart={addToCart}
+                    wishlistIds={wishlistIds}
+                    onToggleWishlist={toggleWishlist}
+                    onQuickShare={handleQuickShare}
+                />
+
+                <SocialProofBand
+                    onShareStore={handleShareStore}
+                    onMyOrdersClick={() => setMyOrdersOpen(true)}
                 />
             </main>
 
@@ -401,43 +654,82 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
                     onClose={() => handleSelectProduct(null)}
                     product={selectedProduct}
                     onAddToCart={addToCart}
+                    onBuyNow={handleBuyNow}
+                    allProducts={allCatalogProducts}
+                    onSelectRelated={handleSelectProduct}
+                    isWishlisted={wishlistIds.includes(selectedProduct.id)}
+                    onToggleWishlist={toggleWishlist}
                 />
             )}
-            
+
             <StoreCart
                 isOpen={isCartOpen}
                 onClose={() => setCartOpen(false)}
                 cartItems={cartItems}
                 onUpdateQuantity={updateCartQuantity}
                 onCheckout={handleCheckout}
+                allProducts={allCatalogProducts}
+                onQuickAdd={addToCart}
             />
-            
+
             {isCheckoutOpen && (
-                 <CheckoutModal
+                <CheckoutModal
                     isOpen={isCheckoutOpen}
                     onClose={() => setCheckoutOpen(false)}
                     cartItems={cartItems}
                     onPlaceOrder={handlePlaceOrder}
                 />
             )}
+
             {isMyOrdersOpen && (
-                <MyOrdersModal
-                    isOpen={isMyOrdersOpen}
-                    onClose={() => setMyOrdersOpen(false)}
-                />
+                <MyOrdersModal isOpen={isMyOrdersOpen} onClose={() => setMyOrdersOpen(false)} />
             )}
+
             <CustomerNotifications message={notification} />
-            <AIChatbot 
-                setSelectedProduct={setSelectedProduct}
+
+            <AIChatbot
+                setSelectedProduct={handleSelectProduct}
                 addToCart={addToCart}
                 openCart={() => setCartOpen(true)}
+                hasCartItems={cartCount > 0}
             />
+
             <InstallPrompt />
-            <FloatingCheckoutButton 
-                itemCount={cartItems.reduce((sum, item) => sum + item.quantity, 0)}
-                totalAmount={cartItems.reduce((sum, item) => sum + item.product.sellingPrice * item.quantity, 0)}
+
+            <FloatingCheckoutButton
+                itemCount={cartCount}
+                totalAmount={cartSubtotal}
                 onCheckout={handleCheckout}
             />
+
+            <MobileBottomNav
+                cartItemCount={cartCount}
+                wishlistCount={wishlistIds.length}
+                onHomeClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                onCategoriesClick={() =>
+                    document.getElementById('category-highlights')?.scrollIntoView({ behavior: 'smooth' })
+                }
+                onWishlistClick={handleWishlistFilterJump}
+                onMyOrdersClick={() => setMyOrdersOpen(true)}
+                onCartClick={() => setCartOpen(true)}
+                isWishlistActive={showWishlistOnly}
+            />
+
+            {/* Subtle Desktop Floating WhatsApp Contact Pill */}
+            {whatsappHref && (
+                <a
+                    href={whatsappHref}
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-label="تواصل واتساب"
+                    title="تواصل معنا عبر واتساب"
+                    className="hidden md:flex fixed bottom-6 right-6 z-40 px-4 h-12 rounded-full bg-[#25D366] hover:bg-[#1ebe5d] text-white font-extrabold text-sm items-center gap-2 shadow-xl hover:scale-105 transition-all"
+                >
+                    <i className="fab fa-whatsapp text-xl" />
+                    <span>تواصل واتساب</span>
+                </a>
+            )}
+
             <StoreFooter setViewMode={setViewMode} />
         </div>
     );
