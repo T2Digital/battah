@@ -21,7 +21,8 @@ import FloatingCheckoutButton from './FloatingCheckoutButton';
 
 import StoreFooter from './StoreFooter';
 import { initStorePixels, trackStoreEvent } from '../../utils/pixels';
-import { StoreFilters, DEFAULT_STORE_FILTERS } from '../../lib/appConfig';
+import { StoreFilters, DEFAULT_STORE_FILTERS, getStoreBranding } from '../../lib/appConfig';
+import { PlacedOrderResult } from './CheckoutModal';
 
 interface StorefrontProps {
     setViewMode: (mode: 'admin' | 'store') => void;
@@ -176,26 +177,60 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
         }
     }, [broadcasts]);
 
+    const handleSelectProduct = (product: Product | null) => {
+        setSelectedProduct(product);
+        if (typeof window !== 'undefined') {
+            try {
+                const url = new URL(window.location.href);
+                if (product) {
+                    url.searchParams.set('product', String(product.id || product.sku));
+                } else {
+                    url.searchParams.delete('product');
+                }
+                window.history.replaceState({}, '', url.pathname + url.search + url.hash);
+            } catch {}
+        }
+    };
+
+    // Auto-open product modal when visiting direct product permalink (?product=101)
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const param = new URLSearchParams(window.location.search).get('product');
+        if (!param || selectedProduct) return;
+        const pool = storeProducts.length > 0 ? storeProducts : products;
+        const match = pool.find(
+            (p) => String(p.id) === param || String(p.sku || '').toLowerCase() === param.toLowerCase()
+        );
+        if (match) {
+            setSelectedProduct(match);
+        }
+    }, [storeProducts, products, selectedProduct]);
+
+    const branding = useMemo(
+        () => getStoreBranding(storefrontSettings, 'المتجر الإلكتروني'),
+        [storefrontSettings]
+    );
+
     // SEO Structured Data (JSON-LD)
     const structuredData = useMemo(() => {
+        const originUrl = typeof window !== 'undefined' ? window.location.origin : '';
         return {
             "@context": "https://schema.org",
-            "@type": "AutoPartsStore",
-            "name": "أوتو هاوس لقطع غيار السيارات",
-            "image": "https://i.ibb.co/3yL3ZXm5/aa2f6315c6fc.jpg",
-            "description": "متجر أوتو هاوس لقطع غيار السيارات لقطع غيار السيارات وإكسسواراتها الأصلية.",
+            "@type": "Store",
+            "name": branding.companyName,
+            "image": branding.logoUrl || 'https://i.ibb.co/3yL3ZXm5/aa2f6315c6fc.jpg',
+            "description": branding.slogan || `${branding.companyName} - تسوق أونلاين بمنتجات أصلية وأفضل الأسعار.`,
             "address": {
                 "@type": "PostalAddress",
-                "streetAddress": "79 شارع رمسيس ناصية التوفيقية",
+                "streetAddress": branding.address || 'جمهورية مصر العربية',
                 "addressLocality": "القاهرة",
                 "addressCountry": "EG"
             },
-            "telephone": "+201080444447",
+            ...(branding.contactPhone ? { "telephone": branding.contactPhone } : {}),
             "priceRange": "$$",
-            "openingHours": "Sa-Th 09:00-23:00",
-            "url": "https://t2-tenant-auto-house.vercel.app/"
+            "url": originUrl ? `${originUrl}/` : ''
         };
-    }, []);
+    }, [branding]);
 
     // Load cart from localStorage on initial render
     useEffect(() => {
@@ -270,29 +305,42 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
         });
     };
 
-    const handlePlaceOrder = async (customerDetails: { name: string; phone: string; address: string }, paymentMethod: Order['paymentMethod'], paymentProof?: File, discountCode?: string, locationLink?: string) => {
+    const handlePlaceOrder = async (
+        customerDetails: { name: string; phone: string; address: string },
+        paymentMethod: Order['paymentMethod'],
+        paymentProof?: File,
+        discountCode?: string,
+        locationLink?: string,
+        shippingInfo?: { shippingZone?: string; deliveryFee?: number }
+    ): Promise<PlacedOrderResult | undefined> => {
         const orderItems: OrderItem[] = cartItems.map(item => ({
             productId: item.product.id,
             productName: item.product.name,
             quantity: item.quantity,
             unitPrice: item.product.sellingPrice,
         }));
-        // The total amount is calculated securely in the backend (store.ts) including discounts.
-        // We pass the subtotal here for the backend to use as a base.
         const subtotal = cartItems.reduce((sum, item) => sum + item.product.sellingPrice * item.quantity, 0);
         
         try {
-            const proofUrl = await createOrder(customerDetails, orderItems, subtotal, paymentMethod, paymentProof, discountCode, locationLink);
+            const result = await createOrder(
+                customerDetails,
+                orderItems,
+                subtotal,
+                paymentMethod,
+                paymentProof,
+                discountCode,
+                locationLink,
+                shippingInfo
+            );
             trackStoreEvent('Purchase', {
                 content_ids: orderItems.map((i) => i.productId),
-                value: subtotal,
+                value: result?.totalAmount ?? subtotal,
                 currency: 'EGP',
                 num_items: orderItems.reduce((sum, i) => sum + i.quantity, 0),
             });
             setCartItems([]);
-            setCheckoutOpen(false);
             setNotification('تم إرسال طلبك بنجاح! سيتم التواصل معك للتأكيد.');
-            return proofUrl;
+            return result;
         } catch (error) {
             console.error("Failed to create order:", error);
             alert("حدث خطأ أثناء إرسال الطلب. يرجى المحاولة مرة أخرى.");
@@ -301,14 +349,13 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
     };
 
     return (
-        <div className="font-cairo bg-slate-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200">
+        <div className="font-cairo bg-slate-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 overflow-x-clip">
             <Helmet>
-                <title>أوتو هاوس لقطع غيار السيارات | قطع غيار سيارات أصلية</title>
-                <meta name="description" content="تسوق أفضل قطع غيار السيارات الأصلية والإكسسوارات من أوتو هاوس لقطع غيار السيارات. جودة عالية وأسعار تنافسية." />
-                <meta name="keywords" content="قطع غيار, سيارات, بطاح, اكسسوارات, زيوت, فلاتر, فرامل" />
-                <meta property="og:title" content="أوتو هاوس لقطع غيار السيارات | قطع غيار سيارات أصلية" />
-                <meta property="og:description" content="تسوق أفضل قطع غيار السيارات الأصلية والإكسسوارات من أوتو هاوس لقطع غيار السيارات." />
-                <meta property="og:image" content="https://i.ibb.co/3yL3ZXm5/aa2f6315c6fc.jpg" />
+                <title>{branding.companyName} | {branding.slogan || 'تسوق أونلاين'}</title>
+                <meta name="description" content={branding.slogan || `تسوق أفضل المنتجات من ${branding.companyName} بجودة عالية وتوصيل سريع.`} />
+                <meta property="og:title" content={branding.companyName} />
+                <meta property="og:description" content={branding.slogan || `تسوق من ${branding.companyName}`} />
+                <meta property="og:image" content={branding.logoUrl || 'https://i.ibb.co/3yL3ZXm5/aa2f6315c6fc.jpg'} />
                 <meta property="og:type" content="website" />
                 <meta name="twitter:card" content="summary_large_image" />
                 <script type="application/ld+json">
@@ -325,11 +372,11 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
             <main>
                 <StoreHero setFilters={setFilters} />
                 <CategoryHighlights setFilters={setFilters} />
-                <FeaturedProductsSection products={featuredProducts} onProductClick={setSelectedProduct} addToCart={addToCart} />
-                <NewArrivalsSection products={newArrivals} onProductClick={setSelectedProduct} addToCart={addToCart} />
+                <FeaturedProductsSection products={featuredProducts} onProductClick={handleSelectProduct} addToCart={addToCart} />
+                <NewArrivalsSection products={newArrivals} onProductClick={handleSelectProduct} addToCart={addToCart} />
                 <StoreProducts 
                     products={products} 
-                    onProductClick={setSelectedProduct} 
+                    onProductClick={handleSelectProduct} 
                     addToCart={addToCart}
                     filters={filters}
                     setFilters={setFilters}
@@ -340,7 +387,7 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
             {selectedProduct && (
                 <StoreProductModal
                     isOpen={!!selectedProduct}
-                    onClose={() => setSelectedProduct(null)}
+                    onClose={() => handleSelectProduct(null)}
                     product={selectedProduct}
                     onAddToCart={addToCart}
                 />

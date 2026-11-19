@@ -101,6 +101,7 @@ const StorefrontSettings: React.FC<StorefrontSettingsProps> = ({ isOpen, onClose
         setIsSaving(true);
         try {
             await onSave({
+                ...(settings || {}),
                 featuredProductIds: featured,
                 newArrivalProductIds: newArrivals,
                 adminPassword,

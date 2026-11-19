@@ -3,13 +3,22 @@ import useStore from '../../lib/store';
 import SectionHeader from '../shared/SectionHeader';
 import { requestNotificationPermission } from '../../lib/firebase';
 import ConfirmationModal from '../shared/ConfirmationModal';
-import { BranchConfig, CashierConfig, StorefrontFiltersConfig } from '../../types';
+import {
+    BranchConfig,
+    CashierConfig,
+    HeroSlideConfig,
+    ShippingConfig,
+    StorefrontFiltersConfig,
+} from '../../types';
 import {
     getActiveBranches,
     getActiveCashiers,
     getMainCategories,
     getSubCategoriesMap,
     getStorefrontFiltersConfig,
+    getStoreBranding,
+    getShippingConfig,
+    getHeroSlides,
 } from '../../lib/appConfig';
 
 const Settings: React.FC = () => {
@@ -21,14 +30,26 @@ const Settings: React.FC = () => {
         workEndTime: "23:00"
     };
 
+    const initialBranding = getStoreBranding(appData?.storefrontSettings, '');
     const [localSettings, setLocalSettings] = useState(settings);
     const [adminPassword, setAdminPassword] = useState(appData?.storefrontSettings?.adminPassword || '');
-    const [contactPhone, setContactPhone] = useState((appData?.storefrontSettings as any)?.contactPhone || (typeof window !== 'undefined' ? (window as any).__TENANT_BRAND__?.phone : '') || '01013373634');
-    const [address, setAddress] = useState((appData?.storefrontSettings as any)?.address || (typeof window !== 'undefined' ? (window as any).__TENANT_BRAND__?.address : '') || 'القاهرة - التوفيقية');
-    const [primaryColor, setPrimaryColor] = useState(() => {
-        const raw = (appData?.storefrontSettings as any)?.primaryColor || (typeof window !== 'undefined' ? (window as any).__TENANT_BRAND__?.primaryColor : '') || '#0284c7';
-        return String(raw).toLowerCase() === '#00f0ff' ? '#0284c7' : raw;
-    });
+    const [companyName, setCompanyName] = useState(initialBranding.companyName);
+    const [slogan, setSlogan] = useState(initialBranding.slogan);
+    const [logoUrl, setLogoUrl] = useState(initialBranding.logoUrl);
+    const [contactPhone, setContactPhone] = useState(initialBranding.contactPhone || '01013373634');
+    const [whatsappPhone, setWhatsappPhone] = useState(initialBranding.whatsappPhone || '01013373634');
+    const [contactEmail, setContactEmail] = useState(initialBranding.contactEmail);
+    const [address, setAddress] = useState(initialBranding.address || 'القاهرة - التوفيقية');
+    const [facebookUrl, setFacebookUrl] = useState(initialBranding.facebookUrl);
+    const [instagramUrl, setInstagramUrl] = useState(initialBranding.instagramUrl);
+    const [tiktokUrl, setTiktokUrl] = useState(initialBranding.tiktokUrl);
+    const [primaryColor, setPrimaryColor] = useState(initialBranding.primaryColor);
+
+    const [metaPixelId, setMetaPixelId] = useState(appData?.storefrontSettings?.metaPixelId || '');
+    const [tiktokPixelId, setTiktokPixelId] = useState(appData?.storefrontSettings?.tiktokPixelId || '');
+    const [googleTagId, setGoogleTagId] = useState(appData?.storefrontSettings?.googleTagId || '');
+    const [snapPixelId, setSnapPixelId] = useState(appData?.storefrontSettings?.snapPixelId || '');
+
     const [currentIP, setCurrentIP] = useState<string>('');
     const [isLoadingIP, setIsLoadingIP] = useState(false);
 
@@ -55,6 +76,16 @@ const Settings: React.FC = () => {
         getStorefrontFiltersConfig(appData?.appCustomization)
     );
     const [newBrandOption, setNewBrandOption] = useState('');
+
+    const [shippingConfig, setShippingConfig] = useState<ShippingConfig>(() =>
+        getShippingConfig(appData?.appCustomization)
+    );
+    const [newZoneName, setNewZoneName] = useState('');
+    const [newZoneFee, setNewZoneFee] = useState<number>(50);
+
+    const [heroSlides, setHeroSlides] = useState<HeroSlideConfig[]>(() =>
+        getHeroSlides(appData?.appCustomization, initialBranding.companyName, initialBranding.slogan, getMainCategories(appData?.appCustomization))
+    );
 
     useEffect(() => {
         if ('Notification' in window) {
@@ -84,20 +115,34 @@ const Settings: React.FC = () => {
             setTickerMessages(appData.settings.tickerMessages || []);
         }
         if (appData?.storefrontSettings) {
+            const b = getStoreBranding(appData.storefrontSettings, '');
             setAdminPassword(appData.storefrontSettings.adminPassword || '');
-            if ((appData.storefrontSettings as any).contactPhone) setContactPhone((appData.storefrontSettings as any).contactPhone);
-            if ((appData.storefrontSettings as any).address) setAddress((appData.storefrontSettings as any).address);
-            if ((appData.storefrontSettings as any).primaryColor) {
-                const c = String((appData.storefrontSettings as any).primaryColor);
-                setPrimaryColor(c.toLowerCase() === '#00f0ff' ? '#0284c7' : c);
-            }
+            if (b.companyName) setCompanyName(b.companyName);
+            if (b.slogan) setSlogan(b.slogan);
+            if (b.logoUrl) setLogoUrl(b.logoUrl);
+            if (b.contactPhone) setContactPhone(b.contactPhone);
+            if (b.whatsappPhone) setWhatsappPhone(b.whatsappPhone);
+            if (b.contactEmail) setContactEmail(b.contactEmail);
+            if (b.address) setAddress(b.address);
+            setFacebookUrl(b.facebookUrl);
+            setInstagramUrl(b.instagramUrl);
+            setTiktokUrl(b.tiktokUrl);
+            setPrimaryColor(b.primaryColor);
+            setMetaPixelId(appData.storefrontSettings.metaPixelId || '');
+            setTiktokPixelId(appData.storefrontSettings.tiktokPixelId || '');
+            setGoogleTagId(appData.storefrontSettings.googleTagId || '');
+            setSnapPixelId(appData.storefrontSettings.snapPixelId || '');
         }
         if (appData?.appCustomization) {
+            const b = getStoreBranding(appData?.storefrontSettings, '');
+            const cats = getMainCategories(appData.appCustomization);
             setActiveBranches(getActiveBranches(appData.appCustomization));
             setCashiers(getActiveCashiers(appData.appCustomization));
-            setMainCategories(getMainCategories(appData.appCustomization));
+            setMainCategories(cats);
             setSubCategoriesMap(getSubCategoriesMap(appData.appCustomization));
             setStorefrontFilters(getStorefrontFiltersConfig(appData.appCustomization));
+            setShippingConfig(getShippingConfig(appData.appCustomization));
+            setHeroSlides(getHeroSlides(appData.appCustomization, b.companyName, b.slogan, cats));
         }
     }, [appData?.settings, appData?.storefrontSettings, appData?.appCustomization]);
 
@@ -222,14 +267,43 @@ const Settings: React.FC = () => {
                 );
             }
 
+            const cleanZones = shippingConfig.zones
+                .map(z => ({ name: z.name.trim(), fee: Math.max(0, Number(z.fee) || 0) }))
+                .filter(z => z.name);
+            const cleanSlides = heroSlides
+                .map((s, idx) => ({
+                    id: s.id || idx + 1,
+                    badge: String(s.badge || '').trim(),
+                    title: String(s.title || '').trim(),
+                    subtitle: String(s.subtitle || '').trim(),
+                    description: String(s.description || '').trim(),
+                    image: String(s.image || '').trim(),
+                    category: String(s.category || 'all').trim() || 'all',
+                }))
+                .filter(s => s.title || s.image);
+
             await updateSettings(localSettings);
             await updateStorefrontSettings({
                 ...(appData?.storefrontSettings || {}),
+                featuredProductIds: appData?.storefrontSettings?.featuredProductIds || [],
+                newArrivalProductIds: appData?.storefrontSettings?.newArrivalProductIds || [],
                 adminPassword,
-                contactPhone,
-                address,
+                companyName: companyName.trim(),
+                slogan: slogan.trim(),
+                logoUrl: logoUrl.trim(),
+                contactPhone: contactPhone.trim(),
+                whatsappPhone: whatsappPhone.trim(),
+                contactEmail: contactEmail.trim(),
+                address: address.trim(),
+                facebookUrl: facebookUrl.trim(),
+                instagramUrl: instagramUrl.trim(),
+                tiktokUrl: tiktokUrl.trim(),
                 primaryColor,
-            } as any);
+                metaPixelId: metaPixelId.trim(),
+                tiktokPixelId: tiktokPixelId.trim(),
+                googleTagId: googleTagId.trim(),
+                snapPixelId: snapPixelId.trim(),
+            });
             await updateAppCustomization({
                 activeBranches: cleanBranches.length > 0 ? cleanBranches : getActiveBranches(null),
                 cashiers: cleanCashiers.length > 0 ? cleanCashiers : getActiveCashiers(null),
@@ -240,6 +314,12 @@ const Settings: React.FC = () => {
                     brandFilterLabel: storefrontFilters.brandFilterLabel.trim() || 'ماركة السيارة',
                     brandFilterOptions: storefrontFilters.brandFilterOptions.map(o => o.trim()).filter(Boolean),
                 },
+                shipping: {
+                    defaultFee: Math.max(0, Number(shippingConfig.defaultFee) || 0),
+                    freeShippingThreshold: Math.max(0, Number(shippingConfig.freeShippingThreshold) || 0),
+                    zones: cleanZones,
+                },
+                heroSlides: cleanSlides,
             });
             addToast("تم حفظ الإعدادات بنجاح", "success");
         } catch (error) {
@@ -291,15 +371,57 @@ const Settings: React.FC = () => {
                     </p>
                 </div>
                 
-                {/* Storefront Footer, Invoice Contact & Theme Color Section */}
-                <div className="border-b dark:border-gray-700 pb-6">
-                    <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
+                {/* Storefront Identity, Social Links, Contact & Theme Color Section */}
+                <div className="border-b dark:border-gray-700 pb-6 space-y-5">
+                    <h3 className="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
                         <i className="fas fa-store text-primary"></i>
-                        بيانات الفوتر والفاتورة المطبوعة ولون الثيم
+                        هوية المتجر وروابط السوشيال ميديا ولون الثيم
                     </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">رقم الموبايل (يظهر في الفوتر والفاتورة)</label>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">اسم المتجر (يظهر بالهيدر والفوتر والـ SEO)</label>
+                            <input
+                                type="text"
+                                value={companyName}
+                                onChange={(e) => setCompanyName(e.target.value)}
+                                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700"
+                                placeholder="اسم المتجر"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">الوصف المختصر / الشعار (Slogan)</label>
+                            <input
+                                type="text"
+                                value={slogan}
+                                onChange={(e) => setSlogan(e.target.value)}
+                                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700"
+                                placeholder="منتجات أصلية بأفضل سعر وأسرع توصيل"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">رابط الشعار (Logo URL)</label>
+                            <input
+                                type="url"
+                                dir="ltr"
+                                value={logoUrl}
+                                onChange={(e) => setLogoUrl(e.target.value)}
+                                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700"
+                                placeholder="https://..."
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">البريد الإلكتروني للتواصل</label>
+                            <input
+                                type="email"
+                                dir="ltr"
+                                value={contactEmail}
+                                onChange={(e) => setContactEmail(e.target.value)}
+                                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700"
+                                placeholder="info@store.com"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">رقم الموبايل (الفوتر والفاتورة)</label>
                             <input
                                 type="text"
                                 dir="ltr"
@@ -310,14 +432,60 @@ const Settings: React.FC = () => {
                             />
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">العنوان (يظهر في الفوتر والفاتورة المطبوعة)</label>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">رقم واتساب استقبال الطلبات</label>
+                            <input
+                                type="text"
+                                dir="ltr"
+                                value={whatsappPhone}
+                                onChange={(e) => setWhatsappPhone(e.target.value)}
+                                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700"
+                                placeholder="01013373634"
+                            />
+                        </div>
+                        <div className="md:col-span-2">
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">العنوان (يظهر في الفوتر والفاتورة)</label>
                             <input
                                 type="text"
                                 value={address}
                                 onChange={(e) => setAddress(e.target.value)}
                                 className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700"
-                                placeholder="القاهرة - التوفيقية"
+                                placeholder="العنوان التفصيلي"
                             />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">رابط فيسبوك (اختياري)</label>
+                            <input
+                                type="url"
+                                dir="ltr"
+                                value={facebookUrl}
+                                onChange={(e) => setFacebookUrl(e.target.value)}
+                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 text-sm"
+                                placeholder="https://facebook.com/..."
+                            />
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">رابط إنستجرام</label>
+                                <input
+                                    type="url"
+                                    dir="ltr"
+                                    value={instagramUrl}
+                                    onChange={(e) => setInstagramUrl(e.target.value)}
+                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 text-sm"
+                                    placeholder="https://instagram.com/..."
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">رابط تيك توك</label>
+                                <input
+                                    type="url"
+                                    dir="ltr"
+                                    value={tiktokUrl}
+                                    onChange={(e) => setTiktokUrl(e.target.value)}
+                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 text-sm"
+                                    placeholder="https://tiktok.com/@..."
+                                />
+                            </div>
                         </div>
                     </div>
                     <div>
@@ -341,6 +509,285 @@ const Settings: React.FC = () => {
                             />
                             <span className="text-xs font-mono text-gray-500" dir="ltr">{primaryColor}</span>
                         </div>
+                    </div>
+                </div>
+
+                {/* Tracking Pixels Section (Direct in Main Settings) */}
+                <div className="border-b dark:border-gray-700 pb-6 space-y-4">
+                    <div>
+                        <h3 className="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
+                            <i className="fas fa-bullseye text-blue-500"></i>
+                            تتبع الإعلانات والبكسلات (Tracking Pixels)
+                        </h3>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                            اربط معرفات البكسل لمتابعة زيارات المنتجات والإضافة للسلة وإتمام الطلب تلقائياً مع حملاتك الممولة (PageView, ViewContent, AddToCart, InitiateCheckout, Purchase).
+                        </p>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="p-3.5 rounded-xl bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700">
+                            <div className="flex items-center justify-between mb-1.5">
+                                <label className="text-xs font-bold text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
+                                    <i className="fab fa-facebook text-blue-600"></i>
+                                    Meta Pixel ID (فيسبوك وإنستجرام)
+                                </label>
+                                {metaPixelId.trim() && <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-bold">مُفعّل</span>}
+                            </div>
+                            <input
+                                type="text"
+                                dir="ltr"
+                                value={metaPixelId}
+                                onChange={(e) => setMetaPixelId(e.target.value)}
+                                placeholder="مثال: 123456789012345"
+                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 text-sm font-mono"
+                            />
+                        </div>
+                        <div className="p-3.5 rounded-xl bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700">
+                            <div className="flex items-center justify-between mb-1.5">
+                                <label className="text-xs font-bold text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
+                                    <i className="fab fa-tiktok"></i>
+                                    TikTok Pixel ID
+                                </label>
+                                {tiktokPixelId.trim() && <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-bold">مُفعّل</span>}
+                            </div>
+                            <input
+                                type="text"
+                                dir="ltr"
+                                value={tiktokPixelId}
+                                onChange={(e) => setTiktokPixelId(e.target.value)}
+                                placeholder="مثال: CXXXXXXXXXXXX"
+                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 text-sm font-mono"
+                            />
+                        </div>
+                        <div className="p-3.5 rounded-xl bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700">
+                            <div className="flex items-center justify-between mb-1.5">
+                                <label className="text-xs font-bold text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
+                                    <i className="fab fa-google text-amber-500"></i>
+                                    Google Tag / Analytics / Ads ID
+                                </label>
+                                {googleTagId.trim() && <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-bold">مُفعّل</span>}
+                            </div>
+                            <input
+                                type="text"
+                                dir="ltr"
+                                value={googleTagId}
+                                onChange={(e) => setGoogleTagId(e.target.value)}
+                                placeholder="مثال: G-XXXXXXXXXX"
+                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 text-sm font-mono"
+                            />
+                        </div>
+                        <div className="p-3.5 rounded-xl bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700">
+                            <div className="flex items-center justify-between mb-1.5">
+                                <label className="text-xs font-bold text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
+                                    <i className="fab fa-snapchat text-yellow-500"></i>
+                                    Snapchat Pixel ID
+                                </label>
+                                {snapPixelId.trim() && <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-bold">مُفعّل</span>}
+                            </div>
+                            <input
+                                type="text"
+                                dir="ltr"
+                                value={snapPixelId}
+                                onChange={(e) => setSnapPixelId(e.target.value)}
+                                placeholder="مثال: xxxxxxxx-xxxx-xxxx"
+                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 text-sm font-mono"
+                            />
+                        </div>
+                    </div>
+                </div>
+
+                {/* Shipping Zones & Free Shipping Threshold Section */}
+                <div className="border-b dark:border-gray-700 pb-6 space-y-4">
+                    <div>
+                        <h3 className="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
+                            <i className="fas fa-shipping-fast text-primary"></i>
+                            إعدادات الشحن والمحافظات والشحن المجاني
+                        </h3>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                            تحكم في مصاريف الشحن لكل محافظة أو منطقة، وحد الطلب للشحن المجاني (يظهر تلقائياً في شريط التقدم داخل السلة).
+                        </p>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">رسوم الشحن الافتراضية (ج.م)</label>
+                            <input
+                                type="number"
+                                min="0"
+                                value={shippingConfig.defaultFee}
+                                onChange={(e) => setShippingConfig(prev => ({ ...prev, defaultFee: Math.max(0, Number(e.target.value) || 0) }))}
+                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">الحد الأدنى للشحن المجاني (0 = معطل)</label>
+                            <input
+                                type="number"
+                                min="0"
+                                value={shippingConfig.freeShippingThreshold}
+                                onChange={(e) => setShippingConfig(prev => ({ ...prev, freeShippingThreshold: Math.max(0, Number(e.target.value) || 0) }))}
+                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700"
+                                placeholder="مثال: 3000"
+                            />
+                        </div>
+                    </div>
+                    <div className="space-y-2">
+                        {shippingConfig.zones.map((zone, idx) => (
+                            <div key={idx} className="flex flex-wrap sm:flex-nowrap items-center gap-2 bg-gray-50 dark:bg-gray-700/60 p-2.5 rounded-xl border dark:border-gray-600">
+                                <input
+                                    type="text"
+                                    value={zone.name}
+                                    onChange={(e) => setShippingConfig(prev => ({
+                                        ...prev,
+                                        zones: prev.zones.map((z, i) => i === idx ? { ...z, name: e.target.value } : z)
+                                    }))}
+                                    className="flex-grow px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 text-sm font-semibold"
+                                    placeholder="اسم المنطقة / المحافظة"
+                                />
+                                <input
+                                    type="number"
+                                    min="0"
+                                    value={zone.fee}
+                                    onChange={(e) => setShippingConfig(prev => ({
+                                        ...prev,
+                                        zones: prev.zones.map((z, i) => i === idx ? { ...z, fee: Math.max(0, Number(e.target.value) || 0) } : z)
+                                    }))}
+                                    className="w-28 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 text-sm font-bold text-center"
+                                />
+                                <span className="text-xs text-gray-500">ج.م</span>
+                                <button
+                                    type="button"
+                                    onClick={() => setShippingConfig(prev => ({ ...prev, zones: prev.zones.filter((_, i) => i !== idx) }))}
+                                    className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg"
+                                    aria-label="حذف المنطقة"
+                                >
+                                    <i className="fas fa-trash-alt"></i>
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                    <div className="flex flex-wrap sm:flex-nowrap gap-2">
+                        <input
+                            type="text"
+                            value={newZoneName}
+                            onChange={(e) => setNewZoneName(e.target.value)}
+                            placeholder="منطقة / محافظة جديدة..."
+                            className="flex-grow px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 text-sm"
+                        />
+                        <input
+                            type="number"
+                            min="0"
+                            value={newZoneFee}
+                            onChange={(e) => setNewZoneFee(Math.max(0, Number(e.target.value) || 0))}
+                            className="w-28 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 text-sm"
+                            placeholder="السعر"
+                        />
+                        <button
+                            type="button"
+                            onClick={() => {
+                                const name = newZoneName.trim();
+                                if (!name) return;
+                                setShippingConfig(prev => ({ ...prev, zones: [...prev.zones, { name, fee: newZoneFee }] }));
+                                setNewZoneName('');
+                            }}
+                            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark text-sm font-bold whitespace-nowrap"
+                        >
+                            + إضافة منطقة
+                        </button>
+                    </div>
+                </div>
+
+                {/* Dynamic Storefront Hero Slides Section */}
+                <div className="border-b dark:border-gray-700 pb-6 space-y-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                            <h3 className="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
+                                <i className="fas fa-images text-primary"></i>
+                                سلايدر البانر الرئيسي للمتجر (Hero Slides)
+                            </h3>
+                            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                عدّل صور وعناوين واجهة المتجر لتناسب نشاطك وحملاتك الموسمية.
+                            </p>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => setHeroSlides(prev => ([
+                                ...prev,
+                                {
+                                    id: Date.now(),
+                                    badge: 'عرض مميز',
+                                    title: 'شريحة عرض جديدة',
+                                    subtitle: 'أفضل جودة وسعر',
+                                    description: 'تصفح أحدث المنتجات المتاحة الآن.',
+                                    image: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?q=80&w=1600&auto=format&fit=crop',
+                                    category: mainCategories[0] || 'all',
+                                }
+                            ]))}
+                            className="px-3.5 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark text-xs font-bold"
+                        >
+                            + شريحة جديدة
+                        </button>
+                    </div>
+                    <div className="space-y-3">
+                        {heroSlides.map((slide, idx) => (
+                            <div key={slide.id ?? idx} className="p-4 bg-gray-50 dark:bg-gray-900/50 rounded-xl border border-gray-200 dark:border-gray-700 space-y-3">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-xs font-black text-primary">شريحة #{idx + 1}</span>
+                                    <button
+                                        type="button"
+                                        disabled={heroSlides.length <= 1}
+                                        onClick={() => setHeroSlides(prev => prev.filter((_, i) => i !== idx))}
+                                        className="text-red-500 hover:text-red-700 text-xs font-bold disabled:opacity-40"
+                                    >
+                                        حذف الشريحة
+                                    </button>
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <input
+                                        type="text"
+                                        value={slide.title}
+                                        onChange={(e) => setHeroSlides(prev => prev.map((s, i) => i === idx ? { ...s, title: e.target.value } : s))}
+                                        placeholder="العنوان الرئيسي"
+                                        className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 text-sm font-bold"
+                                    />
+                                    <input
+                                        type="text"
+                                        value={slide.subtitle}
+                                        onChange={(e) => setHeroSlides(prev => prev.map((s, i) => i === idx ? { ...s, subtitle: e.target.value } : s))}
+                                        placeholder="العنوان الفرعي"
+                                        className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 text-sm"
+                                    />
+                                    <input
+                                        type="text"
+                                        value={slide.badge || ''}
+                                        onChange={(e) => setHeroSlides(prev => prev.map((s, i) => i === idx ? { ...s, badge: e.target.value } : s))}
+                                        placeholder="الشارة العلوية (Badge)"
+                                        className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 text-sm"
+                                    />
+                                    <select
+                                        value={slide.category || 'all'}
+                                        onChange={(e) => setHeroSlides(prev => prev.map((s, i) => i === idx ? { ...s, category: e.target.value } : s))}
+                                        className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 text-sm"
+                                    >
+                                        <option value="all">كل الأقسام</option>
+                                        {mainCategories.map(c => <option key={c} value={c}>{c}</option>)}
+                                    </select>
+                                    <input
+                                        type="url"
+                                        dir="ltr"
+                                        value={slide.image}
+                                        onChange={(e) => setHeroSlides(prev => prev.map((s, i) => i === idx ? { ...s, image: e.target.value } : s))}
+                                        placeholder="رابط صورة الخلفية (https://...)"
+                                        className="sm:col-span-2 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 text-sm"
+                                    />
+                                    <input
+                                        type="text"
+                                        value={slide.description}
+                                        onChange={(e) => setHeroSlides(prev => prev.map((s, i) => i === idx ? { ...s, description: e.target.value } : s))}
+                                        placeholder="وصف مختصر"
+                                        className="sm:col-span-2 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 text-sm"
+                                    />
+                                </div>
+                            </div>
+                        ))}
                     </div>
                 </div>
 

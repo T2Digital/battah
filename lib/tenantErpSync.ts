@@ -214,6 +214,7 @@ export async function createTenantPublicOrder(
     paymentProofUrl?: string;
     discountCode?: string;
     locationLink?: string;
+    shippingZone?: string;
   }
 ): Promise<{ ok: boolean; order?: any; notification?: any; error?: string }> {
   try {

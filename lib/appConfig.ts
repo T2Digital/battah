@@ -3,8 +3,11 @@ import {
   AppCustomization,
   BranchConfig,
   CashierConfig,
+  HeroSlideConfig,
   Product,
+  ShippingConfig,
   StorefrontFiltersConfig,
+  StorefrontSettings,
 } from '../types';
 import { resolveTenantBrandId } from './tenantBootstrap';
 
@@ -228,3 +231,156 @@ export const DEFAULT_STORE_FILTERS: StoreFilters = {
   maxPrice: '',
   inStockOnly: false,
 };
+
+export const DEFAULT_SHIPPING_CONFIG: ShippingConfig = {
+  defaultFee: 50,
+  freeShippingThreshold: 0,
+  zones: [
+    { name: 'القاهرة والجيزة', fee: 50 },
+    { name: 'الإسكندرية والدلتا', fee: 65 },
+    { name: 'الصعيد ومدن القناة', fee: 85 },
+  ],
+};
+
+export function formatWhatsAppNumber(rawPhone?: string): string {
+  const digits = String(rawPhone || '').replace(/[^0-9]/g, '');
+  if (!digits) return '';
+  if (digits.startsWith('01') && digits.length === 11) return `2${digits}`;
+  if (digits.startsWith('0') && digits.length >= 10) return `2${digits}`;
+  return digits;
+}
+
+export interface StoreBrandingInfo {
+  companyName: string;
+  slogan: string;
+  logoUrl: string;
+  contactPhone: string;
+  whatsappPhone: string;
+  whatsappFormatted: string;
+  contactEmail: string;
+  address: string;
+  primaryColor: string;
+  facebookUrl: string;
+  instagramUrl: string;
+  tiktokUrl: string;
+}
+
+export function getStoreBranding(
+  storefrontSettings?: StorefrontSettings | null,
+  fallbackName = 'المتجر الإلكتروني'
+): StoreBrandingInfo {
+  const s: any = storefrontSettings || {};
+  const brand: any = (typeof window !== 'undefined' && (window as any).__TENANT_BRAND__) || {};
+  const companyName = String(s.companyName || brand.name || fallbackName).trim() || fallbackName;
+  const slogan = String(s.slogan || brand.slogan || 'الجودة الأصلية بأفضل سعر').trim();
+  const logoUrl = String(s.logoUrl || brand.logoUrl || '').trim();
+  const contactPhone = String(s.contactPhone || brand.phone || '').trim();
+  const whatsappPhone = String(s.whatsappPhone || brand.whatsapp || contactPhone || '').trim();
+  const whatsappFormatted = formatWhatsAppNumber(whatsappPhone);
+  const contactEmail = String(s.contactEmail || brand.email || brand.adminEmail || '').trim();
+  const address = String(s.address || brand.address || '').trim();
+  const rawColor = String(s.primaryColor || brand.primaryColor || '#0284c7').trim();
+  const primaryColor = rawColor.toLowerCase() === '#00f0ff' ? '#0284c7' : rawColor || '#0284c7';
+
+  return {
+    companyName,
+    slogan,
+    logoUrl,
+    contactPhone,
+    whatsappPhone,
+    whatsappFormatted,
+    contactEmail,
+    address,
+    primaryColor,
+    facebookUrl: String(s.facebookUrl || brand.facebookUrl || '').trim(),
+    instagramUrl: String(s.instagramUrl || brand.instagramUrl || '').trim(),
+    tiktokUrl: String(s.tiktokUrl || brand.tiktokUrl || '').trim(),
+  };
+}
+
+export function getShippingConfig(appCustomization?: AppCustomization | null): ShippingConfig {
+  const tenantDefault = getTenantDefaultCustomization();
+  const raw: any =
+    (appCustomization?.shipping && typeof appCustomization.shipping === 'object'
+      ? appCustomization.shipping
+      : tenantDefault?.shipping && typeof tenantDefault.shipping === 'object'
+        ? tenantDefault.shipping
+        : DEFAULT_SHIPPING_CONFIG) || DEFAULT_SHIPPING_CONFIG;
+
+  const zones = Array.isArray(raw.zones) && raw.zones.length > 0
+    ? raw.zones
+        .map((z: any) => ({ name: String(z?.name || '').trim(), fee: Math.max(0, Number(z?.fee ?? 0) || 0) }))
+        .filter((z: any) => z.name)
+    : DEFAULT_SHIPPING_CONFIG.zones;
+
+  return {
+    defaultFee: Math.max(0, Number(raw.defaultFee ?? DEFAULT_SHIPPING_CONFIG.defaultFee) || 0),
+    freeShippingThreshold: Math.max(0, Number(raw.freeShippingThreshold ?? 0) || 0),
+    zones,
+  };
+}
+
+export function calculateShippingFee(
+  subtotal: number,
+  shippingConfig: ShippingConfig,
+  zoneName?: string
+): number {
+  if (shippingConfig.freeShippingThreshold > 0 && subtotal >= shippingConfig.freeShippingThreshold) {
+    return 0;
+  }
+  if (zoneName) {
+    const zone = shippingConfig.zones.find((z) => z.name === zoneName);
+    if (zone) return Math.max(0, Number(zone.fee) || 0);
+  }
+  return Math.max(0, Number(shippingConfig.defaultFee) || 0);
+}
+
+export function getHeroSlides(
+  appCustomization?: AppCustomization | null,
+  brandName?: string,
+  slogan?: string,
+  mainCategories?: string[]
+): HeroSlideConfig[] {
+  const tenantDefault = getTenantDefaultCustomization();
+  const saved = Array.isArray(appCustomization?.heroSlides) && appCustomization.heroSlides.length > 0
+    ? appCustomization.heroSlides
+    : Array.isArray(tenantDefault?.heroSlides) && tenantDefault.heroSlides.length > 0
+      ? tenantDefault.heroSlides
+      : null;
+
+  if (saved) {
+    return saved
+      .filter((s) => s && (s.title || s.subtitle || s.image))
+      .map((s, i) => ({
+        id: s.id ?? i + 1,
+        badge: s.badge || '',
+        title: String(s.title || '').trim(),
+        subtitle: String(s.subtitle || '').trim(),
+        description: String(s.description || '').trim(),
+        image: String(s.image || '').trim() || 'https://images.unsplash.com/photo-1486262715619-67b85e0b08d3?q=80&w=1600&auto=format&fit=crop',
+        category: String(s.category || 'all').trim() || 'all',
+      }));
+  }
+
+  const cats = Array.isArray(mainCategories) && mainCategories.length > 0 ? mainCategories : ['all'];
+  return [
+    {
+      id: 1,
+      badge: slogan || 'المتجر الإلكتروني المعتمد',
+      title: brandName || 'تشكيلة مميزة بانتظارك',
+      subtitle: 'جودة عالية وأفضل قيمة مقابل سعر',
+      description: slogan || 'تصفح أحدث المنتجات والعروض المتاحة الآن مع شحن سريع لجميع المحافظات.',
+      image: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?q=80&w=1600&auto=format&fit=crop',
+      category: cats[0] || 'all',
+    },
+    {
+      id: 2,
+      badge: 'عروض وتوصيل سريع',
+      title: cats[1] || cats[0] || 'تسوق بسهولة وأمان',
+      subtitle: 'اطلب أونلاين والدفع عند الاستلام أو إلكترونياً',
+      description: 'اختر ما يناسبك وتابع حالة طلبك خطوة بخطوة بضمان معتمد وخدمة عملاء متميزة.',
+      image: 'https://images.unsplash.com/photo-1472851294608-062f824d29cc?q=80&w=1600&auto=format&fit=crop',
+      category: cats[1] || cats[0] || 'all',
+    },
+  ];
+}

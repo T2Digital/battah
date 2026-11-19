@@ -96,7 +96,14 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
         setCheckoutOpen(true);
     };
 
-    const handlePlaceOrder = async (customerDetails: { name: string; phone: string; address: string }, paymentMethod: Order['paymentMethod'], paymentProof?: File, discountCode?: string, locationLink?: string) => {
+    const handlePlaceOrder = async (
+        customerDetails: { name: string; phone: string; address: string },
+        paymentMethod: Order['paymentMethod'],
+        paymentProof?: File,
+        discountCode?: string,
+        locationLink?: string,
+        shippingInfo?: { shippingZone?: string; deliveryFee?: number }
+    ) => {
         const orderItems: OrderItem[] = cartItems.map(item => ({
             productId: item.product.id,
             productName: item.product.name,
@@ -106,11 +113,10 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
         const subtotal = cartItems.reduce((sum, item) => sum + item.product.sellingPrice * item.quantity, 0);
         
         try {
-            const proofUrl = await createOrder(customerDetails, orderItems, subtotal, paymentMethod, paymentProof, discountCode, locationLink);
+            const result = await createOrder(customerDetails, orderItems, subtotal, paymentMethod, paymentProof, discountCode, locationLink, shippingInfo);
             setCartItems([]);
-            setCheckoutOpen(false);
             setNotification('تم إرسال طلبك بنجاح! سيتم التواصل معك للتأكيد.');
-            return proofUrl;
+            return result;
         } catch (error) {
             console.error("Failed to create order:", error);
             alert("حدث خطأ أثناء إرسال الطلب. يرجى المحاولة مرة أخرى.");

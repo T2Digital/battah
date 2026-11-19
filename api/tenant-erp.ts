@@ -364,6 +364,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const paymentMethod = body.paymentMethod === 'electronic' ? 'electronic' : 'cod';
     const paymentProofUrl = body.paymentProofUrl ? String(body.paymentProofUrl) : undefined;
     const locationLink = body.locationLink ? String(body.locationLink) : undefined;
+    const shippingZone = body.shippingZone ? String(body.shippingZone).trim() : undefined;
     const discountCodeInput = String(body.discountCode || '').trim().toUpperCase();
     const numericSubtotal = Number(body.subtotal ?? body.totalAmount ?? 0);
 
@@ -381,21 +382,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const existingOrders: any[] = Array.isArray(ordersShard.orders) ? ordersShard.orders : [];
     const existingNotifications: any[] = Array.isArray(ordersShard.notifications) ? ordersShard.notifications : [];
 
-    let finalTotal = numericSubtotal + 50;
+    // Compute dynamic shipping fee from catalog/brand config
+    const shippingCfg: any = catalog.appCustomization?.shipping || cfg.appCustomization?.shipping || {};
+    const defaultFee = Math.max(0, Number(shippingCfg.defaultFee ?? 50) || 0);
+    const freeThreshold = Math.max(0, Number(shippingCfg.freeShippingThreshold ?? 0) || 0);
+    let deliveryFee = defaultFee;
+    if (freeThreshold > 0 && numericSubtotal >= freeThreshold) {
+      deliveryFee = 0;
+    } else if (shippingZone && Array.isArray(shippingCfg.zones)) {
+      const matchedZone = shippingCfg.zones.find((z: any) => String(z?.name || '').trim() === shippingZone);
+      if (matchedZone) deliveryFee = Math.max(0, Number(matchedZone.fee ?? defaultFee) || 0);
+    }
+
+    let discountAmount = 0;
     let validDiscountInfo: Record<string, any> = {};
     if (discountCodeInput) {
       const codes: any[] = Array.isArray(catalog.discountCodes) ? catalog.discountCodes : [];
       const found = codes.find((c) => String(c?.code || '').trim().toUpperCase() === discountCodeInput);
       const today = new Date().toISOString().split('T')[0];
       if (found && found.isActive && (!found.expiresAt || today <= found.expiresAt) && numericSubtotal >= Number(found.minPurchase || 0)) {
-        const discountAmount =
+        discountAmount =
           found.type === 'fixed'
             ? Number(found.value || 0)
             : (numericSubtotal * Number(found.value || 0)) / 100;
-        finalTotal = Math.max(0, finalTotal - discountAmount);
         validDiscountInfo = { discountCode: discountCodeInput, discountAmount };
       }
     }
+    const finalTotal = Math.max(0, numericSubtotal - discountAmount) + deliveryFee;
 
     const orderCount = Math.max(Number(catalog.counters?.orderCount || 0), existingOrders.length) + 1;
     const orderId = String(orderCount).padStart(3, '0');
@@ -412,6 +425,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       customerPhone: String(customerDetails.phone).trim(),
       customerAddress: String(customerDetails.address).trim(),
       items,
+      deliveryFee,
+      ...(shippingZone ? { shippingZone } : {}),
       totalAmount: finalTotal,
       status: 'pending',
       paymentMethod,

@@ -10,18 +10,21 @@ import { bootstrapBattahTenant, resolveTenantBrandId, TenantBrandConfig } from '
 import { verifyTenantSession } from './lib/tenantErpSync';
 import { getActiveBranches } from './lib/appConfig';
 
-import Sidebar from './components/Sidebar';
-import Header from './components/Header';
-import LoginModal from './components/LoginModal';
 import Storefront from './components/store/Storefront';
-import AdminChatbot from './components/admin/AdminChatbot';
-import Reports from './components/reports/Reports';
-import InventoryReports from './components/reports/InventoryReports';
-import SalesReportView from './components/reports/SalesReportView';
-import EmployeesReportView from './components/reports/EmployeesReportView';
-import FinancialReportView from './components/reports/FinancialReportView';
-import SuppliersReportView from './components/reports/SuppliersReportView';
 import ToastContainer from './components/shared/ToastContainer';
+
+// Lazy load admin shell, auth modal, and heavy report views so the public storefront stays fast
+const Sidebar = React.lazy(() => import('./components/Sidebar'));
+const Header = React.lazy(() => import('./components/Header'));
+const LoginModal = React.lazy(() => import('./components/LoginModal'));
+const AdminChatbot = React.lazy(() => import('./components/admin/AdminChatbot'));
+const Reports = React.lazy(() => import('./components/reports/Reports'));
+const InventoryReports = React.lazy(() => import('./components/reports/InventoryReports'));
+const SalesReportView = React.lazy(() => import('./components/reports/SalesReportView'));
+const EmployeesReportView = React.lazy(() => import('./components/reports/EmployeesReportView'));
+const FinancialReportView = React.lazy(() => import('./components/reports/FinancialReportView'));
+const SuppliersReportView = React.lazy(() => import('./components/reports/SuppliersReportView'));
+const AccessDenied = React.lazy(() => import('./components/shared/AccessDenied'));
 
 // Lazy load components for code splitting and better performance
 const Dashboard = React.lazy(() => import('./components/dashboard/Dashboard'));
@@ -46,8 +49,6 @@ const Promotions = React.lazy(() => import('./components/promotions/Promotions')
 const Settings = React.lazy(() => import('./components/dashboard/Settings'));
 const Notifications = React.lazy(() => import('./components/notifications/Notifications'));
 const Users = React.lazy(() => import('./components/users/Users'));
-
-import AccessDenied from './components/shared/AccessDenied';
 
 type ViewMode = 'admin' | 'store';
 
@@ -570,10 +571,10 @@ const App: React.FC = () => {
     // --- Admin View Logic ---
     if (!currentUser) {
         return (
-            <>
+            <Suspense fallback={<div className="flex justify-center items-center min-h-screen font-cairo">جاري تحميل بوابة الدخول...</div>}>
                 <LoginModal setViewMode={setViewMode} />
                 <NotificationPrompt />
-            </>
+            </Suspense>
         );
     }
 
@@ -603,24 +604,30 @@ const App: React.FC = () => {
             )}
             <ToastContainer />
             <NotificationPrompt />
-            <Header
-                toggleSidebar={toggleSidebar}
-                isSidebarOpen={isSidebarOpen}
-                setViewMode={setViewMode}
-            />
-            <Sidebar
-                isOpen={isSidebarOpen}
-                activeSection={activeSection}
-                setActiveSection={updateActiveSection}
-                hasPermission={hasPermission}
-                onClose={() => setSidebarOpen(false)}
-            />
+            <Suspense fallback={null}>
+                <Header
+                    toggleSidebar={toggleSidebar}
+                    isSidebarOpen={isSidebarOpen}
+                    setViewMode={setViewMode}
+                />
+                <Sidebar
+                    isOpen={isSidebarOpen}
+                    activeSection={activeSection}
+                    setActiveSection={updateActiveSection}
+                    hasPermission={hasPermission}
+                    onClose={() => setSidebarOpen(false)}
+                />
+            </Suspense>
             <main className={`transition-all duration-300 ease-in-out pt-24 pb-8 px-4 sm:px-8 ${isSidebarOpen ? 'sm:mr-72' : 'sm:mr-20'}`}>
                 <Suspense fallback={<div className="text-center p-8">جاري تحميل القسم...</div>}>
                     {renderAdminContent()}
                 </Suspense>
             </main>
-            {currentUser?.role === Role.Admin && <AdminChatbot />}
+            {currentUser?.role === Role.Admin && (
+                <Suspense fallback={null}>
+                    <AdminChatbot />
+                </Suspense>
+            )}
         </div>
     );
 };

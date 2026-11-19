@@ -8,12 +8,32 @@ import Modal from '../shared/Modal';
 import { formatCurrency } from '../../lib/utils';
 import useStore from '../../lib/store';
 import { resolveTenantBrandId } from '../../lib/tenantBootstrap';
+import {
+    getShippingConfig,
+    calculateShippingFee,
+    getStoreBranding,
+    formatWhatsAppNumber,
+} from '../../lib/appConfig';
+
+export interface PlacedOrderResult {
+    orderId?: string | number;
+    totalAmount?: number;
+    deliveryFee?: number;
+    proofUrl?: string;
+}
 
 interface CheckoutModalProps {
     isOpen: boolean;
     onClose: () => void;
     cartItems: CartItem[];
-    onPlaceOrder: (customerDetails: { name: string; phone: string; address: string }, paymentMethod: Order['paymentMethod'], paymentProof?: File, discountCode?: string, locationLink?: string) => Promise<string | undefined>;
+    onPlaceOrder: (
+        customerDetails: { name: string; phone: string; address: string },
+        paymentMethod: Order['paymentMethod'],
+        paymentProof?: File,
+        discountCode?: string,
+        locationLink?: string,
+        shippingInfo?: { shippingZone?: string; deliveryFee?: number }
+    ) => Promise<PlacedOrderResult | string | undefined>;
 }
 
 const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, cartItems, onPlaceOrder }) => {
@@ -27,10 +47,27 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, cartItem
     const [discountInput, setDiscountInput] = useState('');
     const [appliedDiscount, setAppliedDiscount] = useState<DiscountCode | null>(null);
     const [discountMessage, setDiscountMessage] = useState({ text: '', type: 'info' });
+    const [placedOrderSummary, setPlacedOrderSummary] = useState<{
+        orderId: string;
+        totalAmount: number;
+        whatsappUrl: string;
+    } | null>(null);
 
     const { appData } = useStore();
-    const electronicPaymentNumber = appData?.settings?.electronicPaymentNumber || '01080444447';
+    const shippingConfig = useMemo(
+        () => getShippingConfig(appData?.appCustomization),
+        [appData?.appCustomization]
+    );
+    const [shippingZone, setShippingZone] = useState<string>(() => shippingConfig.zones[0]?.name || '');
+    const branding = getStoreBranding(appData?.storefrontSettings, 'المتجر الإلكتروني');
+    const electronicPaymentNumber = appData?.settings?.electronicPaymentNumber || branding.contactPhone || '01013373634';
     const paymentSectionRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (shippingConfig.zones.length > 0 && !shippingConfig.zones.some(z => z.name === shippingZone)) {
+            setShippingZone(shippingConfig.zones[0].name);
+        }
+    }, [shippingConfig.zones, shippingZone]);
 
     useEffect(() => {
         if (paymentMethod === 'electronic' && paymentSectionRef.current) {
@@ -50,6 +87,8 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, cartItem
             setDiscountInput('');
             setAppliedDiscount(null);
             setDiscountMessage({ text: '', type: 'info' });
+            setPlacedOrderSummary(null);
+            setPaymentProof(null);
         }
     }, [isOpen]);
 
@@ -60,7 +99,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, cartItem
     };
 
     const subtotal = cartItems.reduce((sum, item) => sum + item.product.sellingPrice * item.quantity, 0);
-    const deliveryFee = 50;
+    const deliveryFee = calculateShippingFee(subtotal, shippingConfig, shippingZone);
     
     const discountAmount = useMemo(() => {
         if (!appliedDiscount) return 0;
@@ -71,7 +110,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, cartItem
         return (subtotal * appliedDiscount.value) / 100;
     }, [appliedDiscount, subtotal]);
 
-    const totalAmount = subtotal + deliveryFee - discountAmount;
+    const totalAmount = Math.max(0, subtotal - discountAmount) + deliveryFee;
 
     const handleApplyDiscount = async () => {
         if (!discountInput.trim()) {
@@ -148,14 +187,34 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, cartItem
         }
         setIsPlacingOrder(true);
         try {
-            const proofUrl = await onPlaceOrder(customerDetails, paymentMethod, paymentProof || undefined, appliedDiscount?.code, locationUrl);
-            
+            const result = await onPlaceOrder(
+                customerDetails,
+                paymentMethod,
+                paymentProof || undefined,
+                appliedDiscount?.code,
+                locationUrl,
+                { shippingZone, deliveryFee }
+            );
+            const proofUrl = typeof result === 'string' ? result : result?.proofUrl;
+            const finalOrderId =
+                typeof result === 'object' && result?.orderId
+                    ? String(result.orderId)
+                    : String(Date.now()).slice(-6);
+            const finalConfirmedTotal =
+                typeof result === 'object' && typeof result?.totalAmount === 'number'
+                    ? result.totalAmount
+                    : totalAmount;
+
             localStorage.removeItem('checkoutData');
 
-            const businessPhoneNumber = '201080444447'; 
-            let message = `*طلب جديد من متجر أوتو هاوس لقطع غيار السيارات*\n\n`;
+            const businessPhoneNumber =
+                branding.whatsappFormatted || formatWhatsAppNumber(electronicPaymentNumber);
+            let message = `*طلب جديد #${finalOrderId} من ${branding.companyName}*\n\n`;
             message += `*الاسم:* ${customerDetails.name}\n`;
             message += `*الهاتف:* ${customerDetails.phone}\n`;
+            if (shippingZone) {
+                message += `*المنطقة / المحافظة:* ${shippingZone}\n`;
+            }
             message += `*العنوان:* ${customerDetails.address}\n\n`;
             message += `*المنتجات:*\n`;
             cartItems.forEach(item => {
@@ -164,7 +223,8 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, cartItem
             if (appliedDiscount && discountAmount > 0) {
                 message += `\n*الخصم (${appliedDiscount.code}):* -${formatCurrency(discountAmount)}\n`;
             }
-            message += `\n*الإجمالي:* ${formatCurrency(totalAmount)}\n`;
+            message += `*رسوم التوصيل:* ${deliveryFee === 0 ? 'مجاني' : formatCurrency(deliveryFee)}\n`;
+            message += `*الإجمالي:* ${formatCurrency(finalConfirmedTotal)}\n`;
             message += `*طريقة الدفع:* ${paymentMethod === 'cod' ? 'عند الاستلام' : 'دفع إلكتروني'}\n`;
             if (proofUrl) {
                 message += `*إثبات الدفع:* ${proofUrl}\n`;
@@ -172,11 +232,16 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, cartItem
             if (locationUrl) {
                 message += `*موقع العميل:* ${locationUrl}\n`;
             }
-            
-            const whatsappUrl = `https://wa.me/${businessPhoneNumber}?text=${encodeURIComponent(message)}`;
-            
-            window.open(whatsappUrl, '_blank');
 
+            const whatsappUrl = businessPhoneNumber
+                ? `https://wa.me/${businessPhoneNumber}?text=${encodeURIComponent(message)}`
+                : '';
+
+            setPlacedOrderSummary({
+                orderId: finalOrderId,
+                totalAmount: finalConfirmedTotal,
+                whatsappUrl,
+            });
         } catch (error) {
             console.error("Order submission failed:", error);
             alert("فشل إرسال الطلب. يرجى المحاولة مرة أخرى.");
@@ -185,7 +250,55 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, cartItem
         }
     };
 
-    const inputBaseClasses = "mt-1 block w-full rounded-xl border-gray-200 dark:border-gray-700 shadow-sm dark:bg-gray-800 focus:border-primary focus:ring-primary transition-colors px-4 py-3 text-sm";
+    const inputBaseClasses = "mt-1 block w-full rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm bg-white dark:bg-gray-800 focus:border-primary focus:ring-primary transition-colors px-3.5 py-2.5 sm:px-4 sm:py-3 text-sm";
+
+    if (placedOrderSummary) {
+        return (
+            <Modal
+                isOpen={isOpen}
+                onClose={onClose}
+                title="تم تأكيد طلبك بنجاح"
+            >
+                <div className="text-center py-4 sm:py-6 space-y-5">
+                    <div className="w-20 h-20 mx-auto rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-4xl shadow-inner">
+                        <i className="fas fa-check-circle"></i>
+                    </div>
+                    <div>
+                        <h3 className="text-2xl font-black text-gray-900 dark:text-white mb-2">شكراً لطلبك من {branding.companyName}!</h3>
+                        <p className="text-sm text-gray-600 dark:text-gray-300">
+                            رقم الطلب الخاص بك: <span className="font-mono font-black text-primary bg-primary/10 px-2.5 py-1 rounded-lg">#{placedOrderSummary.orderId}</span>
+                        </p>
+                        <p className="text-base font-bold text-gray-800 dark:text-gray-200 mt-3">
+                            الإجمالي المطلوب: {formatCurrency(placedOrderSummary.totalAmount)}
+                        </p>
+                    </div>
+                    <div className="bg-slate-50 dark:bg-gray-700/40 rounded-2xl p-4 text-xs sm:text-sm text-gray-600 dark:text-gray-300 leading-relaxed">
+                        تم تسجيل طلبك في النظام بنجاح وسيتم التواصل معك قريباً لتأكيد الشحن. يمكنك متابعة حالة الطلب من زر <strong>"طلباتي"</strong> في أي وقت برقم هاتفك.
+                    </div>
+                    <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                        {placedOrderSummary.whatsappUrl && (
+                            <a
+                                href={placedOrderSummary.whatsappUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="flex-1 py-3.5 px-4 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 shadow-md"
+                            >
+                                <i className="fab fa-whatsapp text-lg"></i>
+                                <span>إرسال تفاصيل الطلب على واتساب</span>
+                            </a>
+                        )}
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            className="flex-1 py-3.5 px-4 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-xl font-bold text-sm"
+                        >
+                            متابعة التسوق
+                        </button>
+                    </div>
+                </div>
+            </Modal>
+        );
+    }
 
     return (
         <Modal 
@@ -193,9 +306,10 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, cartItem
             onClose={isPlacingOrder ? () => {} : onClose}
             title="إتمام الطلب" 
             onSave={handleSubmit}
-            saveLabel="تأكيد الطلب الآن"
+            saveLabel="تأكيد الطلب"
+            isLoading={isPlacingOrder}
         >
-            <div className="space-y-8 relative">
+            <div className="space-y-5 sm:space-y-7 relative">
                  {isPlacingOrder && (
                     <div className="absolute inset-0 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm flex flex-col items-center justify-center z-50 rounded-2xl">
                         <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4"></div>
@@ -240,8 +354,10 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, cartItem
                             </div>
                         )}
                          <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400">
-                            <span>رسوم التوصيل</span>
-                            <span className="font-medium text-gray-900 dark:text-white">{formatCurrency(deliveryFee)}</span>
+                            <span>رسوم التوصيل {shippingZone ? `(${shippingZone})` : ''}</span>
+                            <span className={`font-bold ${deliveryFee === 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-900 dark:text-white'}`}>
+                                {deliveryFee === 0 ? 'مجاني 🎉' : formatCurrency(deliveryFee)}
+                            </span>
                         </div>
                         <div className="flex justify-between font-black text-xl pt-4 mt-2 border-t border-gray-200 dark:border-gray-700 text-primary dark:text-primary-light">
                             <span>الإجمالي المطلوب</span>
@@ -277,6 +393,22 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, cartItem
                                  <input type="tel" name="phone" value={customerDetails.phone} placeholder="مثال: 01012345678" onChange={handleChange} required className={`${inputBaseClasses} pr-10 text-left`} dir="ltr" />
                              </div>
                          </div>
+                         {shippingConfig.zones.length > 0 && (
+                             <div>
+                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">المحافظة / منطقة الشحن</label>
+                                 <select
+                                     value={shippingZone}
+                                     onChange={(e) => setShippingZone(e.target.value)}
+                                     className={inputBaseClasses}
+                                 >
+                                     {shippingConfig.zones.map((z) => (
+                                         <option key={z.name} value={z.name}>
+                                             {z.name} — {shippingConfig.freeShippingThreshold > 0 && subtotal >= shippingConfig.freeShippingThreshold ? 'شحن مجاني' : formatCurrency(z.fee)}
+                                         </option>
+                                     ))}
+                                 </select>
+                             </div>
+                         )}
                          <div>
                              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">العنوان بالتفصيل</label>
                              <div className="relative">
@@ -301,12 +433,14 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, cartItem
                         </div>
                         كود الخصم
                     </h3>
-                    <div className="flex gap-2 relative">
-                        <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                            <i className="fas fa-tag text-gray-400"></i>
+                    <div className="flex gap-2">
+                        <div className="relative flex-1 min-w-0">
+                            <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                                <i className="fas fa-tag text-gray-400"></i>
+                            </div>
+                            <input type="text" value={discountInput} onChange={e => setDiscountInput(e.target.value)} placeholder="أدخل كود الخصم هنا" className={`${inputBaseClasses} !mt-0 pr-10 uppercase`} />
                         </div>
-                        <input type="text" value={discountInput} onChange={e => setDiscountInput(e.target.value)} placeholder="أدخل كود الخصم هنا" className={`${inputBaseClasses} !mt-0 pr-10 uppercase`} />
-                        <button type="button" onClick={handleApplyDiscount} className="px-6 py-3 bg-gray-900 text-white dark:bg-gray-700 dark:text-gray-200 font-bold rounded-xl hover:bg-gray-800 dark:hover:bg-gray-600 transition-colors whitespace-nowrap shadow-sm active:scale-[0.98]">تطبيق</button>
+                        <button type="button" onClick={handleApplyDiscount} className="px-4 sm:px-6 py-2.5 sm:py-3 bg-gray-900 text-white dark:bg-gray-700 dark:text-gray-200 font-bold rounded-xl hover:bg-gray-800 dark:hover:bg-gray-600 transition-colors whitespace-nowrap shadow-sm active:scale-[0.98] text-sm">تطبيق</button>
                     </div>
                     {discountMessage.text && (
                         <div className={`mt-3 p-3 rounded-xl flex items-center gap-2 text-sm border ${discountMessage.type === 'error' ? 'bg-red-50 text-red-600 border-red-100 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800' : 'bg-emerald-50 text-emerald-600 border-emerald-100 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800'}`}>
@@ -324,31 +458,31 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, cartItem
                         </div>
                         طريقة الدفع
                     </h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <label className={`flex items-center p-4 border-2 rounded-xl cursor-pointer transition-all ${paymentMethod === 'cod' ? 'border-primary bg-primary/5 dark:bg-primary/10 shadow-sm' : 'border-gray-200 dark:border-gray-700 hover:border-primary/30 hover:bg-gray-50 dark:hover:bg-gray-800'}`}>
-                            <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center mr-3 ${paymentMethod === 'cod' ? 'border-primary' : 'border-gray-300 dark:border-gray-600'}`}>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                        <label className={`flex items-center gap-3 p-3.5 sm:p-4 border-2 rounded-xl cursor-pointer transition-all ${paymentMethod === 'cod' ? 'border-primary bg-primary/5 dark:bg-primary/10 shadow-sm' : 'border-gray-200 dark:border-gray-700 hover:border-primary/30 hover:bg-gray-50 dark:hover:bg-gray-800'}`}>
+                            <div className={`w-6 h-6 shrink-0 rounded-full border-2 flex items-center justify-center ${paymentMethod === 'cod' ? 'border-primary' : 'border-gray-300 dark:border-gray-600'}`}>
                                 {paymentMethod === 'cod' && <div className="w-3 h-3 rounded-full bg-primary"></div>}
                             </div>
                             <input type="radio" name="paymentMethod" value="cod" checked={paymentMethod === 'cod'} onChange={() => setPaymentMethod('cod')} className="hidden"/>
-                            <div className="ml-3">
-                                <span className="block font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                            <div className="min-w-0">
+                                <span className="font-bold text-sm sm:text-base text-gray-900 dark:text-white flex items-center gap-2">
                                     <i className="fas fa-hand-holding-usd text-primary"></i>
                                     الدفع عند الاستلام
                                 </span>
-                                <span className="block text-xs text-gray-500 dark:text-gray-400 mt-1">ادفع نقداً عند استلام طلبك</span>
+                                <span className="block text-xs text-gray-500 dark:text-gray-400 mt-0.5">ادفع نقداً عند استلام طلبك</span>
                             </div>
                         </label>
-                         <label className={`flex items-center p-4 border-2 rounded-xl cursor-pointer transition-all ${paymentMethod === 'electronic' ? 'border-primary bg-primary/5 dark:bg-primary/10 shadow-sm' : 'border-gray-200 dark:border-gray-700 hover:border-primary/30 hover:bg-gray-50 dark:hover:bg-gray-800'}`}>
-                            <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center mr-3 ${paymentMethod === 'electronic' ? 'border-primary' : 'border-gray-300 dark:border-gray-600'}`}>
+                         <label className={`flex items-center gap-3 p-3.5 sm:p-4 border-2 rounded-xl cursor-pointer transition-all ${paymentMethod === 'electronic' ? 'border-primary bg-primary/5 dark:bg-primary/10 shadow-sm' : 'border-gray-200 dark:border-gray-700 hover:border-primary/30 hover:bg-gray-50 dark:hover:bg-gray-800'}`}>
+                            <div className={`w-6 h-6 shrink-0 rounded-full border-2 flex items-center justify-center ${paymentMethod === 'electronic' ? 'border-primary' : 'border-gray-300 dark:border-gray-600'}`}>
                                 {paymentMethod === 'electronic' && <div className="w-3 h-3 rounded-full bg-primary"></div>}
                             </div>
                             <input type="radio" name="paymentMethod" value="electronic" checked={paymentMethod === 'electronic'} onChange={() => setPaymentMethod('electronic')} className="hidden"/>
-                            <div className="ml-3">
-                                <span className="block font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                            <div className="min-w-0">
+                                <span className="font-bold text-sm sm:text-base text-gray-900 dark:text-white flex items-center gap-2">
                                     <i className="fas fa-credit-card text-primary"></i>
                                     دفع إلكتروني
                                 </span>
-                                <span className="block text-xs text-gray-500 dark:text-gray-400 mt-1">انستاباي، فودافون كاش، والمزيد</span>
+                                <span className="block text-xs text-gray-500 dark:text-gray-400 mt-0.5">انستاباي، فودافون كاش، والمزيد</span>
                             </div>
                         </label>
                     </div>

@@ -71,7 +71,7 @@ import {
 } from '../types';
 import { initialData } from './initialData';
 import { formatCurrency, normalizeSaleItems } from './utils';
-import { getActiveBranches, createEmptyStockForBranches } from './appConfig';
+import { getActiveBranches, createEmptyStockForBranches, getShippingConfig, calculateShippingFee } from './appConfig';
 
 let publicUnsubscribers: Unsubscribe[] = [];
 let adminUnsubscribers: Unsubscribe[] = [];
@@ -300,7 +300,7 @@ type AppActions = {
 
 
     // Storefront Actions
-    createOrder: (customerDetails: { name: string; phone: string; address: string }, items: OrderItem[], totalAmount: number, paymentMethod: Order['paymentMethod'], paymentProof?: File, discountCode?: string, locationLink?: string) => Promise<string | undefined>;
+    createOrder: (customerDetails: { name: string; phone: string; address: string }, items: OrderItem[], totalAmount: number, paymentMethod: Order['paymentMethod'], paymentProof?: File, discountCode?: string, locationLink?: string, shippingInfo?: { shippingZone?: string; deliveryFee?: number }) => Promise<{ orderId?: string | number; totalAmount?: number; deliveryFee?: number; proofUrl?: string }>;
     updateOrderStatus: (orderId: number | string, status: Order['status'], shippingDetails?: { shippingCompany?: string, trackingNumber?: string, shippingNotes?: string }) => Promise<void>;
     deleteOrder: (orderId: number | string) => Promise<void>;
     updateStorefrontSettings: (settings: StorefrontSettings) => Promise<void>;
@@ -2196,9 +2196,14 @@ const useStore = create<AppState & AppActions>((set, get) => ({
             throw new Error(error.message || 'Image upload failed');
         }
     },
-    createOrder: async (customerDetails, items, subtotal, paymentMethod, paymentProof, discountCode, locationLink) => {
+    createOrder: async (customerDetails, items, subtotal, paymentMethod, paymentProof, discountCode, locationLink, shippingInfo) => {
         let imageUrl: string | undefined = undefined;
-        let finalTotal = subtotal + 50; // Add delivery fee initially
+        const shippingConfig = getShippingConfig(get().appData?.appCustomization);
+        const deliveryFee =
+            typeof shippingInfo?.deliveryFee === 'number'
+                ? shippingInfo.deliveryFee
+                : calculateShippingFee(subtotal, shippingConfig, shippingInfo?.shippingZone);
+        let discountAmount = 0;
         let validDiscountInfo: Partial<Pick<Order, 'discountCode' | 'discountAmount'>> = {};
 
         // Upload payment proof if exists
@@ -2221,6 +2226,7 @@ const useStore = create<AppState & AppActions>((set, get) => ({
                 paymentProofUrl: imageUrl,
                 discountCode,
                 locationLink,
+                shippingZone: shippingInfo?.shippingZone,
             });
             if (!res.ok) {
                 throw new Error("فشل إنشاء الطلب: " + (res.error || 'خطأ في الخادم'));
@@ -2238,7 +2244,12 @@ const useStore = create<AppState & AppActions>((set, get) => ({
             });
             isHydratingFromCloud = false;
             saveLocalErpCache(activeSlug, get().appData as any);
-            return imageUrl;
+            return {
+                orderId: res.order?.id,
+                totalAmount: res.order?.totalAmount ?? (Math.max(0, subtotal) + deliveryFee),
+                deliveryFee: res.order?.deliveryFee ?? deliveryFee,
+                proofUrl: imageUrl,
+            };
         }
         
         // 1. Validate discount code and calculate discount
@@ -2249,23 +2260,23 @@ const useStore = create<AppState & AppActions>((set, get) => ({
                 const codeData = codeSnapshot.data() as DiscountCode;
                 const now = new Date().toISOString().split('T')[0];
                 if (codeData.isActive && now <= codeData.expiresAt && subtotal >= codeData.minPurchase) {
-                    let calculatedDiscount = 0;
                     if (codeData.type === 'fixed') {
-                        calculatedDiscount = codeData.value;
+                        discountAmount = codeData.value;
                     } else { // percentage
-                        calculatedDiscount = (subtotal * codeData.value) / 100;
+                        discountAmount = (subtotal * codeData.value) / 100;
                     }
                     
-                    finalTotal -= calculatedDiscount; // Apply discount to final total
                     validDiscountInfo = {
                         discountCode: discountCode,
-                        discountAmount: calculatedDiscount,
+                        discountAmount,
                     };
                 }
             }
         }
+        const finalTotal = Math.max(0, subtotal - discountAmount) + deliveryFee;
 
         // 3. Create order document with sequential ID using transaction
+        let createdOrderId = '001';
         try {
             await runTransaction(db, async (transaction) => {
                 // READS FIRST
@@ -2285,6 +2296,7 @@ const useStore = create<AppState & AppActions>((set, get) => ({
                 }
                 
                 const orderId = String(newCount).padStart(3, '0'); // "001", "002"
+                createdOrderId = orderId;
                 
                 transaction.set(counterRef, { orderCount: newCount }, { merge: true });
                 
@@ -2295,6 +2307,8 @@ const useStore = create<AppState & AppActions>((set, get) => ({
                     createdAt: Timestamp.now(),
                     customerName: customerDetails.name, customerPhone: customerDetails.phone, customerAddress: customerDetails.address,
                     items, 
+                    deliveryFee,
+                    shippingZone: shippingInfo?.shippingZone || undefined,
                     totalAmount: finalTotal, 
                     status: 'pending', 
                     paymentMethod, 
@@ -2354,7 +2368,12 @@ const useStore = create<AppState & AppActions>((set, get) => ({
                 }).catch(() => {});
             } catch {}
 
-            return imageUrl;
+            return {
+                orderId: createdOrderId,
+                totalAmount: finalTotal,
+                deliveryFee,
+                proofUrl: imageUrl,
+            };
         } catch (error: any) {
             console.error("Transaction failed: ", error);
             throw new Error("فشل إنشاء الطلب: " + error.message);

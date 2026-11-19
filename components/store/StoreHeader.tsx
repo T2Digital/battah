@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import useStore from '../../lib/store';
+import { getStoreBranding } from '../../lib/appConfig';
 
 interface StoreHeaderProps {
     onCartClick: () => void;
@@ -10,9 +11,14 @@ interface StoreHeaderProps {
 }
 
 const StoreHeader: React.FC<StoreHeaderProps> = ({ onCartClick, cartItemCount, setViewMode, onMyOrdersClick }) => {
-    const settings = useStore(state => state.appData?.settings);
-    const brandName = settings?.companyName || 'متجر بطاح الأصلي';
-    const brandTagline = settings?.tickerMessages?.[0] || 'المتجر الإلكتروني المعتمد';
+    const { settings, storefrontSettings } = useStore(state => ({
+        settings: state.appData?.settings,
+        storefrontSettings: state.appData?.storefrontSettings,
+    }));
+    const branding = getStoreBranding(storefrontSettings, settings?.companyName || 'المتجر الإلكتروني');
+    const brandName = branding.companyName;
+    const brandTagline = settings?.tickerMessages?.[0] || branding.slogan || 'المتجر الإلكتروني المعتمد';
+    const logoSrc = branding.logoUrl || 'https://i.ibb.co/3yL3ZXm5/aa2f6315c6fc.jpg';
 
     const [isDarkMode, setIsDarkMode] = useState(false);
     const [isScrolled, setIsScrolled] = useState(false);
@@ -51,47 +57,50 @@ const StoreHeader: React.FC<StoreHeaderProps> = ({ onCartClick, cartItemCount, s
     };
 
     return (
-        <header className={`sticky top-0 z-40 transition-all duration-300 ${isScrolled ? 'bg-white/90 dark:bg-gray-900/90 backdrop-blur-md shadow-sm py-3' : 'bg-white dark:bg-gray-900 py-4 border-b border-gray-100 dark:border-gray-800'}`}>
-            <div className="container mx-auto px-4 sm:px-6 flex justify-between items-center">
+        <header className={`sticky top-0 z-40 transition-all duration-300 ${isScrolled ? 'bg-white/95 dark:bg-gray-900/95 backdrop-blur-md shadow-sm py-2.5 sm:py-3' : 'bg-white dark:bg-gray-900 py-3 sm:py-4 border-b border-gray-100 dark:border-gray-800'}`}>
+            <div className="container mx-auto px-3 sm:px-6 flex justify-between items-center gap-2">
                 {/* Logo Area */}
-                <div className="flex items-center gap-3 cursor-pointer group" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
-                    <div className="relative w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-gray-50 dark:bg-gray-800 flex items-center justify-center overflow-hidden border border-gray-100 dark:border-gray-700 group-hover:border-primary/30 transition-colors">
-                        <img src="https://i.ibb.co/LDdGwd87/5-1.png" alt="Logo" className="w-8 h-8 sm:w-10 sm:h-10 object-contain group-hover:scale-110 transition-transform duration-300" />
+                <div className="flex items-center gap-2.5 sm:gap-3 cursor-pointer group min-w-0" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
+                    <div className="relative w-10 h-10 sm:w-12 sm:h-12 shrink-0 rounded-xl bg-gray-50 dark:bg-gray-800 flex items-center justify-center overflow-hidden border border-gray-100 dark:border-gray-700 group-hover:border-primary/30 transition-colors">
+                        <img src={logoSrc} alt={brandName} className="w-8 h-8 sm:w-10 sm:h-10 object-contain group-hover:scale-110 transition-transform duration-300" />
                     </div>
-                    <div className="hidden sm:flex flex-col">
-                        <h1 className="text-xl font-black text-gray-900 dark:text-white leading-none tracking-tight">{brandName}</h1>
-                        <span className="text-[10px] text-primary font-bold tracking-widest uppercase mt-1">{brandTagline}</span>
+                    <div className="flex flex-col min-w-0">
+                        <h1 className="text-sm sm:text-xl font-black text-gray-900 dark:text-white leading-tight tracking-tight truncate max-w-[145px] sm:max-w-xs md:max-w-md">{brandName}</h1>
+                        <span className="text-[10px] text-primary font-bold tracking-wide truncate max-w-[145px] sm:max-w-xs mt-0.5 hidden xs:block sm:block">{brandTagline}</span>
                     </div>
                 </div>
 
                 {/* Actions Area */}
-                <div className="flex items-center gap-2 sm:gap-3">
+                <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
                     {/* Dark Mode Toggle */}
                     <button 
                         onClick={toggleDarkMode}
-                        className="w-10 h-10 rounded-full flex items-center justify-center text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                        className="w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                         aria-label="تبديل الوضع الليلي"
                     >
-                        {isDarkMode ? <i className="fas fa-sun text-lg"></i> : <i className="fas fa-moon text-lg"></i>}
+                        {isDarkMode ? <i className="fas fa-sun text-base sm:text-lg"></i> : <i className="fas fa-moon text-base sm:text-lg"></i>}
                     </button>
                     
-                    {/* My Orders Button */}
+                    {/* My Orders Button (Mobile + Desktop) */}
                     <button 
                         onClick={onMyOrdersClick} 
-                        className="hidden sm:flex items-center gap-2 px-4 py-2 rounded-full text-gray-600 hover:text-primary dark:text-gray-300 dark:hover:text-primary-light hover:bg-primary/5 dark:hover:bg-primary/10 transition-colors font-medium text-sm"
+                        className="flex items-center gap-1.5 px-2.5 sm:px-4 py-2 rounded-full text-gray-600 hover:text-primary dark:text-gray-300 dark:hover:text-primary-light hover:bg-primary/5 dark:hover:bg-primary/10 transition-colors font-medium text-xs sm:text-sm"
+                        title="طلباتي"
+                        aria-label="طلباتي"
                     >
-                        <i className="fas fa-receipt"></i>
-                        <span>طلباتي</span>
+                        <i className="fas fa-receipt text-base sm:text-sm"></i>
+                        <span className="hidden sm:inline">طلباتي</span>
                     </button>
                     
                     {/* Cart Button */}
                     <button 
                         onClick={onCartClick} 
-                        className="relative w-10 h-10 rounded-full flex items-center justify-center text-gray-700 hover:text-primary dark:text-gray-200 dark:hover:text-primary-light hover:bg-primary/5 dark:hover:bg-primary/10 transition-colors"
+                        className="relative w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-gray-700 hover:text-primary dark:text-gray-200 dark:hover:text-primary-light hover:bg-primary/5 dark:hover:bg-primary/10 transition-colors"
+                        aria-label="سلة التسوق"
                     >
-                        <i className="fas fa-shopping-cart text-lg"></i>
+                        <i className="fas fa-shopping-cart text-base sm:text-lg"></i>
                         {cartItemCount > 0 && (
-                            <span className="absolute -top-1.5 -right-1.5 bg-primary text-white text-[10px] font-bold rounded-full h-5 w-5 flex items-center justify-center border-2 border-white dark:border-gray-900 shadow-sm animate-bounce-short">
+                            <span className="absolute -top-1 -right-1 sm:-top-1.5 sm:-right-1.5 bg-primary text-white text-[10px] font-bold rounded-full h-5 w-5 flex items-center justify-center border-2 border-white dark:border-gray-900 shadow-sm animate-bounce-short">
                                 {cartItemCount}
                             </span>
                         )}
@@ -101,6 +110,14 @@ const StoreHeader: React.FC<StoreHeaderProps> = ({ onCartClick, cartItemCount, s
                     <div className="h-6 w-px bg-gray-200 dark:bg-gray-700 mx-1 hidden sm:block"></div>
                     
                     {/* Admin Login Button */}
+                    <button 
+                        onClick={() => setViewMode('admin')}
+                        className="sm:hidden w-9 h-9 rounded-full bg-gray-900 dark:bg-white text-white dark:text-gray-900 flex items-center justify-center shadow-sm"
+                        aria-label="دخول الإدارة"
+                        title="دخول الإدارة"
+                    >
+                        <i className="fas fa-user-shield text-sm"></i>
+                    </button>
                     <button 
                         onClick={() => setViewMode('admin')}
                         className="hidden sm:flex items-center gap-2 px-5 py-2 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-full hover:bg-gray-800 dark:hover:bg-gray-100 transition-all font-bold text-sm shadow-sm hover:shadow-md active:scale-95"

@@ -47,16 +47,65 @@ export function initStorePixels(cfg: StorePixelsConfig) {
     window.fbq('track', 'PageView');
   }
 
-  // 2. TikTok Pixel
+  // 2. TikTok Pixel (Official stub + deferred queue)
   const ttId = String(cfg.tiktokPixelId || '').trim();
   if (ttId && !window.__T2_PIXELS_LOADED__[`tt:${ttId}`]) {
     window.__T2_PIXELS_LOADED__[`tt:${ttId}`] = true;
-    const s = document.createElement('script');
-    s.async = true;
-    s.src = `https://analytics.tiktok.com/i18n/pixel/events.js?sdkid=${encodeURIComponent(ttId)}&lib=ttq`;
-    document.head.appendChild(s);
-    window.ttq = window.ttq || [];
-    window.ttq.push(['page']);
+    ((w: any, d: Document, t: string) => {
+      w.TiktokAnalyticsObject = t;
+      const ttq = (w[t] = w[t] || []);
+      ttq.methods = [
+        'page',
+        'track',
+        'identify',
+        'instances',
+        'debug',
+        'on',
+        'off',
+        'once',
+        'ready',
+        'alias',
+        'group',
+        'enableCookie',
+        'disableCookie',
+        'holdConsent',
+        'revokeConsent',
+        'grantConsent',
+      ];
+      ttq.setAndDefer = (target: any, method: string) => {
+        target[method] = function () {
+          target.push([method].concat(Array.prototype.slice.call(arguments, 0)));
+        };
+      };
+      for (let i = 0; i < ttq.methods.length; i++) {
+        ttq.setAndDefer(ttq, ttq.methods[i]);
+      }
+      ttq.instance = (id: string) => {
+        const inst = ttq._i[id] || [];
+        for (let n = 0; n < ttq.methods.length; n++) {
+          ttq.setAndDefer(inst, ttq.methods[n]);
+        }
+        return inst;
+      };
+      ttq.load = (id: string, opts?: any) => {
+        const url = 'https://analytics.tiktok.com/i18n/pixel/events.js';
+        ttq._i = ttq._i || {};
+        ttq._i[id] = [];
+        ttq._i[id]._u = url;
+        ttq._t = ttq._t || {};
+        ttq._t[id] = +new Date();
+        ttq._o = ttq._o || {};
+        ttq._o[id] = opts || {};
+        const script = d.createElement('script');
+        script.type = 'text/javascript';
+        script.async = true;
+        script.src = `${url}?sdkid=${encodeURIComponent(id)}&lib=${t}`;
+        const firstScript = d.getElementsByTagName('script')[0];
+        firstScript?.parentNode?.insertBefore(script, firstScript);
+      };
+      ttq.load(ttId);
+      ttq.page();
+    })(window, document, 'ttq');
   }
 
   // 3. Google Tag (GA4 / Google Ads)
@@ -113,7 +162,16 @@ export function trackStoreEvent(
             : eventName === 'InitiateCheckout'
               ? 'begin_checkout'
               : 'purchase';
-      window.gtag('event', gaName, payload);
+      const gaItems = Array.isArray(data.content_ids)
+        ? data.content_ids.map((id) => ({
+            item_id: String(id),
+            item_name: data.content_name || String(id),
+          }))
+        : undefined;
+      window.gtag('event', gaName, {
+        ...payload,
+        ...(gaItems ? { items: gaItems } : {}),
+      });
     }
     if (typeof window.snaptr === 'function') {
       const snapName =

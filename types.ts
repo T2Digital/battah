@@ -25,12 +25,35 @@ export interface StorefrontFiltersConfig {
     showInStockOnlyFilter?: boolean;
 }
 
+export interface HeroSlideConfig {
+    id: string | number;
+    badge?: string;
+    title: string;
+    subtitle: string;
+    description: string;
+    image: string;
+    category?: string;
+}
+
+export interface ShippingZoneConfig {
+    name: string;
+    fee: number;
+}
+
+export interface ShippingConfig {
+    defaultFee: number;
+    freeShippingThreshold: number;
+    zones: ShippingZoneConfig[];
+}
+
 export interface AppCustomization {
     activeBranches?: BranchConfig[];
     cashiers?: CashierConfig[];
     mainCategories?: string[];
     subCategories?: Record<string, string[]>;
     storefrontFilters?: StorefrontFiltersConfig;
+    heroSlides?: HeroSlideConfig[];
+    shipping?: ShippingConfig;
 }
 
 export enum Role {
@@ -98,6 +121,7 @@ export interface Product {
     discount?: number;
     isNew?: boolean;
     rating?: number;
+    variants?: { name: string; options: string[] }[];
 }
 
 export interface SaleItem {
@@ -307,6 +331,8 @@ export interface Order {
     shippingCompany?: string; // Added for shipping tracking
     trackingNumber?: string; // Added for shipping tracking
     shippingNotes?: string; // Added for shipping tracking
+    deliveryFee?: number;
+    shippingZone?: string;
 }
 
 export interface Notification {
@@ -332,6 +358,21 @@ export interface StorefrontSettings {
     newArrivalProductIds: number[];
     adminPassword?: string;
     tickerMessages?: string[]; // Added
+    companyName?: string;
+    slogan?: string;
+    logoUrl?: string;
+    contactPhone?: string;
+    whatsappPhone?: string;
+    contactEmail?: string;
+    address?: string;
+    primaryColor?: string;
+    metaPixelId?: string;
+    tiktokPixelId?: string;
+    googleTagId?: string;
+    snapPixelId?: string;
+    facebookUrl?: string;
+    instagramUrl?: string;
+    tiktokUrl?: string;
 }
 
 export interface CartItem {
@@ -393,6 +434,7 @@ export interface AppData {
 }
 
 export interface Settings {
+    companyName?: string;
     allowedIP?: string;
     enableIPRestriction: boolean;
     enableTimeRestriction: boolean;
