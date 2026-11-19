@@ -33,12 +33,12 @@ const StoreCart: React.FC<StoreCartProps> = ({ isOpen, onClose, cartItems, onUpd
         <>
             {/* Backdrop */}
             <div 
-                className={`fixed inset-0 bg-gray-900/60 backdrop-blur-sm z-50 transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+                className={`fixed inset-0 bg-gray-900/60 backdrop-blur-sm z-[80] transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
                 onClick={onClose}
             ></div>
             
             {/* Sidebar */}
-            <div className={`fixed top-0 right-0 h-[100dvh] w-full max-w-[100vw] sm:max-w-md bg-white dark:bg-gray-900 shadow-2xl z-50 transform transition-transform duration-300 ease-in-out flex flex-col ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+            <div className={`fixed top-0 right-0 h-[100dvh] w-full max-w-[100vw] sm:max-w-md bg-white dark:bg-gray-900 shadow-2xl z-[80] transform transition-transform duration-300 ease-in-out flex flex-col ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}>
                 
                 {/* Header */}
                 <div className="flex justify-between items-center p-4 sm:p-5 border-b border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 z-10 shrink-0">
