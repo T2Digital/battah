@@ -8,6 +8,7 @@ import Modal from '../shared/Modal';
 import { formatCurrency, formatDate } from '../../lib/utils';
 import { resolveTenantBrandId } from '../../lib/tenantBootstrap';
 import { fetchTenantOrdersByPhone } from '../../lib/tenantErpSync';
+import { buildCarrierTrackingUrl } from '../../lib/appConfig';
 
 interface MyOrdersModalProps {
     isOpen: boolean;
@@ -187,6 +188,36 @@ const MyOrdersModal: React.FC<MyOrdersModalProps> = ({ isOpen, onClose }) => {
                                                 ))}
                                             </div>
                                             
+                                            {/* Shipping Tracking Info (When Shipped) */}
+                                            {(order.shippingCompany || order.trackingNumber) && (
+                                                <div className="mb-3 p-3 rounded-xl bg-indigo-50/70 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800/50 flex flex-wrap items-center justify-between gap-2 text-xs">
+                                                    <div className="space-y-0.5">
+                                                        {order.shippingCompany && (
+                                                            <div className="font-bold text-indigo-900 dark:text-indigo-200">
+                                                                <i className="fas fa-shipping-fast ml-1.5"></i>
+                                                                شركة الشحن: {order.shippingCompany}
+                                                            </div>
+                                                        )}
+                                                        {order.trackingNumber && (
+                                                            <div className="font-mono text-indigo-700 dark:text-indigo-300">
+                                                                رقم التتبع / البوليصة: <strong>{order.trackingNumber}</strong>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    {(order.trackingUrl || buildCarrierTrackingUrl(order.carrierProvider || order.shippingCompany, order.trackingNumber)) && (
+                                                        <a
+                                                            href={order.trackingUrl || buildCarrierTrackingUrl(order.carrierProvider || order.shippingCompany, order.trackingNumber)}
+                                                            target="_blank"
+                                                            rel="noreferrer"
+                                                            className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold inline-flex items-center gap-1.5 shadow-sm"
+                                                        >
+                                                            <span>تتبع الشحنة</span>
+                                                            <i className="fas fa-external-link-alt text-[10px]"></i>
+                                                        </a>
+                                                    )}
+                                                </div>
+                                            )}
+
                                             {/* Order Footer */}
                                             <div className="flex justify-between items-center pt-3 border-t border-gray-100 dark:border-gray-700">
                                                 <span className="text-sm text-gray-500 dark:text-gray-400">الإجمالي</span>

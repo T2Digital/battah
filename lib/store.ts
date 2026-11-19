@@ -64,6 +64,7 @@ import {
     DiscountCode,
     Toast,
     Branch,
+    ShippingCarrierProvider,
     Settings,
     Broadcast,
     Section,
@@ -301,7 +302,7 @@ type AppActions = {
 
     // Storefront Actions
     createOrder: (customerDetails: { name: string; phone: string; address: string }, items: OrderItem[], totalAmount: number, paymentMethod: Order['paymentMethod'], paymentProof?: File, discountCode?: string, locationLink?: string, shippingInfo?: { shippingZone?: string; deliveryFee?: number }) => Promise<{ orderId?: string | number; totalAmount?: number; deliveryFee?: number; proofUrl?: string }>;
-    updateOrderStatus: (orderId: number | string, status: Order['status'], shippingDetails?: { shippingCompany?: string, trackingNumber?: string, shippingNotes?: string }) => Promise<void>;
+    updateOrderStatus: (orderId: number | string, status: Order['status'], shippingDetails?: { shippingCompany?: string; trackingNumber?: string; shippingNotes?: string; carrierProvider?: ShippingCarrierProvider; trackingUrl?: string }) => Promise<void>;
     deleteOrder: (orderId: number | string) => Promise<void>;
     updateStorefrontSettings: (settings: StorefrontSettings) => Promise<void>;
     uploadImage: (file: File, path: string) => Promise<string>;
@@ -2380,7 +2381,7 @@ const useStore = create<AppState & AppActions>((set, get) => ({
         }
     },
     
-    updateOrderStatus: async (orderId, status, shippingDetails?: { shippingCompany?: string, trackingNumber?: string, shippingNotes?: string }) => {
+    updateOrderStatus: async (orderId, status, shippingDetails?: { shippingCompany?: string; trackingNumber?: string; shippingNotes?: string; carrierProvider?: ShippingCarrierProvider; trackingUrl?: string }) => {
         const state = get();
         const { appData } = state;
         if (!appData) throw new Error("App data not loaded!");
@@ -2393,6 +2394,8 @@ const useStore = create<AppState & AppActions>((set, get) => ({
             if (shippingDetails.shippingCompany !== undefined) updateData.shippingCompany = shippingDetails.shippingCompany;
             if (shippingDetails.trackingNumber !== undefined) updateData.trackingNumber = shippingDetails.trackingNumber;
             if (shippingDetails.shippingNotes !== undefined) updateData.shippingNotes = shippingDetails.shippingNotes;
+            if (shippingDetails.carrierProvider !== undefined) updateData.carrierProvider = shippingDetails.carrierProvider;
+            if (shippingDetails.trackingUrl !== undefined) updateData.trackingUrl = shippingDetails.trackingUrl;
         }
         const statusText = status === 'confirmed' ? 'تم التأكيد' : status === 'shipped' ? 'تم الشحن' : status === 'cancelled' ? 'ملغي' : status === 'collected' ? 'تم التحصيل' : status === 'returned' ? 'مرتجع' : 'قيد الانتظار';
 
@@ -2400,7 +2403,7 @@ const useStore = create<AppState & AppActions>((set, get) => ({
             const invoiceNum = `ONLINE-${orderId}`;
             const existingSale = appData.dailySales.find(s => s.invoiceNumber === invoiceNum) || null;
             const wasAlreadyProcessed = Boolean(existingSale);
-            const isElectronic = orderToUpdate.paymentMethod === 'electronic';
+            const isElectronic = orderToUpdate.paymentMethod === 'electronic' || orderToUpdate.paymentMethod === 'paymob';
             const isNowBeingProcessed = ['shipped', 'collected'].includes(status);
             const isBeingReverted = ['pending', 'confirmed', 'cancelled', 'returned'].includes(status);
 

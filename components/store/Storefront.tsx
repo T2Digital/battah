@@ -232,31 +232,36 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
         };
     }, [branding]);
 
-    // Load cart from localStorage on initial render
+    // Load cart from localStorage on initial render (supporting variant names cleanly)
     useEffect(() => {
         try {
             const savedCart = localStorage.getItem('battahCart');
             if (savedCart) {
-                const parsedCart: {productId: number, quantity: number}[] = JSON.parse(savedCart);
-                // Reconstruct cart with full product objects
+                const parsedCart: { productId: number; quantity: number; variantName?: string }[] = JSON.parse(savedCart);
                 const reconstructedCart: CartItem[] = parsedCart.map(item => {
-                    const product = products.find(p => p.id === item.productId);
-                    return product ? { product, quantity: item.quantity } : null;
+                    const baseProduct = products.find(p => p.id === item.productId);
+                    if (!baseProduct) return null;
+                    const product = item.variantName && item.variantName !== baseProduct.name
+                        ? { ...baseProduct, name: item.variantName }
+                        : baseProduct;
+                    return { product, quantity: item.quantity };
                 }).filter((item): item is CartItem => item !== null);
-                 setCartItems(reconstructedCart);
+                setCartItems(reconstructedCart);
             }
         } catch (error) {
             console.error("Failed to parse cart from localStorage", error);
         }
-    }, [products]); // Depend on products to reconstruct cart once they are loaded
+    }, [products]);
 
     // Save cart to localStorage whenever it changes
     useEffect(() => {
-        // Save a lightweight version of the cart to avoid storing large product objects
-        const lightCart = cartItems.map(item => ({ productId: item.product.id, quantity: item.quantity }));
+        const lightCart = cartItems.map(item => ({
+            productId: item.product.id,
+            quantity: item.quantity,
+            variantName: item.product.name,
+        }));
         localStorage.setItem('battahCart', JSON.stringify(lightCart));
     }, [cartItems]);
-
 
     useEffect(() => {
         if (notification) {
@@ -267,10 +272,14 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
 
     const addToCart = (product: Product, quantity: number) => {
         setCartItems(prevItems => {
-            const existingItem = prevItems.find(item => item.product.id === product.id);
+            const existingItem = prevItems.find(
+                item => item.product.id === product.id && item.product.name === product.name
+            );
             if (existingItem) {
                 return prevItems.map(item =>
-                    item.product.id === product.id ? { ...item, quantity: item.quantity + quantity } : item
+                    item.product.id === product.id && item.product.name === product.name
+                        ? { ...item, quantity: item.quantity + quantity }
+                        : item
                 );
             }
             return [...prevItems, { product, quantity }];
@@ -285,11 +294,13 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
         });
     };
 
-    const updateCartQuantity = (productId: number, quantity: number) => {
+    const updateCartQuantity = (productId: number, quantity: number, variantName?: string) => {
+        const matchesItem = (item: CartItem) =>
+            item.product.id === productId && (!variantName || item.product.name === variantName);
         if (quantity <= 0) {
-            setCartItems(prev => prev.filter(item => item.product.id !== productId));
+            setCartItems(prev => prev.filter(item => !matchesItem(item)));
         } else {
-            setCartItems(prev => prev.map(item => item.product.id === productId ? { ...item, quantity } : item));
+            setCartItems(prev => prev.map(item => (matchesItem(item) ? { ...item, quantity } : item)));
         }
     };
 

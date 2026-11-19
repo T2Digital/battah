@@ -40,10 +40,39 @@ export interface ShippingZoneConfig {
     fee: number;
 }
 
+export type ShippingCarrierProvider = 'manual' | 'bosta' | 'aramex' | 'mylerz' | 'r2s' | 'turbo';
+
+export interface ShippingCarrierConfig {
+    provider: ShippingCarrierProvider;
+    enabled: boolean;
+    apiKey?: string;
+    accountNumber?: string;
+    businessLocationId?: string;
+    senderName?: string;
+    senderPhone?: string;
+    senderAddress?: string;
+}
+
+export interface PaymobConfig {
+    enabled: boolean;
+    configured?: boolean;
+    apiKey?: string;
+    integrationId?: string;
+    iframeId?: string;
+    hmacSecret?: string;
+}
+
+export interface PaymentGatewaysConfig {
+    enableCod?: boolean;
+    enableManualElectronic?: boolean;
+    paymob?: PaymobConfig;
+}
+
 export interface ShippingConfig {
     defaultFee: number;
     freeShippingThreshold: number;
     zones: ShippingZoneConfig[];
+    carrierIntegration?: ShippingCarrierConfig;
 }
 
 export interface AppCustomization {
@@ -54,6 +83,7 @@ export interface AppCustomization {
     storefrontFilters?: StorefrontFiltersConfig;
     heroSlides?: HeroSlideConfig[];
     shipping?: ShippingConfig;
+    paymentGateways?: PaymentGatewaysConfig;
 }
 
 export enum Role {
@@ -322,14 +352,16 @@ export interface Order {
     items: OrderItem[];
     totalAmount: number;
     status: 'pending' | 'confirmed' | 'shipped' | 'cancelled' | 'collected' | 'returned';
-    paymentMethod: 'cod' | 'electronic';
+    paymentMethod: 'cod' | 'electronic' | 'paymob';
     paymentProofUrl?: string;
     // New fields
     customerId?: string; // For future use with customer accounts
     discountCode?: string;
     discountAmount?: number;
     shippingCompany?: string; // Added for shipping tracking
+    carrierProvider?: ShippingCarrierProvider;
     trackingNumber?: string; // Added for shipping tracking
+    trackingUrl?: string;
     shippingNotes?: string; // Added for shipping tracking
     deliveryFee?: number;
     shippingZone?: string;

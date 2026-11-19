@@ -250,6 +250,33 @@ function pickKeys(source: Record<string, any>, keys: readonly string[]): Record<
   return out;
 }
 
+function sanitizePublicAppCustomization(raw: Record<string, any> | null | undefined): Record<string, any> | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const clone: Record<string, any> = { ...raw };
+  if (clone.shipping && typeof clone.shipping === 'object') {
+    const s = { ...clone.shipping };
+    if (s.carrierIntegration && typeof s.carrierIntegration === 'object') {
+      s.carrierIntegration = {
+        provider: s.carrierIntegration.provider || 'manual',
+        enabled: Boolean(s.carrierIntegration.enabled),
+      };
+    }
+    clone.shipping = s;
+  }
+  if (clone.paymentGateways && typeof clone.paymentGateways === 'object') {
+    const pg = { ...clone.paymentGateways };
+    if (pg.paymob && typeof pg.paymob === 'object') {
+      const p = pg.paymob;
+      pg.paymob = {
+        enabled: Boolean(p.enabled),
+        configured: Boolean(p.apiKey && p.integrationId && p.iframeId),
+      };
+    }
+    clone.paymentGateways = pg;
+  }
+  return clone;
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   setCors(res);
 
@@ -288,6 +315,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         Array.isArray(catalog.products) && catalog.products.length > 0
           ? catalog.products
           : seedProductsFromConfig(cfg);
+      const mergedCustomization = {
+        ...(cfg.appCustomization || {}),
+        ...(catalog.appCustomization || {}),
+      };
       return res.status(200).json({
         ok: true,
         state: {
@@ -299,7 +330,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             newArrivalProductIds: [],
           },
           settings: catalog.settings || DEFAULT_SETTINGS,
-          appCustomization: catalog.appCustomization || cfg.appCustomization || null,
+          appCustomization: Object.keys(mergedCustomization).length > 0
+            ? sanitizePublicAppCustomization(mergedCustomization)
+            : null,
         },
       });
     }
@@ -320,6 +353,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       Array.isArray(catalog.products) && catalog.products.length > 0
         ? catalog.products
         : seedProductsFromConfig(cfg);
+    const mergedAdminCustomization = {
+      ...(cfg.appCustomization || {}),
+      ...(catalog.appCustomization || {}),
+    };
 
     return res.status(200).json({
       ok: true,
@@ -332,7 +369,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           newArrivalProductIds: [],
         },
         settings: catalog.settings || DEFAULT_SETTINGS,
-        appCustomization: catalog.appCustomization || cfg.appCustomization || null,
+        appCustomization: Object.keys(mergedAdminCustomization).length > 0 ? mergedAdminCustomization : null,
         counters: catalog.counters || { orderCount: 0 },
         orders: Array.isArray(ordersShard.orders) ? ordersShard.orders : [],
         notifications: Array.isArray(ordersShard.notifications) ? ordersShard.notifications : [],
@@ -361,7 +398,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (action === 'create-order') {
     const customerDetails = body.customerDetails || {};
     const items = Array.isArray(body.items) ? body.items : [];
-    const paymentMethod = body.paymentMethod === 'electronic' ? 'electronic' : 'cod';
+    const paymentMethod =
+      body.paymentMethod === 'electronic'
+        ? 'electronic'
+        : body.paymentMethod === 'paymob'
+          ? 'paymob'
+          : 'cod';
     const paymentProofUrl = body.paymentProofUrl ? String(body.paymentProofUrl) : undefined;
     const locationLink = body.locationLink ? String(body.locationLink) : undefined;
     const shippingZone = body.shippingZone ? String(body.shippingZone).trim() : undefined;

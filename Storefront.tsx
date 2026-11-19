@@ -72,10 +72,12 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
 
     const addToCart = (product: Product, quantity: number) => {
         setCartItems(prevItems => {
-            const existingItem = prevItems.find(item => item.product.id === product.id);
+            const existingItem = prevItems.find(item => item.product.id === product.id && item.product.name === product.name);
             if (existingItem) {
                 return prevItems.map(item =>
-                    item.product.id === product.id ? { ...item, quantity: item.quantity + quantity } : item
+                    item.product.id === product.id && item.product.name === product.name
+                        ? { ...item, quantity: item.quantity + quantity }
+                        : item
                 );
             }
             return [...prevItems, { product, quantity }];
@@ -83,11 +85,13 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
         setNotification(`تم إضافة "${product.name}" إلى السلة`);
     };
 
-    const updateCartQuantity = (productId: number, quantity: number) => {
+    const updateCartQuantity = (productId: number, quantity: number, variantName?: string) => {
+        const matchesItem = (item: CartItem) =>
+            item.product.id === productId && (!variantName || item.product.name === variantName);
         if (quantity <= 0) {
-            setCartItems(prev => prev.filter(item => item.product.id !== productId));
+            setCartItems(prev => prev.filter(item => !matchesItem(item)));
         } else {
-            setCartItems(prev => prev.map(item => item.product.id === productId ? { ...item, quantity } : item));
+            setCartItems(prev => prev.map(item => (matchesItem(item) ? { ...item, quantity } : item)));
         }
     };
 

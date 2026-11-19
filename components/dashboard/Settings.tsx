@@ -7,6 +7,8 @@ import {
     BranchConfig,
     CashierConfig,
     HeroSlideConfig,
+    PaymentGatewaysConfig,
+    ShippingCarrierProvider,
     ShippingConfig,
     StorefrontFiltersConfig,
 } from '../../types';
@@ -19,6 +21,8 @@ import {
     getStoreBranding,
     getShippingConfig,
     getHeroSlides,
+    SHIPPING_CARRIERS,
+    getPaymentGatewaysConfig,
 } from '../../lib/appConfig';
 
 const Settings: React.FC = () => {
@@ -87,6 +91,10 @@ const Settings: React.FC = () => {
         getHeroSlides(appData?.appCustomization, initialBranding.companyName, initialBranding.slogan, getMainCategories(appData?.appCustomization))
     );
 
+    const [paymentGateways, setPaymentGateways] = useState<Required<PaymentGatewaysConfig>>(() =>
+        getPaymentGatewaysConfig(appData?.appCustomization)
+    );
+
     useEffect(() => {
         if ('Notification' in window) {
             setNotificationStatus(Notification.permission);
@@ -143,6 +151,7 @@ const Settings: React.FC = () => {
             setStorefrontFilters(getStorefrontFiltersConfig(appData.appCustomization));
             setShippingConfig(getShippingConfig(appData.appCustomization));
             setHeroSlides(getHeroSlides(appData.appCustomization, b.companyName, b.slogan, cats));
+            setPaymentGateways(getPaymentGatewaysConfig(appData.appCustomization));
         }
     }, [appData?.settings, appData?.storefrontSettings, appData?.appCustomization]);
 
@@ -318,8 +327,31 @@ const Settings: React.FC = () => {
                     defaultFee: Math.max(0, Number(shippingConfig.defaultFee) || 0),
                     freeShippingThreshold: Math.max(0, Number(shippingConfig.freeShippingThreshold) || 0),
                     zones: cleanZones,
+                    carrierIntegration: {
+                        provider: (shippingConfig.carrierIntegration?.provider || 'manual') as ShippingCarrierProvider,
+                        enabled: Boolean(shippingConfig.carrierIntegration?.enabled),
+                        apiKey: shippingConfig.carrierIntegration?.apiKey?.trim() || '',
+                        accountNumber: shippingConfig.carrierIntegration?.accountNumber?.trim() || '',
+                        senderAddress: shippingConfig.carrierIntegration?.senderAddress?.trim() || '',
+                    },
                 },
                 heroSlides: cleanSlides,
+                paymentGateways: {
+                    enableCod: paymentGateways.enableCod !== false,
+                    enableManualElectronic: paymentGateways.enableManualElectronic !== false,
+                    paymob: {
+                        enabled: Boolean(paymentGateways.paymob?.enabled),
+                        configured: Boolean(
+                            paymentGateways.paymob?.apiKey?.trim() &&
+                            paymentGateways.paymob?.integrationId?.trim() &&
+                            paymentGateways.paymob?.iframeId?.trim()
+                        ),
+                        apiKey: paymentGateways.paymob?.apiKey?.trim() || '',
+                        integrationId: paymentGateways.paymob?.integrationId?.trim() || '',
+                        iframeId: paymentGateways.paymob?.iframeId?.trim() || '',
+                        hmacSecret: paymentGateways.paymob?.hmacSecret?.trim() || '',
+                    },
+                },
             });
             addToast("تم حفظ الإعدادات بنجاح", "success");
         } catch (error) {
@@ -692,6 +724,98 @@ const Settings: React.FC = () => {
                         >
                             + إضافة منطقة
                         </button>
+                    </div>
+
+                    {/* Shipping Carrier Readiness Sub-Card */}
+                    <div className="mt-4 p-4 rounded-xl bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 space-y-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div>
+                                <h4 className="font-bold text-sm text-gray-800 dark:text-gray-200 flex items-center gap-2">
+                                    <i className="fas fa-truck-loading text-primary"></i>
+                                    الربط مع شركات الشحن (Bosta / Aramex / Mylerz / R2S / Turbo)
+                                </h4>
+                                <p className="text-xs text-gray-500 dark:text-gray-400">
+                                    اختر شركة الشحن الافتراضية لتفعيل روابط التتبع المباشرة وطباعة البوالص، أو أضف API Key لـ Bosta لإنشاء الشحنات آلياً.
+                                </p>
+                            </div>
+                            <label className="inline-flex items-center gap-2 cursor-pointer text-xs font-bold">
+                                <input
+                                    type="checkbox"
+                                    checked={Boolean(shippingConfig.carrierIntegration?.enabled)}
+                                    onChange={(e) =>
+                                        setShippingConfig(prev => ({
+                                            ...prev,
+                                            carrierIntegration: {
+                                                ...(prev.carrierIntegration || { provider: 'manual', enabled: false }),
+                                                enabled: e.target.checked,
+                                            },
+                                        }))
+                                    }
+                                    className="w-4 h-4 text-primary rounded"
+                                />
+                                <span>تفعيل الربط</span>
+                            </label>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">شركة الشحن الافتراضية</label>
+                                <select
+                                    value={shippingConfig.carrierIntegration?.provider || 'manual'}
+                                    onChange={(e) =>
+                                        setShippingConfig(prev => ({
+                                            ...prev,
+                                            carrierIntegration: {
+                                                ...(prev.carrierIntegration || { enabled: false }),
+                                                provider: e.target.value as ShippingCarrierProvider,
+                                            },
+                                        }))
+                                    }
+                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 text-sm"
+                                >
+                                    {SHIPPING_CARRIERS.map((c) => (
+                                        <option key={c.provider} value={c.provider}>{c.label}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">رقم الحساب / التاجر (اختياري)</label>
+                                <input
+                                    type="text"
+                                    dir="ltr"
+                                    value={shippingConfig.carrierIntegration?.accountNumber || ''}
+                                    onChange={(e) =>
+                                        setShippingConfig(prev => ({
+                                            ...prev,
+                                            carrierIntegration: {
+                                                ...(prev.carrierIntegration || { provider: 'manual', enabled: false }),
+                                                accountNumber: e.target.value,
+                                            },
+                                        }))
+                                    }
+                                    placeholder="Account / Business ID"
+                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 text-sm font-mono"
+                                />
+                            </div>
+                            <div className="sm:col-span-2">
+                                <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">مفتاح الربط (API Key — يدعم Bosta v2 مباشرة عند التفعيل)</label>
+                                <input
+                                    type="password"
+                                    dir="ltr"
+                                    value={shippingConfig.carrierIntegration?.apiKey || ''}
+                                    onChange={(e) =>
+                                        setShippingConfig(prev => ({
+                                            ...prev,
+                                            carrierIntegration: {
+                                                ...(prev.carrierIntegration || { provider: 'manual', enabled: false }),
+                                                apiKey: e.target.value,
+                                            },
+                                        }))
+                                    }
+                                    placeholder="اتركه فارغاً للتتبع وطباعة البوالص والتصدير الإكسل بدون API"
+                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 text-sm font-mono"
+                                />
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -1182,6 +1306,112 @@ const Settings: React.FC = () => {
                     <p className="text-sm text-gray-500 mt-2">
                         سيتم استخدام هذا الرقم في صفحة إتمام الطلب للعملاء.
                     </p>
+
+                    {/* Optional Payment Gateways & Paymob Card */}
+                    <div className="mt-5 p-4 rounded-xl bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 space-y-4">
+                        <div className="flex flex-wrap gap-4 items-center">
+                            <label className="inline-flex items-center gap-2 cursor-pointer text-sm font-bold text-gray-700 dark:text-gray-200">
+                                <input
+                                    type="checkbox"
+                                    checked={paymentGateways.enableCod !== false}
+                                    onChange={(e) => setPaymentGateways(prev => ({ ...prev, enableCod: e.target.checked }))}
+                                    className="w-4 h-4 text-primary rounded"
+                                />
+                                <span>تفعيل الدفع عند الاستلام (COD)</span>
+                            </label>
+                            <label className="inline-flex items-center gap-2 cursor-pointer text-sm font-bold text-gray-700 dark:text-gray-200">
+                                <input
+                                    type="checkbox"
+                                    checked={paymentGateways.enableManualElectronic !== false}
+                                    onChange={(e) => setPaymentGateways(prev => ({ ...prev, enableManualElectronic: e.target.checked }))}
+                                    className="w-4 h-4 text-primary rounded"
+                                />
+                                <span>تفعيل التحويل الإلكتروني (فودافون كاش / إنستاباي)</span>
+                            </label>
+                        </div>
+
+                        <div className="pt-3 border-t border-gray-200 dark:border-gray-700 space-y-3">
+                            <div className="flex items-center justify-between gap-2">
+                                <div>
+                                    <h4 className="font-bold text-sm text-gray-800 dark:text-gray-200 flex items-center gap-2">
+                                        <i className="fas fa-credit-card text-indigo-500"></i>
+                                        تجهيز الدفع الإلكتروني بالبطاقة — Paymob (اختياري)
+                                    </h4>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                                        يُعرض للعملاء خيار الدفع بالبطاقة تلقائياً بمجرد تفعيل الخيار وإدخال بيانات Paymob.
+                                    </p>
+                                </div>
+                                <label className="inline-flex items-center gap-2 cursor-pointer text-xs font-bold">
+                                    <input
+                                        type="checkbox"
+                                        checked={Boolean(paymentGateways.paymob?.enabled)}
+                                        onChange={(e) =>
+                                            setPaymentGateways(prev => ({
+                                                ...prev,
+                                                paymob: { ...(prev.paymob || { enabled: false }), enabled: e.target.checked },
+                                            }))
+                                        }
+                                        className="w-4 h-4 text-primary rounded"
+                                    />
+                                    <span>تفعيل Paymob</span>
+                                </label>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <input
+                                    type="password"
+                                    dir="ltr"
+                                    value={paymentGateways.paymob?.apiKey || ''}
+                                    onChange={(e) =>
+                                        setPaymentGateways(prev => ({
+                                            ...prev,
+                                            paymob: { ...(prev.paymob || { enabled: false }), apiKey: e.target.value },
+                                        }))
+                                    }
+                                    placeholder="Paymob API Key"
+                                    className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 text-xs font-mono"
+                                />
+                                <input
+                                    type="text"
+                                    dir="ltr"
+                                    value={paymentGateways.paymob?.integrationId || ''}
+                                    onChange={(e) =>
+                                        setPaymentGateways(prev => ({
+                                            ...prev,
+                                            paymob: { ...(prev.paymob || { enabled: false }), integrationId: e.target.value },
+                                        }))
+                                    }
+                                    placeholder="Integration ID (Card)"
+                                    className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 text-xs font-mono"
+                                />
+                                <input
+                                    type="text"
+                                    dir="ltr"
+                                    value={paymentGateways.paymob?.iframeId || ''}
+                                    onChange={(e) =>
+                                        setPaymentGateways(prev => ({
+                                            ...prev,
+                                            paymob: { ...(prev.paymob || { enabled: false }), iframeId: e.target.value },
+                                        }))
+                                    }
+                                    placeholder="iFrame ID"
+                                    className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 text-xs font-mono"
+                                />
+                                <input
+                                    type="password"
+                                    dir="ltr"
+                                    value={paymentGateways.paymob?.hmacSecret || ''}
+                                    onChange={(e) =>
+                                        setPaymentGateways(prev => ({
+                                            ...prev,
+                                            paymob: { ...(prev.paymob || { enabled: false }), hmacSecret: e.target.value },
+                                        }))
+                                    }
+                                    placeholder="HMAC Secret (لأمان Webhook)"
+                                    className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 text-xs font-mono"
+                                />
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 {/* Ticker Messages Section */}

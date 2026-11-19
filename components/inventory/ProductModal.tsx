@@ -46,8 +46,9 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, ex
         name: '', sku: '', mainCategory: mainCategories[0] || 'قطع غيار', category: '', subCategory: '', brand: '', countryOfOrigin: '',
         purchasePrice: 0, sellingPrice: 0, wholesalePrice: 0, retailPrice: 0,
         stock: createEmptyStockForBranches(activeBranches, 0),
-        reorderPoint: 5, description: '', images: [], compatibility: [], hasSerialNumber: false,
+        reorderPoint: 5, description: '', images: [], compatibility: [], hasSerialNumber: false, variants: [],
     });
+    const [variantOptionDrafts, setVariantOptionDrafts] = useState<Record<number, string>>({});
     const [isGenerating, setIsGenerating] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
     const [imageFile, setImageFile] = useState<File | null>(null);
@@ -78,6 +79,7 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, ex
                 images: existingProduct.images || [],
                 compatibility: existingProduct.compatibility || [],
                 hasSerialNumber: existingProduct.hasSerialNumber || false,
+                variants: Array.isArray(existingProduct.variants) ? existingProduct.variants : [],
             });
             setImagePreview(existingProduct.images?.[0] || (existingProduct as any).imageUrl || null);
         } else {
@@ -85,10 +87,11 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, ex
                 name: '', sku: '', mainCategory: mainCategories[0] || 'قطع غيار', category: '', subCategory: '', brand: '', countryOfOrigin: '',
                 purchasePrice: 0, sellingPrice: 0, wholesalePrice: 0, retailPrice: 0,
                 stock: createEmptyStockForBranches(activeBranches, 0),
-                reorderPoint: 5, description: '', images: [], compatibility: [], hasSerialNumber: false,
+                reorderPoint: 5, description: '', images: [], compatibility: [], hasSerialNumber: false, variants: [],
             });
             setImagePreview(null);
         }
+        setVariantOptionDrafts({});
         setImageFile(null); // Reset file input on open
         setShowSecurityCheck(false);
         setSecurityPassword('');
@@ -181,7 +184,15 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, ex
 
     const handleSubmit = async () => {
         setIsUploading(true);
-        let finalData = { ...formData };
+        const cleanVariants = (formData.variants || [])
+            .map(v => ({
+                name: String(v?.name || '').trim(),
+                options: Array.isArray(v?.options)
+                    ? v.options.map(o => String(o || '').trim()).filter(Boolean)
+                    : [],
+            }))
+            .filter(v => v.name && v.options.length > 0);
+        let finalData = { ...formData, variants: cleanVariants };
         if (imageFile) {
             try {
                 const imageUrl = await uploadImage(imageFile, `products/${Date.now()}_${imageFile.name}`);
@@ -503,6 +514,181 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, ex
                         );
                     })}
                 </div>
+            </div>
+
+            {/* Optional Product Variants (Size / Color / Edition) */}
+            <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-900/60 rounded-xl border border-gray-200 dark:border-gray-700 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                        <h4 className="font-bold text-sm text-gray-800 dark:text-gray-200 flex items-center gap-2">
+                            <i className="fas fa-layer-group text-primary"></i>
+                            خيارات ومتغيرات المنتج (اختياري — مقاس / لون / سعة)
+                        </h4>
+                        <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                            مناسب لمتاجر الملابس والأحذية والعطور والإلكترونيات — اتركه فارغاً للمنتجات القياسية.
+                        </p>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() =>
+                            setFormData(prev => ({
+                                ...prev,
+                                variants: [...(prev.variants || []), { name: '', options: [] }],
+                            }))
+                        }
+                        className="px-3 py-1.5 bg-primary text-white rounded-lg text-xs font-bold hover:bg-primary-dark"
+                    >
+                        + متغير مخصص
+                    </button>
+                </div>
+
+                <div className="flex flex-wrap gap-1.5">
+                    <button
+                        type="button"
+                        onClick={() =>
+                            setFormData(prev => {
+                                const cur = prev.variants || [];
+                                if (cur.some(v => v.name === 'المقاس')) return prev;
+                                return { ...prev, variants: [...cur, { name: 'المقاس', options: ['S', 'M', 'L', 'XL', 'XXL'] }] };
+                            })
+                        }
+                        className="px-2.5 py-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md text-[11px] font-bold hover:border-primary"
+                    >
+                        + مقاسات ملابس (S-XXL)
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() =>
+                            setFormData(prev => {
+                                const cur = prev.variants || [];
+                                if (cur.some(v => v.name === 'المقاس')) return prev;
+                                return { ...prev, variants: [...cur, { name: 'المقاس', options: ['40', '41', '42', '43', '44', '45'] }] };
+                            })
+                        }
+                        className="px-2.5 py-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md text-[11px] font-bold hover:border-primary"
+                    >
+                        + مقاسات أحذية (40-45)
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() =>
+                            setFormData(prev => {
+                                const cur = prev.variants || [];
+                                if (cur.some(v => v.name === 'اللون')) return prev;
+                                return { ...prev, variants: [...cur, { name: 'اللون', options: ['أسود', 'أبيض', 'كحلي', 'رمادي'] }] };
+                            })
+                        }
+                        className="px-2.5 py-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md text-[11px] font-bold hover:border-primary"
+                    >
+                        + ألوان شائعة
+                    </button>
+                </div>
+
+                {(formData.variants || []).map((variant, vIdx) => (
+                    <div key={vIdx} className="p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 space-y-2">
+                        <div className="flex items-center gap-2">
+                            <input
+                                type="text"
+                                value={variant.name}
+                                onChange={(e) =>
+                                    setFormData(prev => ({
+                                        ...prev,
+                                        variants: (prev.variants || []).map((v, i) =>
+                                            i === vIdx ? { ...v, name: e.target.value } : v
+                                        ),
+                                    }))
+                                }
+                                placeholder="اسم المتغير (مثال: المقاس أو اللون)"
+                                className="flex-grow px-2.5 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 text-xs font-bold"
+                            />
+                            <button
+                                type="button"
+                                onClick={() =>
+                                    setFormData(prev => ({
+                                        ...prev,
+                                        variants: (prev.variants || []).filter((_, i) => i !== vIdx),
+                                    }))
+                                }
+                                className="px-2 py-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded text-xs"
+                                title="حذف المتغير"
+                            >
+                                <i className="fas fa-trash-alt"></i>
+                            </button>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                            {(variant.options || []).map((opt) => (
+                                <span
+                                    key={opt}
+                                    className="inline-flex items-center gap-1 px-2 py-0.5 bg-primary/10 text-primary dark:text-primary-light rounded-md text-xs font-bold"
+                                >
+                                    <span>{opt}</span>
+                                    <button
+                                        type="button"
+                                        onClick={() =>
+                                            setFormData(prev => ({
+                                                ...prev,
+                                                variants: (prev.variants || []).map((v, i) =>
+                                                    i === vIdx
+                                                        ? { ...v, options: (v.options || []).filter(o => o !== opt) }
+                                                        : v
+                                                ),
+                                            }))
+                                        }
+                                        className="text-red-500 hover:text-red-700"
+                                    >
+                                        &times;
+                                    </button>
+                                </span>
+                            ))}
+                        </div>
+                        <div className="flex gap-2">
+                            <input
+                                type="text"
+                                value={variantOptionDrafts[vIdx] || ''}
+                                onChange={(e) => setVariantOptionDrafts(prev => ({ ...prev, [vIdx]: e.target.value }))}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                        e.preventDefault();
+                                        const raw = (variantOptionDrafts[vIdx] || '').trim();
+                                        if (!raw) return;
+                                        const added = raw.split(/[,،]/).map(s => s.trim()).filter(Boolean);
+                                        setFormData(prev => ({
+                                            ...prev,
+                                            variants: (prev.variants || []).map((v, i) =>
+                                                i === vIdx
+                                                    ? { ...v, options: Array.from(new Set([...(v.options || []), ...added])) }
+                                                    : v
+                                            ),
+                                        }));
+                                        setVariantOptionDrafts(prev => ({ ...prev, [vIdx]: '' }));
+                                    }
+                                }}
+                                placeholder="أضف خيارات (مثال: M, L أو أحمر) واضغط +"
+                                className="flex-grow px-2.5 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 text-xs"
+                            />
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    const raw = (variantOptionDrafts[vIdx] || '').trim();
+                                    if (!raw) return;
+                                    const added = raw.split(/[,،]/).map(s => s.trim()).filter(Boolean);
+                                    setFormData(prev => ({
+                                        ...prev,
+                                        variants: (prev.variants || []).map((v, i) =>
+                                            i === vIdx
+                                                ? { ...v, options: Array.from(new Set([...(v.options || []), ...added])) }
+                                                : v
+                                        ),
+                                    }));
+                                    setVariantOptionDrafts(prev => ({ ...prev, [vIdx]: '' }));
+                                }}
+                                className="px-3 py-1 bg-gray-800 dark:bg-gray-600 text-white rounded-md text-xs font-bold"
+                            >
+                                + إضافة
+                            </button>
+                        </div>
+                    </div>
+                ))}
             </div>
 
             <div className="mt-4">

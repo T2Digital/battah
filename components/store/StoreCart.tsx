@@ -8,7 +8,7 @@ interface StoreCartProps {
     isOpen: boolean;
     onClose: () => void;
     cartItems: CartItem[];
-    onUpdateQuantity: (productId: number, quantity: number) => void;
+    onUpdateQuantity: (productId: number, quantity: number, variantName?: string) => void;
     onCheckout: () => void;
 }
 
@@ -103,7 +103,7 @@ const StoreCart: React.FC<StoreCartProps> = ({ isOpen, onClose, cartItems, onUpd
                         </div>
                     ) : (
                         cartItems.map(item => (
-                            <div key={item.product.id} className="flex gap-3 sm:gap-4 bg-white dark:bg-gray-800 p-3 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 relative group">
+                            <div key={`${item.product.id}-${item.product.name}`} className="flex gap-3 sm:gap-4 bg-white dark:bg-gray-800 p-3 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 relative group">
                                 <div className="w-16 h-16 sm:w-20 sm:h-20 bg-gray-50 dark:bg-gray-700 rounded-xl overflow-hidden flex items-center justify-center flex-shrink-0 p-1.5 border border-gray-100 dark:border-gray-600">
                                     <img src={item.product.images?.[0] || (item.product as any).imageUrl || 'https://via.placeholder.com/150'} alt={item.product.name} className="w-full h-full object-contain mix-blend-multiply dark:mix-blend-normal" />
                                 </div>
@@ -120,7 +120,7 @@ const StoreCart: React.FC<StoreCartProps> = ({ isOpen, onClose, cartItems, onUpd
                                         <div className="flex items-center bg-gray-100 dark:bg-gray-700 rounded-lg h-8 border border-gray-200 dark:border-gray-600">
                                             <button 
                                                 type="button"
-                                                onClick={() => onUpdateQuantity(item.product.id, item.quantity - 1)} 
+                                                onClick={() => onUpdateQuantity(item.product.id, item.quantity - 1, item.product.name)} 
                                                 className="w-8 h-full flex items-center justify-center text-gray-600 dark:text-gray-300 hover:text-primary transition-colors"
                                             >
                                                 <i className="fas fa-minus text-xs"></i>
@@ -128,7 +128,7 @@ const StoreCart: React.FC<StoreCartProps> = ({ isOpen, onClose, cartItems, onUpd
                                             <span className="w-7 text-center font-bold text-xs sm:text-sm text-gray-900 dark:text-white">{item.quantity}</span>
                                             <button 
                                                 type="button"
-                                                onClick={() => onUpdateQuantity(item.product.id, item.quantity + 1)} 
+                                                onClick={() => onUpdateQuantity(item.product.id, item.quantity + 1, item.product.name)} 
                                                 className="w-8 h-full flex items-center justify-center text-gray-600 dark:text-gray-300 hover:text-primary transition-colors"
                                             >
                                                 <i className="fas fa-plus text-xs"></i>
@@ -143,7 +143,7 @@ const StoreCart: React.FC<StoreCartProps> = ({ isOpen, onClose, cartItems, onUpd
                                 {/* Delete Button (Always visible on mobile, positioned cleanly left-3 paired with pl-9) */}
                                 <button 
                                     type="button"
-                                    onClick={() => onUpdateQuantity(item.product.id, 0)} 
+                                    onClick={() => onUpdateQuantity(item.product.id, 0, item.product.name)} 
                                     className="absolute top-3 left-3 w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-full bg-red-50 text-red-500 hover:bg-red-500 hover:text-white dark:bg-red-900/20 dark:hover:bg-red-600 transition-colors opacity-100 sm:opacity-0 sm:group-hover:opacity-100 shadow-sm"
                                     aria-label="حذف المنتج"
                                 >

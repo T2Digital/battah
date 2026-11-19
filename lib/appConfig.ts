@@ -4,7 +4,10 @@ import {
   BranchConfig,
   CashierConfig,
   HeroSlideConfig,
+  PaymentGatewaysConfig,
   Product,
+  ShippingCarrierConfig,
+  ShippingCarrierProvider,
   ShippingConfig,
   StorefrontFiltersConfig,
   StorefrontSettings,
@@ -313,10 +316,108 @@ export function getShippingConfig(appCustomization?: AppCustomization | null): S
         .filter((z: any) => z.name)
     : DEFAULT_SHIPPING_CONFIG.zones;
 
+  const carrierIntegration: ShippingCarrierConfig = raw.carrierIntegration && typeof raw.carrierIntegration === 'object'
+    ? {
+        provider: (raw.carrierIntegration.provider || 'manual') as ShippingCarrierProvider,
+        enabled: Boolean(raw.carrierIntegration.enabled),
+        apiKey: raw.carrierIntegration.apiKey ? String(raw.carrierIntegration.apiKey) : undefined,
+        accountNumber: raw.carrierIntegration.accountNumber ? String(raw.carrierIntegration.accountNumber) : undefined,
+        businessLocationId: raw.carrierIntegration.businessLocationId ? String(raw.carrierIntegration.businessLocationId) : undefined,
+        senderName: raw.carrierIntegration.senderName ? String(raw.carrierIntegration.senderName) : undefined,
+        senderPhone: raw.carrierIntegration.senderPhone ? String(raw.carrierIntegration.senderPhone) : undefined,
+        senderAddress: raw.carrierIntegration.senderAddress ? String(raw.carrierIntegration.senderAddress) : undefined,
+      }
+    : { provider: 'manual', enabled: false };
+
   return {
     defaultFee: Math.max(0, Number(raw.defaultFee ?? DEFAULT_SHIPPING_CONFIG.defaultFee) || 0),
     freeShippingThreshold: Math.max(0, Number(raw.freeShippingThreshold ?? 0) || 0),
     zones,
+    carrierIntegration,
+  };
+}
+
+export const SHIPPING_CARRIERS: Array<{
+  provider: ShippingCarrierProvider;
+  label: string;
+  trackingTemplate: string;
+}> = [
+  { provider: 'manual', label: 'شحن يدوي / مندوب خاص', trackingTemplate: '' },
+  {
+    provider: 'bosta',
+    label: 'بوسطة (Bosta)',
+    trackingTemplate: 'https://bosta.co/tracking-shipment/?shipment-num={tracking}',
+  },
+  {
+    provider: 'aramex',
+    label: 'أرامكس (Aramex)',
+    trackingTemplate: 'https://www.aramex.com/track/results?ShipmentNumber={tracking}',
+  },
+  {
+    provider: 'mylerz',
+    label: 'مايلرز (Mylerz)',
+    trackingTemplate: 'https://mylerz.com/track?id={tracking}',
+  },
+  {
+    provider: 'r2s',
+    label: 'R2S Logistics',
+    trackingTemplate: 'https://r2slogistics.com/tracking?awb={tracking}',
+  },
+  {
+    provider: 'turbo',
+    label: 'تربو (Turbo)',
+    trackingTemplate: 'https://turbo-eg.com/track/{tracking}',
+  },
+];
+
+export function getCarrierLabel(provider?: ShippingCarrierProvider): string {
+  const found = SHIPPING_CARRIERS.find((c) => c.provider === provider);
+  return found?.label || 'شحن يدوي / مندوب خاص';
+}
+
+export function buildCarrierTrackingUrl(providerOrCompany?: string, trackingNumber?: string): string {
+  const tracking = String(trackingNumber || '').trim();
+  const needle = String(providerOrCompany || '').trim().toLowerCase();
+  if (!tracking || !needle) return '';
+
+  const matched = SHIPPING_CARRIERS.find(
+    (c) =>
+      c.provider === needle ||
+      c.label.toLowerCase().includes(needle) ||
+      (needle.includes('بوسطة') && c.provider === 'bosta') ||
+      (needle.includes('aramex') && c.provider === 'aramex') ||
+      (needle.includes('أرامكس') && c.provider === 'aramex') ||
+      (needle.includes('ارامكس') && c.provider === 'aramex') ||
+      (needle.includes('مايلرز') && c.provider === 'mylerz') ||
+      (needle.includes('mylerz') && c.provider === 'mylerz') ||
+      (needle.includes('r2s') && c.provider === 'r2s') ||
+      (needle.includes('تربو') && c.provider === 'turbo') ||
+      (needle.includes('turbo') && c.provider === 'turbo')
+  );
+  if (!matched || !matched.trackingTemplate) return '';
+  return matched.trackingTemplate.replace('{tracking}', encodeURIComponent(tracking));
+}
+
+export function getPaymentGatewaysConfig(
+  appCustomization?: AppCustomization | null
+): Required<PaymentGatewaysConfig> {
+  const tenantDefault = getTenantDefaultCustomization();
+  const raw = appCustomization?.paymentGateways || tenantDefault?.paymentGateways || {};
+  const paymobRaw: any = raw.paymob || {};
+  return {
+    enableCod: raw.enableCod !== false,
+    enableManualElectronic: raw.enableManualElectronic !== false,
+    paymob: {
+      enabled: Boolean(paymobRaw.enabled),
+      configured: Boolean(
+        paymobRaw.configured ||
+          (paymobRaw.apiKey && paymobRaw.integrationId && paymobRaw.iframeId)
+      ),
+      apiKey: paymobRaw.apiKey || '',
+      integrationId: paymobRaw.integrationId || '',
+      iframeId: paymobRaw.iframeId || '',
+      hmacSecret: paymobRaw.hmacSecret || '',
+    },
   };
 }
 

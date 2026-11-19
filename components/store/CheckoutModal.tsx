@@ -13,6 +13,7 @@ import {
     calculateShippingFee,
     getStoreBranding,
     formatWhatsAppNumber,
+    getPaymentGatewaysConfig,
 } from '../../lib/appConfig';
 
 export interface PlacedOrderResult {
@@ -51,6 +52,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, cartItem
         orderId: string;
         totalAmount: number;
         whatsappUrl: string;
+        paymobIframeUrl?: string;
     } | null>(null);
 
     const { appData } = useStore();
@@ -58,6 +60,11 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, cartItem
         () => getShippingConfig(appData?.appCustomization),
         [appData?.appCustomization]
     );
+    const paymentGateways = useMemo(
+        () => getPaymentGatewaysConfig(appData?.appCustomization),
+        [appData?.appCustomization]
+    );
+    const paymobAvailable = Boolean(paymentGateways.paymob?.enabled && paymentGateways.paymob?.configured);
     const [shippingZone, setShippingZone] = useState<string>(() => shippingConfig.zones[0]?.name || '');
     const branding = getStoreBranding(appData?.storefrontSettings, 'المتجر الإلكتروني');
     const electronicPaymentNumber = appData?.settings?.electronicPaymentNumber || branding.contactPhone || '01013373634';
@@ -225,7 +232,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, cartItem
             }
             message += `*رسوم التوصيل:* ${deliveryFee === 0 ? 'مجاني' : formatCurrency(deliveryFee)}\n`;
             message += `*الإجمالي:* ${formatCurrency(finalConfirmedTotal)}\n`;
-            message += `*طريقة الدفع:* ${paymentMethod === 'cod' ? 'عند الاستلام' : 'دفع إلكتروني'}\n`;
+            message += `*طريقة الدفع:* ${paymentMethod === 'cod' ? 'عند الاستلام' : paymentMethod === 'paymob' ? 'بطاقة بنكية (Paymob)' : 'دفع إلكتروني'}\n`;
             if (proofUrl) {
                 message += `*إثبات الدفع:* ${proofUrl}\n`;
             }
@@ -237,10 +244,31 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, cartItem
                 ? `https://wa.me/${businessPhoneNumber}?text=${encodeURIComponent(message)}`
                 : '';
 
+            let paymobIframeUrl: string | undefined;
+            if (paymentMethod === 'paymob') {
+                const slug = resolveTenantBrandId() || 'default';
+                const pmRes = await fetch(`/api/tenant-paymob?slug=${encodeURIComponent(slug)}&action=init`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        orderId: finalOrderId,
+                        amountEgp: finalConfirmedTotal,
+                        customerDetails: { ...customerDetails, shippingZone },
+                    }),
+                });
+                const pmData = await pmRes.json().catch(() => ({}));
+                if (pmRes.ok && pmData?.iframeUrl) {
+                    paymobIframeUrl = pmData.iframeUrl;
+                } else {
+                    alert(pmData?.error || 'تم تسجيل الطلب، لكن تعذر فتح بوابة الدفع. يمكنك المتابعة عبر واتساب أو اختيار طريقة دفع أخرى.');
+                }
+            }
+
             setPlacedOrderSummary({
                 orderId: finalOrderId,
                 totalAmount: finalConfirmedTotal,
                 whatsappUrl,
+                paymobIframeUrl,
             });
         } catch (error) {
             console.error("Order submission failed:", error);
@@ -276,6 +304,17 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, cartItem
                         تم تسجيل طلبك في النظام بنجاح وسيتم التواصل معك قريباً لتأكيد الشحن. يمكنك متابعة حالة الطلب من زر <strong>"طلباتي"</strong> في أي وقت برقم هاتفك.
                     </div>
                     <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                        {placedOrderSummary.paymobIframeUrl && (
+                            <a
+                                href={placedOrderSummary.paymobIframeUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="flex-1 py-3.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 shadow-md"
+                            >
+                                <i className="fas fa-credit-card text-lg"></i>
+                                <span>إكمال الدفع بالبطاقة (Paymob)</span>
+                            </a>
+                        )}
                         {placedOrderSummary.whatsappUrl && (
                             <a
                                 href={placedOrderSummary.whatsappUrl}
@@ -459,32 +498,51 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, cartItem
                         طريقة الدفع
                     </h3>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                        <label className={`flex items-center gap-3 p-3.5 sm:p-4 border-2 rounded-xl cursor-pointer transition-all ${paymentMethod === 'cod' ? 'border-primary bg-primary/5 dark:bg-primary/10 shadow-sm' : 'border-gray-200 dark:border-gray-700 hover:border-primary/30 hover:bg-gray-50 dark:hover:bg-gray-800'}`}>
-                            <div className={`w-6 h-6 shrink-0 rounded-full border-2 flex items-center justify-center ${paymentMethod === 'cod' ? 'border-primary' : 'border-gray-300 dark:border-gray-600'}`}>
-                                {paymentMethod === 'cod' && <div className="w-3 h-3 rounded-full bg-primary"></div>}
-                            </div>
-                            <input type="radio" name="paymentMethod" value="cod" checked={paymentMethod === 'cod'} onChange={() => setPaymentMethod('cod')} className="hidden"/>
-                            <div className="min-w-0">
-                                <span className="font-bold text-sm sm:text-base text-gray-900 dark:text-white flex items-center gap-2">
-                                    <i className="fas fa-hand-holding-usd text-primary"></i>
-                                    الدفع عند الاستلام
-                                </span>
-                                <span className="block text-xs text-gray-500 dark:text-gray-400 mt-0.5">ادفع نقداً عند استلام طلبك</span>
-                            </div>
-                        </label>
-                         <label className={`flex items-center gap-3 p-3.5 sm:p-4 border-2 rounded-xl cursor-pointer transition-all ${paymentMethod === 'electronic' ? 'border-primary bg-primary/5 dark:bg-primary/10 shadow-sm' : 'border-gray-200 dark:border-gray-700 hover:border-primary/30 hover:bg-gray-50 dark:hover:bg-gray-800'}`}>
-                            <div className={`w-6 h-6 shrink-0 rounded-full border-2 flex items-center justify-center ${paymentMethod === 'electronic' ? 'border-primary' : 'border-gray-300 dark:border-gray-600'}`}>
-                                {paymentMethod === 'electronic' && <div className="w-3 h-3 rounded-full bg-primary"></div>}
-                            </div>
-                            <input type="radio" name="paymentMethod" value="electronic" checked={paymentMethod === 'electronic'} onChange={() => setPaymentMethod('electronic')} className="hidden"/>
-                            <div className="min-w-0">
-                                <span className="font-bold text-sm sm:text-base text-gray-900 dark:text-white flex items-center gap-2">
-                                    <i className="fas fa-credit-card text-primary"></i>
-                                    دفع إلكتروني
-                                </span>
-                                <span className="block text-xs text-gray-500 dark:text-gray-400 mt-0.5">انستاباي، فودافون كاش، والمزيد</span>
-                            </div>
-                        </label>
+                        {(paymentGateways.enableCod !== false || (!paymentGateways.enableManualElectronic && !paymobAvailable)) && (
+                            <label className={`flex items-center gap-3 p-3.5 sm:p-4 border-2 rounded-xl cursor-pointer transition-all ${paymentMethod === 'cod' ? 'border-primary bg-primary/5 dark:bg-primary/10 shadow-sm' : 'border-gray-200 dark:border-gray-700 hover:border-primary/30 hover:bg-gray-50 dark:hover:bg-gray-800'}`}>
+                                <div className={`w-6 h-6 shrink-0 rounded-full border-2 flex items-center justify-center ${paymentMethod === 'cod' ? 'border-primary' : 'border-gray-300 dark:border-gray-600'}`}>
+                                    {paymentMethod === 'cod' && <div className="w-3 h-3 rounded-full bg-primary"></div>}
+                                </div>
+                                <input type="radio" name="paymentMethod" value="cod" checked={paymentMethod === 'cod'} onChange={() => setPaymentMethod('cod')} className="hidden"/>
+                                <div className="min-w-0">
+                                    <span className="font-bold text-sm sm:text-base text-gray-900 dark:text-white flex items-center gap-2">
+                                        <i className="fas fa-hand-holding-usd text-primary"></i>
+                                        الدفع عند الاستلام
+                                    </span>
+                                    <span className="block text-xs text-gray-500 dark:text-gray-400 mt-0.5">ادفع نقداً عند استلام طلبك</span>
+                                </div>
+                            </label>
+                        )}
+                        {paymentGateways.enableManualElectronic !== false && (
+                             <label className={`flex items-center gap-3 p-3.5 sm:p-4 border-2 rounded-xl cursor-pointer transition-all ${paymentMethod === 'electronic' ? 'border-primary bg-primary/5 dark:bg-primary/10 shadow-sm' : 'border-gray-200 dark:border-gray-700 hover:border-primary/30 hover:bg-gray-50 dark:hover:bg-gray-800'}`}>
+                                <div className={`w-6 h-6 shrink-0 rounded-full border-2 flex items-center justify-center ${paymentMethod === 'electronic' ? 'border-primary' : 'border-gray-300 dark:border-gray-600'}`}>
+                                    {paymentMethod === 'electronic' && <div className="w-3 h-3 rounded-full bg-primary"></div>}
+                                </div>
+                                <input type="radio" name="paymentMethod" value="electronic" checked={paymentMethod === 'electronic'} onChange={() => setPaymentMethod('electronic')} className="hidden"/>
+                                <div className="min-w-0">
+                                    <span className="font-bold text-sm sm:text-base text-gray-900 dark:text-white flex items-center gap-2">
+                                        <i className="fas fa-credit-card text-primary"></i>
+                                        دفع إلكتروني
+                                    </span>
+                                    <span className="block text-xs text-gray-500 dark:text-gray-400 mt-0.5">انستاباي، فودافون كاش، والمزيد</span>
+                                </div>
+                            </label>
+                        )}
+                        {paymobAvailable && (
+                            <label className={`sm:col-span-2 flex items-center gap-3 p-3.5 sm:p-4 border-2 rounded-xl cursor-pointer transition-all ${paymentMethod === 'paymob' ? 'border-indigo-600 bg-indigo-50/70 dark:bg-indigo-900/20 shadow-sm' : 'border-gray-200 dark:border-gray-700 hover:border-indigo-400/50 hover:bg-gray-50 dark:hover:bg-gray-800'}`}>
+                                <div className={`w-6 h-6 shrink-0 rounded-full border-2 flex items-center justify-center ${paymentMethod === 'paymob' ? 'border-indigo-600' : 'border-gray-300 dark:border-gray-600'}`}>
+                                    {paymentMethod === 'paymob' && <div className="w-3 h-3 rounded-full bg-indigo-600"></div>}
+                                </div>
+                                <input type="radio" name="paymentMethod" value="paymob" checked={paymentMethod === 'paymob'} onChange={() => setPaymentMethod('paymob')} className="hidden"/>
+                                <div className="min-w-0">
+                                    <span className="font-bold text-sm sm:text-base text-gray-900 dark:text-white flex items-center gap-2">
+                                        <i className="fab fa-cc-visa text-indigo-600"></i>
+                                        الدفع بالبطاقة البنكية أونلاين (Paymob)
+                                    </span>
+                                    <span className="block text-xs text-gray-500 dark:text-gray-400 mt-0.5">فيزا أو ماستركارد — دفع فوري وآمن</span>
+                                </div>
+                            </label>
+                        )}
                     </div>
                 </div>
 
