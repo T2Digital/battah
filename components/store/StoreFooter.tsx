@@ -13,7 +13,7 @@ const StoreFooter: React.FC<StoreFooterProps> = ({ setViewMode }) => {
         products: state.appData?.products || [],
     }));
     const branding = getStoreBranding(storefrontSettings, 'المتجر الإلكتروني');
-    const topCategories = getMainCategories(appCustomization, products).slice(0, 4);
+    const allCategoriesCount = getMainCategories(appCustomization, products).length;
     const displayAddress = branding.address || 'جمهورية مصر العربية';
     const displayPhone = branding.contactPhone;
     const displayEmail = branding.contactEmail;
@@ -26,7 +26,7 @@ const StoreFooter: React.FC<StoreFooterProps> = ({ setViewMode }) => {
         : '';
 
     return (
-        <footer className="bg-[#060913] text-slate-300 border-t border-white/[0.08] pt-14 pb-28 md:pb-12">
+        <footer className="bg-[#060913] text-slate-300 border-t border-white/[0.08] pt-14 pb-28 md:pb-24">
             <div className="container mx-auto px-4 sm:px-6">
                 <div className="grid grid-cols-1 md:grid-cols-12 gap-8 lg:gap-10 mb-10 sm:mb-12">
                     {/* Brand Lockup */}
@@ -120,7 +120,7 @@ const StoreFooter: React.FC<StoreFooterProps> = ({ setViewMode }) => {
                             <li>
                                 <a href="#category-highlights" className="text-slate-400 hover:text-white transition-colors flex items-center gap-2">
                                     <i className="fas fa-chevron-left text-[10px] text-primary" />
-                                    أقسام المتجر ({topCategories.length})
+                                    أقسام المتجر ({allCategoriesCount})
                                 </a>
                             </li>
                             <li className="pt-3">

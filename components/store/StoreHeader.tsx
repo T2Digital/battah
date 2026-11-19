@@ -205,19 +205,19 @@ const StoreHeader: React.FC<StoreHeaderProps> = ({
             <div className="container mx-auto px-3 sm:px-6 flex justify-between items-center gap-2 sm:gap-4">
                 {/* Brand Lockup */}
                 <div
-                    className="flex items-center gap-2.5 sm:gap-3 cursor-pointer group min-w-0 shrink-0"
+                    className="flex items-center gap-2 sm:gap-3 cursor-pointer group min-w-0 flex-1 lg:flex-none"
                     onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
                 >
-                    <div className="relative w-10 h-10 sm:w-11 sm:h-11 shrink-0 rounded-2xl bg-slate-100 dark:bg-slate-800/90 flex items-center justify-center overflow-hidden border border-slate-200/80 dark:border-white/10 group-hover:border-primary/40 transition-colors shadow-sm">
+                    <div className="relative w-9 h-9 sm:w-11 sm:h-11 shrink-0 rounded-xl sm:rounded-2xl bg-slate-100 dark:bg-slate-800/90 flex items-center justify-center overflow-hidden border border-slate-200/80 dark:border-white/10 group-hover:border-primary/40 transition-colors shadow-sm">
                         <img
                             src={logoSrc}
                             alt={brandName}
-                            className="w-8 h-8 sm:w-9 sm:h-9 object-contain group-hover:scale-110 transition-transform duration-300"
+                            className="w-7 h-7 sm:w-9 sm:h-9 object-contain group-hover:scale-110 transition-transform duration-300"
                         />
                     </div>
-                    <div className="flex flex-col min-w-0">
-                        <div className="flex items-center gap-1.5">
-                            <h1 className="text-sm sm:text-lg font-black text-slate-900 dark:text-white leading-tight tracking-tight truncate max-w-[140px] sm:max-w-[210px] md:max-w-[260px]">
+                    <div className="flex flex-col min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                            <h1 className="text-xs sm:text-lg font-black text-slate-900 dark:text-white leading-tight tracking-tight truncate sm:max-w-[210px] md:max-w-[260px]">
                                 {brandName}
                             </h1>
                             <span
@@ -227,7 +227,7 @@ const StoreHeader: React.FC<StoreHeaderProps> = ({
                                 <i className="fas fa-check-circle text-[9px]" />
                             </span>
                         </div>
-                        <span className="text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400 font-semibold truncate max-w-[140px] sm:max-w-[240px] mt-0.5">
+                        <span className="text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400 font-semibold truncate sm:max-w-[240px] mt-0.5">
                             {brandTagline}
                         </span>
                     </div>
@@ -263,29 +263,29 @@ const StoreHeader: React.FC<StoreHeaderProps> = ({
                 </div>
 
                 {/* Actions Area */}
-                <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                <div className="flex items-center gap-1 sm:gap-2 shrink-0">
                     {/* Mobile Search Toggle */}
                     <button
                         type="button"
                         onClick={() => setIsMobileSearchOpen(prev => !prev)}
-                        className={`lg:hidden w-9 h-9 rounded-full flex items-center justify-center transition-colors ${
+                        className={`lg:hidden w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center transition-colors ${
                             isMobileSearchOpen
                                 ? 'bg-primary text-white'
                                 : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/10'
                         }`}
                         aria-label="بحث فوري"
                     >
-                        <i className={`fas ${isMobileSearchOpen ? 'fa-times' : 'fa-search'} text-sm`} />
+                        <i className={`fas ${isMobileSearchOpen ? 'fa-times' : 'fa-search'} text-xs sm:text-sm`} />
                     </button>
 
                     {/* Dark Mode Toggle */}
                     <button
                         type="button"
                         onClick={toggleDarkMode}
-                        className="w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/10 transition-colors"
+                        className="w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/10 transition-colors"
                         aria-label="تبديل الوضع الليلي"
                     >
-                        {isDarkMode ? <i className="fas fa-sun text-base" /> : <i className="fas fa-moon text-base" />}
+                        {isDarkMode ? <i className="fas fa-sun text-sm sm:text-base" /> : <i className="fas fa-moon text-sm sm:text-base" />}
                     </button>
 
                     {/* Desktop Wishlist Button */}
@@ -306,7 +306,7 @@ const StoreHeader: React.FC<StoreHeaderProps> = ({
                         </button>
                     )}
 
-                    {/* Desktop My Orders Button */}
+                    {/* Tablet / Desktop My Orders Button (Mobile uses Bottom Dock) */}
                     <button
                         type="button"
                         onClick={onMyOrdersClick}
@@ -318,32 +318,21 @@ const StoreHeader: React.FC<StoreHeaderProps> = ({
                         <span>طلباتي</span>
                     </button>
 
-                    {/* Mobile My Orders Icon (subtle backup) */}
-                    <button
-                        type="button"
-                        onClick={onMyOrdersClick}
-                        className="sm:hidden w-9 h-9 rounded-full flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/10 transition-colors"
-                        title="طلباتي"
-                        aria-label="طلباتي"
-                    >
-                        <i className="fas fa-receipt text-sm" />
-                    </button>
-
                     {/* Cart Button */}
                     <button
                         type="button"
                         onClick={onCartClick}
-                        className="relative flex items-center gap-2 h-9 sm:h-10 px-2.5 sm:px-3.5 rounded-full bg-slate-100 dark:bg-white/[0.07] hover:bg-primary/10 dark:hover:bg-white/[0.12] text-slate-800 dark:text-white border border-slate-200/80 dark:border-white/10 transition-all"
+                        className="relative flex items-center gap-1.5 sm:gap-2 h-8 sm:h-10 px-2 sm:px-3.5 rounded-full bg-slate-100 dark:bg-white/[0.07] hover:bg-primary/10 dark:hover:bg-white/[0.12] text-slate-800 dark:text-white border border-slate-200/80 dark:border-white/10 transition-all"
                         aria-label="سلة التسوق"
                     >
-                        <i className="fas fa-shopping-bag text-sm sm:text-base text-primary" />
+                        <i className="fas fa-shopping-bag text-xs sm:text-base text-primary" />
                         {cartItemCount > 0 && cartSubtotal > 0 && (
                             <span className="hidden md:inline text-xs font-black tabular-nums">
                                 {formatCurrency(cartSubtotal)}
                             </span>
                         )}
                         {cartItemCount > 0 && (
-                            <span className="bg-primary text-white text-[10px] font-black rounded-full min-w-[20px] h-5 px-1 flex items-center justify-center shadow-sm">
+                            <span className="bg-primary text-white text-[10px] font-black rounded-full min-w-[18px] sm:min-w-[20px] h-[18px] sm:h-5 px-1 flex items-center justify-center shadow-sm">
                                 {cartItemCount}
                             </span>
                         )}
@@ -353,11 +342,11 @@ const StoreHeader: React.FC<StoreHeaderProps> = ({
                     <button
                         type="button"
                         onClick={() => setViewMode('admin')}
-                        className="sm:hidden w-9 h-9 rounded-full bg-slate-900 dark:bg-white text-white dark:text-slate-950 flex items-center justify-center shadow-sm"
+                        className="sm:hidden w-8 h-8 rounded-full bg-slate-900 dark:bg-white text-white dark:text-slate-950 flex items-center justify-center shadow-sm"
                         aria-label="دخول الإدارة"
                         title="دخول الإدارة"
                     >
-                        <i className="fas fa-user-shield text-xs" />
+                        <i className="fas fa-user-shield text-[11px]" />
                     </button>
                     <button
                         type="button"

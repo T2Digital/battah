@@ -186,10 +186,10 @@ const StoreHero: React.FC<StoreHeroProps> = ({
                             <button
                                 type="button"
                                 onClick={() => handleShopNow(slide.category || 'all')}
-                                className="flex-1 sm:flex-none px-6 sm:px-8 py-3.5 bg-primary hover:bg-primary-dark text-white font-black rounded-2xl transition-all duration-300 brand-glow flex items-center justify-center gap-2.5 group text-sm sm:text-base active:scale-95"
+                                className="flex-1 sm:flex-none px-4 sm:px-8 py-3 sm:py-3.5 bg-primary hover:bg-primary-dark text-white font-black rounded-2xl transition-all duration-300 brand-glow flex items-center justify-center gap-2 group text-xs sm:text-base whitespace-nowrap active:scale-95"
                             >
                                 <span>تسوق الآن</span>
-                                <i className="fas fa-arrow-left text-sm transform group-hover:-translate-x-1.5 transition-transform" />
+                                <i className="fas fa-arrow-left text-xs sm:text-sm transform group-hover:-translate-x-1.5 transition-transform" />
                             </button>
 
                             <button
@@ -197,7 +197,7 @@ const StoreHero: React.FC<StoreHeroProps> = ({
                                 onClick={() =>
                                     document.getElementById('category-highlights')?.scrollIntoView({ behavior: 'smooth' })
                                 }
-                                className="flex-1 sm:flex-none px-5 sm:px-7 py-3.5 bg-white/[0.09] hover:bg-white/[0.16] text-white font-bold rounded-2xl border border-white/15 backdrop-blur-md transition-all duration-300 flex items-center justify-center gap-2 text-sm sm:text-base active:scale-95"
+                                className="flex-1 sm:flex-none px-4 sm:px-7 py-3 sm:py-3.5 bg-white/[0.09] hover:bg-white/[0.16] text-white font-bold rounded-2xl border border-white/15 backdrop-blur-md transition-all duration-300 flex items-center justify-center gap-2 text-xs sm:text-base whitespace-nowrap active:scale-95"
                             >
                                 <span>استكشف الأقسام</span>
                             </button>
