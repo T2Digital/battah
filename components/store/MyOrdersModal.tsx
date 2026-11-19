@@ -6,6 +6,8 @@ import { db, auth, handleFirestoreError, OperationType } from '../../lib/firebas
 import { Order } from '../../types';
 import Modal from '../shared/Modal';
 import { formatCurrency, formatDate } from '../../lib/utils';
+import { resolveTenantBrandId } from '../../lib/tenantBootstrap';
+import { fetchTenantOrdersByPhone } from '../../lib/tenantErpSync';
 
 interface MyOrdersModalProps {
     isOpen: boolean;
@@ -37,6 +39,15 @@ const MyOrdersModal: React.FC<MyOrdersModalProps> = ({ isOpen, onClose }) => {
         setHasSearched(true);
         setOrders([]);
         try {
+            const tenantSlug = resolveTenantBrandId();
+            if (tenantSlug) {
+                const res = await fetchTenantOrdersByPhone(tenantSlug, phone.trim());
+                if (!res.ok) {
+                    throw new Error(res.error || 'تعذر البحث عن طلباتك حالياً.');
+                }
+                setOrders((res.orders || []) as Order[]);
+                return;
+            }
             // Query for orders associated with the phone number
             const q = query(
                 collection(db, "orders"), 

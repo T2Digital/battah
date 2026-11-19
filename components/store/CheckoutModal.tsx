@@ -7,6 +7,7 @@ import { CartItem, Order, DiscountCode } from '../../types';
 import Modal from '../shared/Modal';
 import { formatCurrency } from '../../lib/utils';
 import useStore from '../../lib/store';
+import { resolveTenantBrandId } from '../../lib/tenantBootstrap';
 
 interface CheckoutModalProps {
     isOpen: boolean;
@@ -78,16 +79,25 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, cartItem
             return;
         }
 
-        const codeRef = doc(db, "discountCodes", discountInput.toUpperCase());
-        const codeSnap = await getDoc(codeRef);
+        const upperCode = discountInput.trim().toUpperCase();
+        let codeData: DiscountCode | null = null;
+        if (resolveTenantBrandId()) {
+            const list = appData?.discountCodes || [];
+            codeData = list.find(c => String(c.code || '').trim().toUpperCase() === upperCode) || null;
+        } else {
+            const codeRef = doc(db, "discountCodes", upperCode);
+            const codeSnap = await getDoc(codeRef);
+            if (codeSnap.exists()) {
+                codeData = codeSnap.data() as DiscountCode;
+            }
+        }
 
-        if (!codeSnap.exists()) {
+        if (!codeData) {
             setDiscountMessage({ text: 'كود الخصم غير صالح.', type: 'error' });
             setAppliedDiscount(null);
             return;
         }
 
-        const codeData = codeSnap.data() as DiscountCode;
         const today = new Date().toISOString().split('T')[0];
 
         if (!codeData.isActive || today > codeData.expiresAt) {

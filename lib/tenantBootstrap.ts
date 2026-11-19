@@ -1,4 +1,11 @@
-import { collection as fsCollection, doc as fsDoc, Firestore } from 'firebase/firestore';
+import {
+  collection as fsCollection,
+  doc as fsDoc,
+  Firestore,
+  DocumentData,
+  DocumentReference,
+  CollectionReference,
+} from 'firebase/firestore';
 
 export interface TenantBrandConfig {
   id: string;
@@ -161,6 +168,9 @@ export function resolveTenantBrandId(): string | null {
   const fromEnv = typeof import.meta !== 'undefined' && import.meta.env?.VITE_TENANT_BRAND_ID;
   if (fromEnv && String(fromEnv).trim()) return String(fromEnv).trim();
 
+  const cachedBrandSlug = (window as any).__TENANT_BRAND__?.slug;
+  if (cachedBrandSlug && String(cachedBrandSlug).trim()) return String(cachedBrandSlug).trim();
+
   const host = window.location.hostname || '';
   const parts = host.split('.');
   if (parts.length >= 3) {
@@ -172,50 +182,7 @@ export function resolveTenantBrandId(): string | null {
   return null;
 }
 
-export async function bootstrapBattahTenant(): Promise<TenantBrandConfig | null> {
-  const brandId = resolveTenantBrandId();
-  if (!brandId) return null;
-
-  // @ts-ignore
-  const baseUrl = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_EZZEL_API_URL) || 'https://ez-zel.onrender.com';
-  let brand: TenantBrandConfig | null = null;
-  try {
-    const res = await fetch(`${String(baseUrl).replace(/\/$/, '')}/api/public/brand/${encodeURIComponent(brandId)}`);
-    if (res.ok) {
-      const data = await res.json();
-      if (data?.ok && data?.brand) brand = data.brand;
-    }
-  } catch {}
-
-  try {
-    const cfgRes = await fetch('/tenant-config.json');
-    if (cfgRes.ok) {
-      const cfg = await cfgRes.json();
-      if (!brand && cfg?.name) {
-        brand = {
-          id: cfg.brandId || cfg.id || brandId,
-          slug: cfg.slug || brandId,
-          name: cfg.name,
-          slogan: cfg.slogan || '',
-          logoUrl: cfg.logoUrl || '',
-          phone: cfg.phone || '',
-          whatsapp: cfg.whatsapp || cfg.phone || '',
-          adminEmail: cfg.adminEmail || '',
-          productsCatalog: Array.isArray(cfg.productsCatalog) ? cfg.productsCatalog : [],
-          primaryColor: cfg.primaryColor || '#00f0ff',
-          accentColor: cfg.accentColor || '#0f172a',
-        };
-      } else if (brand && cfg) {
-        if (!brand.adminEmail && cfg.adminEmail) brand.adminEmail = cfg.adminEmail;
-        if ((!Array.isArray(brand.productsCatalog) || brand.productsCatalog.length === 0) && Array.isArray(cfg.productsCatalog)) {
-          brand.productsCatalog = cfg.productsCatalog;
-        }
-      }
-    }
-  } catch {}
-
-  if (!brand) return null;
-
+function applyBrandToEnvironment(brand: TenantBrandConfig) {
   (window as any).__TENANT_BRAND__ = brand;
   try {
     localStorage.setItem('battah_active_tenant', JSON.stringify(brand));
@@ -231,6 +198,73 @@ export async function bootstrapBattahTenant(): Promise<TenantBrandConfig | null>
       renderStarterLandingPageGate(brand);
     }
   }
+}
+
+export async function bootstrapBattahTenant(): Promise<TenantBrandConfig | null> {
+  const brandId = resolveTenantBrandId();
+  if (!brandId) return null;
+
+  let brand: TenantBrandConfig | null = null;
+  try {
+    const cfgRes = await fetch('/tenant-config.json');
+    if (cfgRes.ok) {
+      const cfg = await cfgRes.json();
+      if (cfg?.name) {
+        brand = {
+          id: cfg.brandId || cfg.id || brandId,
+          slug: cfg.slug || brandId,
+          name: cfg.name,
+          slogan: cfg.slogan || '',
+          logoUrl: cfg.logoUrl || '',
+          phone: cfg.phone || '',
+          whatsapp: cfg.whatsapp || cfg.phone || '',
+          adminEmail: cfg.adminEmail || '',
+          productsCatalog: Array.isArray(cfg.productsCatalog) ? cfg.productsCatalog : [],
+          primaryColor: cfg.primaryColor || '#0284c7',
+          accentColor: cfg.accentColor || '#0f172a',
+        };
+      }
+    }
+  } catch {}
+
+  if (brand) {
+    applyBrandToEnvironment(brand);
+  }
+
+  // @ts-ignore
+  const baseUrl = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_EZZEL_API_URL) || 'https://ez-zel.onrender.com';
+  const liveSyncPromise = (async (): Promise<TenantBrandConfig | null> => {
+    try {
+      const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+      const timer = controller ? setTimeout(() => controller.abort(), 2000) : null;
+      const res = await fetch(`${String(baseUrl).replace(/\/$/, '')}/api/public/brand/${encodeURIComponent(brandId)}`, {
+        signal: controller?.signal,
+      });
+      if (timer) clearTimeout(timer);
+      if (!res.ok) return null;
+      const data = await res.json();
+      if (!data?.ok || !data?.brand) return null;
+      const liveBrand: TenantBrandConfig = {
+        ...data.brand,
+        adminEmail: data.brand.adminEmail || brand?.adminEmail || '',
+        productsCatalog:
+          Array.isArray(data.brand.productsCatalog) && data.brand.productsCatalog.length > 0
+            ? data.brand.productsCatalog
+            : brand?.productsCatalog || [],
+      };
+      brand = liveBrand;
+      applyBrandToEnvironment(liveBrand);
+      return liveBrand;
+    } catch {
+      return null;
+    }
+  })();
+
+  if (!brand) {
+    return await liveSyncPromise;
+  }
+
+  void liveSyncPromise;
   return brand;
 }
 
@@ -242,10 +276,17 @@ export function tenantCollection(db: Firestore, path: string, ...pathSegments: s
   return fsCollection(db, 'tenants', brandId, path, ...pathSegments);
 }
 
-export function tenantDoc(db: Firestore, path: string, ...pathSegments: string[]) {
+export function tenantDoc(
+  dbOrRef: Firestore | CollectionReference<DocumentData>,
+  path?: string,
+  ...pathSegments: string[]
+): DocumentReference<DocumentData> {
+  if (!path) {
+    return fsDoc(dbOrRef as CollectionReference<DocumentData>);
+  }
   const brandId = resolveTenantBrandId();
   if (!brandId || path === '_connection_test') {
-    return fsDoc(db, path, ...pathSegments);
+    return fsDoc(dbOrRef as Firestore, path, ...pathSegments);
   }
-  return fsDoc(db, 'tenants', brandId, path, ...pathSegments);
+  return fsDoc(dbOrRef as Firestore, 'tenants', brandId, path, ...pathSegments);
 }

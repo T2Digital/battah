@@ -3,6 +3,7 @@ import { getAuth } from "firebase/auth";
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from "firebase/firestore";
 import { getMessaging, getToken, onMessage } from "firebase/messaging";
 import appletConfig from "../firebase-applet-config.json";
+import { resolveTenantBrandId } from "./tenantBootstrap";
 
 // Your web app's Firebase configuration
 export const firebaseConfig = {
@@ -30,6 +31,9 @@ export const db = initializeFirestore(app, {
 // Connection test for diagnosing deployment issues
 import { doc, getDocFromCache, getDocFromServer } from "firebase/firestore";
 async function testConnection() {
+  if (resolveTenantBrandId()) {
+    return;
+  }
   console.log("Firebase Config Check:", {
     apiKey: firebaseConfig.apiKey ? "Present" : "Missing",
     projectId: firebaseConfig.projectId ? "Present" : "Missing",

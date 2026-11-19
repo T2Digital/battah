@@ -6,7 +6,8 @@ import { auth, setupMessageListener, requestNotificationPermission } from './lib
 import { Section, Role } from './types';
 import useStore from './lib/store';
 import { useBarcodeScanner } from './hooks/useBarcodeScanner';
-import { bootstrapBattahTenant, TenantBrandConfig } from './lib/tenantBootstrap';
+import { bootstrapBattahTenant, resolveTenantBrandId, TenantBrandConfig } from './lib/tenantBootstrap';
+import { verifyTenantSession } from './lib/tenantErpSync';
 
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
@@ -299,32 +300,26 @@ const App: React.FC = () => {
             if (user && user.email) {
                 await setCurrentUserByEmail(user.email);
             } else {
-                const brandSlug = (() => {
+                const brandSlug = resolveTenantBrandId();
+                if (brandSlug) {
                     try {
-                        const t = (window as any).__TENANT_BRAND__;
-                        return t?.slug || new URLSearchParams(window.location.search).get('brandId') || (import.meta as any).env?.VITE_TENANT_BRAND_ID || 'auto-house';
-                    } catch { return 'auto-house'; }
-                })();
-                try {
-                    const rawSession = localStorage.getItem(`t2_tenant_session_${brandSlug}`);
-                    if (rawSession) {
-                        const parsed = JSON.parse(rawSession);
-                        if (parsed?.token && parsed?.user) {
-                            useStore.getState().setCurrentUser(parsed.user);
-                            const baseUrl = ((import.meta as any).env?.VITE_EZZEL_API_URL || 'https://ez-zel.onrender.com').replace(/\/$/, '');
-                            fetch(`${baseUrl}/api/tenant-auth/verify?brandSlug=${encodeURIComponent(brandSlug)}`, {
-                                headers: { Authorization: `Bearer ${parsed.token}` }
-                            }).then(r => {
-                                if (!r.ok) {
-                                    localStorage.removeItem(`t2_tenant_session_${brandSlug}`);
-                                    clearCurrentUser();
-                                    clearAdminListeners();
-                                }
-                            }).catch(() => {});
-                            return;
+                        const rawSession = localStorage.getItem(`t2_tenant_session_${brandSlug}`);
+                        if (rawSession) {
+                            const parsed = JSON.parse(rawSession);
+                            if (parsed?.token && parsed?.user) {
+                                useStore.getState().setCurrentUser(parsed.user);
+                                verifyTenantSession(brandSlug, parsed.token).then((result) => {
+                                    if (result.unauthorized) {
+                                        localStorage.removeItem(`t2_tenant_session_${brandSlug}`);
+                                        clearCurrentUser();
+                                        clearAdminListeners();
+                                    }
+                                }).catch(() => {});
+                                return;
+                            }
                         }
-                    }
-                } catch {}
+                    } catch {}
+                }
                 clearCurrentUser();
                 clearAdminListeners();
             }

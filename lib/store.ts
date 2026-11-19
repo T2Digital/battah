@@ -1,7 +1,17 @@
 /// <reference types="vite/client" />
 import { create } from 'zustand';
 import { tenantCollection as collection, tenantDoc as doc, resolveTenantBrandId, applyDynamicPwaAndTheme } from './tenantBootstrap';
-import { fetchTenantErpState, queueTenantErpSync, getTenantSessionToken } from './tenantErpSync';
+import {
+    fetchTenantErpState,
+    queueTenantErpSync,
+    pushTenantErpState,
+    getTenantSessionToken,
+    loginTenantAdmin,
+    saveLocalErpCache,
+    loadLocalErpCache,
+    hasPendingErpSync,
+    createTenantPublicOrder,
+} from './tenantErpSync';
 import { initializeApp } from 'firebase/app';
 import {
     signInWithEmailAndPassword,
@@ -64,6 +74,144 @@ import { formatCurrency, normalizeSaleItems } from './utils';
 let publicUnsubscribers: Unsubscribe[] = [];
 let adminUnsubscribers: Unsubscribe[] = [];
 let userProfileUnsubscribe: Unsubscribe | null = null;
+
+function isTenantMode(): boolean {
+    return Boolean(resolveTenantBrandId());
+}
+
+function nextNumericId(list: Array<{ id?: any }> | undefined): number {
+    return Math.max(0, ...(list || []).map((item) => Number(item?.id) || 0)) + 1;
+}
+
+function adjustProductsStockMap(
+    products: Product[],
+    items: Array<{ productId: number | string; quantity: number }>,
+    branch: Branch,
+    sign: 1 | -1
+): Product[] {
+    const deltas = new Map<string, number>();
+    for (const item of items) {
+        const key = String(item.productId);
+        deltas.set(key, (deltas.get(key) || 0) + sign * Number(item.quantity || 0));
+    }
+    return products.map((p) => {
+        const delta = deltas.get(String(p.id));
+        if (!delta) return p;
+        return {
+            ...p,
+            stock: {
+                ...p.stock,
+                [branch]: (p.stock?.[branch] || 0) + delta,
+            },
+        };
+    });
+}
+
+function buildSaleTreasuryTxs(mergedSale: DailySale, startId: number): TreasuryTransaction[] {
+    if (mergedSale.direction === 'هدية') return [];
+    let transactionType: 'إيراد مبيعات' | 'مرتجع مبيعات' = 'إيراد مبيعات';
+    let amountIn = 0;
+    let amountOut = 0;
+    const totalPaid = (mergedSale.cashAmount || 0) + (mergedSale.electronicAmount || 0);
+
+    if (mergedSale.direction === 'بيع') {
+        transactionType = 'إيراد مبيعات';
+        amountIn = Math.abs(totalPaid);
+    } else if (mergedSale.direction === 'مرتجع') {
+        transactionType = 'مرتجع مبيعات';
+        amountOut = Math.abs(totalPaid);
+    } else if (mergedSale.direction === 'تبديل') {
+        if (mergedSale.totalAmount >= 0) {
+            transactionType = 'إيراد مبيعات';
+            amountIn = Math.abs(totalPaid);
+        } else {
+            transactionType = 'مرتجع مبيعات';
+            amountOut = Math.abs(totalPaid);
+        }
+    }
+
+    let nextTreasuryId = startId;
+    const out: TreasuryTransaction[] = [];
+    const nowIso = new Date().toISOString();
+
+    if (mergedSale.paymentMethod === 'مختلط' && mergedSale.cashAmount && mergedSale.electronicAmount) {
+        const cashIn = amountIn > 0 ? Math.abs(mergedSale.cashAmount) : 0;
+        const cashOut = amountOut > 0 ? Math.abs(mergedSale.cashAmount) : 0;
+        const elecIn = amountIn > 0 ? Math.abs(mergedSale.electronicAmount) : 0;
+        const elecOut = amountOut > 0 ? Math.abs(mergedSale.electronicAmount) : 0;
+
+        if (cashIn > 0 || cashOut > 0) {
+            out.push({
+                id: nextTreasuryId++,
+                date: mergedSale.date,
+                type: transactionType,
+                description: `${mergedSale.direction} فاتورة #${mergedSale.invoiceNumber} (نقدي)`,
+                amountIn: cashIn,
+                amountOut: cashOut,
+                relatedId: mergedSale.id,
+                paymentMethod: 'cash',
+                timestamp: nowIso,
+            } as TreasuryTransaction);
+        }
+        if (elecIn > 0 || elecOut > 0) {
+            out.push({
+                id: nextTreasuryId++,
+                date: mergedSale.date,
+                type: transactionType,
+                description: `${mergedSale.direction} فاتورة #${mergedSale.invoiceNumber} (إلكتروني)`,
+                amountIn: elecIn,
+                amountOut: elecOut,
+                relatedId: mergedSale.id,
+                paymentMethod: 'electronic',
+                timestamp: nowIso,
+            } as TreasuryTransaction);
+        }
+    } else if (mergedSale.paymentMethod !== 'آجل' && (amountIn > 0 || amountOut > 0)) {
+        const method = mergedSale.paymentMethod === 'إلكترونى' ? 'electronic' : 'cash';
+        out.push({
+            id: nextTreasuryId++,
+            date: mergedSale.date,
+            type: transactionType,
+            description: `${mergedSale.direction} فاتورة #${mergedSale.invoiceNumber}`,
+            amountIn,
+            amountOut,
+            relatedId: mergedSale.id,
+            paymentMethod: method,
+            timestamp: nowIso,
+        } as TreasuryTransaction);
+    }
+    return out;
+}
+
+function mapCatalogToProducts(tenantBrand: any): Product[] {
+    const catalog = Array.isArray(tenantBrand?.productsCatalog) ? tenantBrand.productsCatalog : [];
+    const fallbackLogo = String(tenantBrand?.logoUrl || '');
+    return catalog.map((item: any, idx: number) => {
+        const price = Number(item.numericPrice || String(item.price || '').replace(/[^\d.]/g, '')) || 500;
+        const images = Array.isArray(item.images) && item.images.length > 0
+            ? item.images
+            : item.imageUrl
+                ? [item.imageUrl]
+                : fallbackLogo
+                    ? [fallbackLogo]
+                    : [];
+        const cat = item.category || tenantBrand?.businessType || 'قطع غيار';
+        return {
+            id: idx + 1,
+            name: item.name || `منتج ${idx + 1}`,
+            brand: String(item.brand || tenantBrand?.name || ''),
+            sku: item.sku || `SKU-${idx + 101}`,
+            category: cat,
+            mainCategory: (item.mainCategory || cat) as MainCategory,
+            description: item.description || '',
+            purchasePrice: Math.round(price * 0.7),
+            sellingPrice: price,
+            stock: item.stock || { main: 25, branch1: 10, branch2: 10, branch3: 10 },
+            imageUrl: item.imageUrl || images[0] || fallbackLogo,
+            images,
+        } as Product;
+    });
+}
 
 type AppState = {
     currentUser: User | null;
@@ -211,31 +359,69 @@ const useStore = create<AppState & AppActions>((set, get) => ({
     },
     initPublicListeners: async () => {
         if (get().isPublicInitialized) return;
+        const activeSlug = resolveTenantBrandId();
+        if (activeSlug) {
+            publicUnsubscribers.forEach(unsub => unsub());
+            publicUnsubscribers = [];
+            set({ isLoading: true });
+            const hasAdminToken = Boolean(getTenantSessionToken(activeSlug));
+
+            const localCache = loadLocalErpCache(activeSlug);
+            if (localCache) {
+                isHydratingFromCloud = true;
+                set(state => ({
+                    appData: {
+                        ...(state.appData as AppData),
+                        ...(Array.isArray(localCache.products) && localCache.products.length > 0 ? { products: localCache.products } : {}),
+                        ...(Array.isArray(localCache.broadcasts) ? { broadcasts: localCache.broadcasts } : {}),
+                        ...(Array.isArray(localCache.discountCodes) ? { discountCodes: localCache.discountCodes } : {}),
+                        ...(localCache.storefrontSettings ? { storefrontSettings: localCache.storefrontSettings } : {}),
+                        ...(localCache.settings ? { settings: localCache.settings } : {}),
+                        ...(hasAdminToken ? localCache : {}),
+                    }
+                }));
+                isHydratingFromCloud = false;
+            }
+
+            try {
+                const cloudState = await fetchTenantErpState(activeSlug, getTenantSessionToken(activeSlug));
+                if (cloudState && typeof cloudState === 'object') {
+                    isHydratingFromCloud = true;
+                    set(state => ({
+                        appData: {
+                            ...(state.appData as AppData),
+                            ...(Array.isArray(cloudState.products) && cloudState.products.length > 0 ? { products: cloudState.products } : {}),
+                            ...(Array.isArray(cloudState.broadcasts) ? { broadcasts: cloudState.broadcasts } : {}),
+                            ...(Array.isArray(cloudState.discountCodes) ? { discountCodes: cloudState.discountCodes } : {}),
+                            ...(cloudState.storefrontSettings ? { storefrontSettings: cloudState.storefrontSettings } : {}),
+                            ...(cloudState.settings ? { settings: cloudState.settings } : {}),
+                            ...(hasAdminToken ? cloudState : {}),
+                        }
+                    }));
+                    isHydratingFromCloud = false;
+                    saveLocalErpCache(activeSlug, get().appData as any);
+                }
+
+                const curProducts = get().appData?.products || [];
+                if (curProducts.length === 0) {
+                    const seeded = mapCatalogToProducts((typeof window !== 'undefined' && (window as any).__TENANT_BRAND__) || null);
+                    if (seeded.length > 0) {
+                        isHydratingFromCloud = true;
+                        set(state => ({ appData: { ...(state.appData as AppData), products: seeded } }));
+                        isHydratingFromCloud = false;
+                    }
+                }
+            } finally {
+                set({ isPublicInitialized: true, isLoading: false });
+            }
+            return;
+        }
+
         set({ isLoading: true });
     
         try {
             publicUnsubscribers.forEach(unsub => unsub());
             publicUnsubscribers = [];
-
-            const activeSlug = resolveTenantBrandId();
-            if (activeSlug) {
-                fetchTenantErpState(activeSlug, getTenantSessionToken(activeSlug)).then((cloudState) => {
-                    if (cloudState && typeof cloudState === 'object') {
-                        isHydratingFromCloud = true;
-                        set(state => ({
-                            isLoading: false,
-                            appData: {
-                                ...(state.appData as AppData),
-                                ...(Array.isArray(cloudState.products) && cloudState.products.length > 0 ? { products: cloudState.products } : {}),
-                                ...(Array.isArray(cloudState.broadcasts) && cloudState.broadcasts.length > 0 ? { broadcasts: cloudState.broadcasts } : {}),
-                                ...(cloudState.settings ? { settings: cloudState.settings } : {}),
-                                ...(getTenantSessionToken(activeSlug) ? cloudState : {})
-                            }
-                        }));
-                        isHydratingFromCloud = false;
-                    }
-                }).catch(() => {});
-            }
         
             const publicCollections: (keyof AppData)[] = ['broadcasts', 'products'];
 
@@ -347,21 +533,36 @@ const useStore = create<AppState & AppActions>((set, get) => ({
     initAdminListeners: async () => {
         if (get().isInitialized || !get().currentUser) return;
         const activeSlug = resolveTenantBrandId();
-        const tenantToken = activeSlug ? getTenantSessionToken(activeSlug) : null;
-        if (activeSlug && tenantToken) {
+        if (activeSlug) {
             set({ isLoading: true });
+            const tenantToken = getTenantSessionToken(activeSlug);
+            const localCache = loadLocalErpCache(activeSlug);
             const cloudState = await fetchTenantErpState(activeSlug, tenantToken);
-            if (cloudState && typeof cloudState === 'object') {
-                isHydratingFromCloud = true;
-                set(state => ({
-                    isLoading: false,
-                    isInitialized: true,
-                    appData: { ...(state.appData as AppData), ...cloudState }
-                }));
-                isHydratingFromCloud = false;
-            } else {
-                set({ isLoading: false, isInitialized: true });
-            }
+
+            const curState = get();
+            const curAppData = (curState.appData || {}) as AppData;
+            const seededProducts = mapCatalogToProducts((typeof window !== 'undefined' && (window as any).__TENANT_BRAND__) || null);
+            const resolvedUsers =
+                (Array.isArray(cloudState?.users) && cloudState.users.length > 0 && cloudState.users) ||
+                (Array.isArray(localCache?.users) && localCache.users.length > 0 && localCache.users) ||
+                (curState.currentUser ? [curState.currentUser] : []);
+
+            isHydratingFromCloud = true;
+            set({
+                isLoading: false,
+                isInitialized: true,
+                appData: {
+                    ...curAppData,
+                    ...(localCache || {}),
+                    ...(cloudState && typeof cloudState === 'object' ? cloudState : {}),
+                    users: resolvedUsers,
+                    ...(((cloudState?.products?.length || localCache?.products?.length || curAppData.products?.length || 0) === 0 && seededProducts.length > 0)
+                        ? { products: seededProducts }
+                        : {}),
+                } as AppData,
+            });
+            isHydratingFromCloud = false;
+            saveLocalErpCache(activeSlug, get().appData as any);
             return;
         }
         set({ isLoading: true });
@@ -492,15 +693,9 @@ const useStore = create<AppState & AppActions>((set, get) => ({
     login: async (email, pass) => {
         const brandSlug = resolveTenantBrandId();
         if (brandSlug) {
-            const baseUrl = ((typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_EZZEL_API_URL) || 'https://ez-zel.onrender.com').replace(/\/$/, '');
-            const res = await fetch(`${baseUrl}/api/tenant-auth/login`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ brandSlug, email: email.trim(), password: pass })
-            });
-            const data = await res.json().catch(() => ({}));
-            if (!res.ok || !data?.ok || !data?.user || !data?.token) {
-                const err: any = new Error(data?.error || 'بيانات الدخول غير صحيحة');
+            const data = await loginTenantAdmin(brandSlug, email, pass);
+            if (!data.ok || !data.user || !data.token) {
+                const err: any = new Error(data.error || 'بيانات الدخول غير صحيحة');
                 err.code = 'auth/invalid-credential';
                 throw err;
             }
@@ -509,11 +704,24 @@ const useStore = create<AppState & AppActions>((set, get) => ({
             } catch {}
             set({ currentUser: data.user as any });
             const cloudState = await fetchTenantErpState(brandSlug, data.token);
-            if (cloudState && typeof cloudState === 'object') {
-                isHydratingFromCloud = true;
-                set(state => ({ appData: { ...(state.appData as AppData), ...cloudState } }));
-                isHydratingFromCloud = false;
-            }
+            const seededProducts = mapCatalogToProducts((typeof window !== 'undefined' && (window as any).__TENANT_BRAND__) || null);
+            isHydratingFromCloud = true;
+            set(state => {
+                const prev = state.appData as AppData;
+                const merged = {
+                    ...prev,
+                    ...(cloudState && typeof cloudState === 'object' ? cloudState : {}),
+                } as AppData;
+                if (!Array.isArray(merged.users) || merged.users.length === 0) {
+                    merged.users = [data.user as User];
+                }
+                if ((!Array.isArray(merged.products) || merged.products.length === 0) && seededProducts.length > 0) {
+                    merged.products = seededProducts;
+                }
+                return { isInitialized: true, isLoading: false, appData: merged };
+            });
+            isHydratingFromCloud = false;
+            saveLocalErpCache(brandSlug, get().appData as any);
             return;
         }
         await signInWithEmailAndPassword(auth, email, pass);
@@ -586,6 +794,12 @@ const useStore = create<AppState & AppActions>((set, get) => ({
     },
     
     setProducts: async (products) => {
+        if (isTenantMode()) {
+            set(state => ({
+                appData: { ...(state.appData as AppData), products }
+            }));
+            return;
+        }
         const batch = writeBatch(db);
         products.forEach(p => {
             const docRef = doc(db, "products", String(p.id));
@@ -597,7 +811,9 @@ const useStore = create<AppState & AppActions>((set, get) => ({
         // Generate ID based on timestamp and a random number to prevent collisions during bulk uploads
         const newId = Date.now() + Math.floor(Math.random() * 100000); 
         const newProduct = { ...product, id: newId };
-        await setDoc(doc(db, "products", String(newId)), newProduct);
+        if (!isTenantMode()) {
+            await setDoc(doc(db, "products", String(newId)), newProduct);
+        }
         
         // Update local state
         set(state => {
@@ -614,7 +830,9 @@ const useStore = create<AppState & AppActions>((set, get) => ({
         return newProduct as Product;
     },
     updateProduct: async (productId, updates) => {
-        await updateDoc(doc(db, "products", String(productId)), updates);
+        if (!isTenantMode()) {
+            await updateDoc(doc(db, "products", String(productId)), updates);
+        }
         
         // Update local state
         set(state => {
@@ -630,10 +848,12 @@ const useStore = create<AppState & AppActions>((set, get) => ({
         get().addToast('تم تحديث المنتج بنجاح', 'success');
     },
     updateProductStock: async (productId: number, branch: Branch, change: number) => {
-        const docRef = doc(db, "products", String(productId));
-        await updateDoc(docRef, {
-            [`stock.${branch}`]: increment(change)
-        });
+        if (!isTenantMode()) {
+            const docRef = doc(db, "products", String(productId));
+            await updateDoc(docRef, {
+                [`stock.${branch}`]: increment(change)
+            });
+        }
         
         // Update local state
         set(state => {
@@ -659,7 +879,9 @@ const useStore = create<AppState & AppActions>((set, get) => ({
     },
     deleteProduct: async (productId: number) => {
         try {
-            await deleteDoc(doc(db, "products", String(productId)));
+            if (!isTenantMode()) {
+                await deleteDoc(doc(db, "products", String(productId)));
+            }
             
             // Update local state
             set(state => {
@@ -681,37 +903,39 @@ const useStore = create<AppState & AppActions>((set, get) => ({
     
     increasePrices: async (percentage: number, category?: MainCategory) => {
         try {
-            const productsRef = collection(db, "products");
-            let q = query(productsRef);
-            if (category && category !== 'all' as any) {
-                q = query(productsRef, where("mainCategory", "==", category));
-            }
-            const snapshot = await getDocs(q);
-            
-            const chunks = [];
-            for (let i = 0; i < snapshot.docs.length; i += 500) {
-                chunks.push(snapshot.docs.slice(i, i + 500));
-            }
+            if (!isTenantMode()) {
+                const productsRef = collection(db, "products");
+                let q = query(productsRef);
+                if (category && category !== 'all' as any) {
+                    q = query(productsRef, where("mainCategory", "==", category));
+                }
+                const snapshot = await getDocs(q);
+                
+                const chunks = [];
+                for (let i = 0; i < snapshot.docs.length; i += 500) {
+                    chunks.push(snapshot.docs.slice(i, i + 500));
+                }
 
-            for (const chunk of chunks) {
-                const batch = writeBatch(db);
-                chunk.forEach(docSnap => {
-                    const data = docSnap.data() as Product;
-                    const updates: any = {};
-                    
-                    if (data.sellingPrice !== undefined) {
-                        updates.sellingPrice = Math.round(data.sellingPrice * (1 + percentage / 100));
-                    }
-                    if (data.wholesalePrice !== undefined) {
-                        updates.wholesalePrice = Math.round(data.wholesalePrice * (1 + percentage / 100));
-                    }
-                    if (data.retailPrice !== undefined) {
-                        updates.retailPrice = Math.round(data.retailPrice * (1 + percentage / 100));
-                    }
-                    
-                    batch.update(docSnap.ref, updates);
-                });
-                await batch.commit();
+                for (const chunk of chunks) {
+                    const batch = writeBatch(db);
+                    chunk.forEach(docSnap => {
+                        const data = docSnap.data() as Product;
+                        const updates: any = {};
+                        
+                        if (data.sellingPrice !== undefined) {
+                            updates.sellingPrice = Math.round(data.sellingPrice * (1 + percentage / 100));
+                        }
+                        if (data.wholesalePrice !== undefined) {
+                            updates.wholesalePrice = Math.round(data.wholesalePrice * (1 + percentage / 100));
+                        }
+                        if (data.retailPrice !== undefined) {
+                            updates.retailPrice = Math.round(data.retailPrice * (1 + percentage / 100));
+                        }
+                        
+                        batch.update(docSnap.ref, updates);
+                    });
+                    await batch.commit();
+                }
             }
 
             // Update local state
@@ -737,19 +961,46 @@ const useStore = create<AppState & AppActions>((set, get) => ({
     },
 
     addDailySale: async (sale) => {
-        const maxId = Math.max(0, ...(get().appData?.dailySales.map(s => Number(s.id) || 0) || []));
-        const newSale = { ...sale, id: maxId + 1, timestamp: new Date().toISOString() };
+        const newSale = { ...sale, id: nextNumericId(get().appData?.dailySales), timestamp: new Date().toISOString() } as DailySale;
+        if (isTenantMode()) {
+            set(state => ({
+                appData: {
+                    ...(state.appData as AppData),
+                    dailySales: [...(state.appData?.dailySales || []), newSale],
+                }
+            }));
+            get().addToast('تم حفظ الفاتورة بنجاح', 'success');
+            return newSale;
+        }
         await setDoc(doc(db, "dailySales", String(newSale.id)), newSale);
         get().addToast('تم حفظ الفاتورة بنجاح', 'success');
-        return newSale as DailySale;
+        return newSale;
     },
     updateDailySale: async (saleId, updates) => {
+        const state = get();
+        const existingSale = state.appData?.dailySales.find(s => String(s.id) === String(saleId));
+        if (isTenantMode()) {
+            if (existingSale) {
+                const mergedSale = { ...existingSale, ...updates } as DailySale;
+                const remainingTreasury = (state.appData?.treasury || []).filter(
+                    t => !(String(t.relatedId) === String(saleId) && ["إيراد مبيعات", "مرتجع مبيعات"].includes(t.type))
+                );
+                const generatedTxs = buildSaleTreasuryTxs(mergedSale, nextNumericId(remainingTreasury));
+                set(s => ({
+                    appData: {
+                        ...(s.appData as AppData),
+                        dailySales: (s.appData?.dailySales || []).map(x => String(x.id) === String(saleId) ? mergedSale : x),
+                        treasury: [...remainingTreasury, ...generatedTxs],
+                    }
+                }));
+            }
+            get().addToast('تم تحديث الفاتورة بنجاح', 'success');
+            return;
+        }
+
         const batch = writeBatch(db);
         batch.update(doc(db, "dailySales", String(saleId)), updates);
 
-        const state = get();
-        const existingSale = state.appData?.dailySales.find(s => String(s.id) === String(saleId));
-        
         if (existingSale) {
             const mergedSale = { ...existingSale, ...updates } as DailySale;
             const relatedTxs = state.appData?.treasury.filter(t => String(t.relatedId) === String(saleId) && ["إيراد مبيعات", "مرتجع مبيعات"].includes(t.type)) || [];
@@ -758,65 +1009,10 @@ const useStore = create<AppState & AppActions>((set, get) => ({
                 batch.delete(doc(db, "treasury", String(t.id)));
             });
 
-            if (mergedSale.direction !== 'هدية') {
-                let transactionType: 'إيراد مبيعات' | 'مرتجع مبيعات' = 'إيراد مبيعات';
-                let amountIn = 0;
-                let amountOut = 0;
-                const totalPaid = (mergedSale.cashAmount || 0) + (mergedSale.electronicAmount || 0);
-
-                if (mergedSale.direction === 'بيع') {
-                    transactionType = 'إيراد مبيعات';
-                    amountIn = Math.abs(totalPaid);
-                } else if (mergedSale.direction === 'مرتجع') {
-                    transactionType = 'مرتجع مبيعات';
-                    amountOut = Math.abs(totalPaid);
-                } else if (mergedSale.direction === 'تبديل') {
-                    if (mergedSale.totalAmount >= 0) {
-                        transactionType = 'إيراد مبيعات';
-                        amountIn = Math.abs(totalPaid);
-                    } else {
-                        transactionType = 'مرتجع مبيعات';
-                        amountOut = Math.abs(totalPaid);
-                    }
-                }
-
-                const maxTreasuryId = Math.max(0, ...(state.appData?.treasury.map(t => Number(t.id) || 0) || []));
-                let nextTreasuryId = maxTreasuryId + 1;
-
-                if (mergedSale.paymentMethod === 'مختلط' && mergedSale.cashAmount && mergedSale.electronicAmount) {
-                    const cashIn = amountIn > 0 ? Math.abs(mergedSale.cashAmount) : 0;
-                    const cashOut = amountOut > 0 ? Math.abs(mergedSale.cashAmount) : 0;
-                    const elecIn = amountIn > 0 ? Math.abs(mergedSale.electronicAmount) : 0;
-                    const elecOut = amountOut > 0 ? Math.abs(mergedSale.electronicAmount) : 0;
-
-                    if (cashIn > 0 || cashOut > 0) {
-                        const newTx = {
-                            id: nextTreasuryId++,
-                            date: mergedSale.date, type: transactionType, description: `${mergedSale.direction} فاتورة #${mergedSale.invoiceNumber} (نقدي)`,
-                            amountIn: cashIn, amountOut: cashOut, relatedId: mergedSale.id, paymentMethod: 'cash', timestamp: new Date().toISOString()
-                        };
-                        batch.set(doc(db, "treasury", String(newTx.id)), newTx);
-                    }
-                    if (elecIn > 0 || elecOut > 0) {
-                        const newTx = {
-                            id: nextTreasuryId++,
-                            date: mergedSale.date, type: transactionType, description: `${mergedSale.direction} فاتورة #${mergedSale.invoiceNumber} (إلكتروني)`,
-                            amountIn: elecIn, amountOut: elecOut, relatedId: mergedSale.id, paymentMethod: 'electronic', timestamp: new Date().toISOString()
-                        };
-                        batch.set(doc(db, "treasury", String(newTx.id)), newTx);
-                    }
-                } else if (mergedSale.paymentMethod !== 'آجل') {
-                    const method = mergedSale.paymentMethod === 'إلكترونى' ? 'electronic' : 'cash';
-                    if (amountIn > 0 || amountOut > 0) {
-                        const newTx = {
-                            id: nextTreasuryId++,
-                            date: mergedSale.date, type: transactionType, description: `${mergedSale.direction} فاتورة #${mergedSale.invoiceNumber}`,
-                            amountIn: amountIn, amountOut: amountOut, relatedId: mergedSale.id, paymentMethod: method, timestamp: new Date().toISOString()
-                        };
-                        batch.set(doc(db, "treasury", String(newTx.id)), newTx);
-                    }
-                }
-            }
+            const generatedTxs = buildSaleTreasuryTxs(mergedSale, nextNumericId(state.appData?.treasury));
+            generatedTxs.forEach(newTx => {
+                batch.set(doc(db, "treasury", String(newTx.id)), newTx);
+            });
         }
 
         await batch.commit();
@@ -827,6 +1023,38 @@ const useStore = create<AppState & AppActions>((set, get) => ({
             const state = get();
             const saleToDelete = state.appData?.dailySales.find(s => String(s.id) === String(saleId));
             if (!saleToDelete) throw new Error("Sale not found!");
+
+            if (isTenantMode()) {
+                const items = normalizeSaleItems(saleToDelete);
+                const stockDeltaByProduct = new Map<string, number>();
+                for (const item of items) {
+                    const delta = saleToDelete.direction === 'بيع' ? item.quantity : -item.quantity;
+                    stockDeltaByProduct.set(String(item.productId), (stockDeltaByProduct.get(String(item.productId)) || 0) + delta);
+                }
+                set(s => {
+                    const cur = s.appData as AppData;
+                    return {
+                        appData: {
+                            ...cur,
+                            dailySales: (cur.dailySales || []).filter(x => String(x.id) !== String(saleId)),
+                            treasury: (cur.treasury || []).filter(t => !(String(t.relatedId) === String(saleId) && ["إيراد مبيعات", "مرتجع مبيعات"].includes(t.type))),
+                            products: (cur.products || []).map(p => {
+                                const delta = stockDeltaByProduct.get(String(p.id));
+                                if (!delta) return p;
+                                return {
+                                    ...p,
+                                    stock: {
+                                        ...p.stock,
+                                        [saleToDelete.branchSoldFrom]: (p.stock?.[saleToDelete.branchSoldFrom] || 0) + delta,
+                                    },
+                                };
+                            }),
+                        },
+                    };
+                });
+                get().addToast('تم حذف الفاتورة بنجاح', 'success');
+                return;
+            }
 
             const batch = writeBatch(db);
             const saleDocRef = doc(db, "dailySales", String(saleId));
@@ -856,6 +1084,9 @@ const useStore = create<AppState & AppActions>((set, get) => ({
     },
     
     fetchDataByDateRange: async (collectionName, startDate, endDate) => {
+        if (isTenantMode()) {
+            return;
+        }
         try {
             const dateField = collectionName === 'purchaseOrders' ? 'orderDate' : 'date';
             const q = query(
@@ -906,24 +1137,8 @@ const useStore = create<AppState & AppActions>((set, get) => ({
                     set(state => ({ isLoading: false, appData: { ...(state.appData as AppData), products: list } }));
                     isHydratingFromCloud = false;
                 } else {
-                    const tenantBrand = (typeof window !== 'undefined' && (window as any).__TENANT_BRAND__) || null;
-                    const catalog = Array.isArray(tenantBrand?.productsCatalog) ? tenantBrand.productsCatalog : [];
-                    if (catalog.length > 0) {
-                        list = catalog.map((item: any, idx: number) => {
-                            const price = Number(item.numericPrice || String(item.price || '').replace(/[^\d.]/g, '')) || 500;
-                            return {
-                                id: idx + 1,
-                                name: item.name || `منتج ${idx + 1}`,
-                                sku: item.sku || `SKU-${idx + 101}`,
-                                category: item.category || 'قطع غيار',
-                                mainCategory: item.mainCategory || item.category || 'قطع غيار',
-                                description: item.description || '',
-                                purchasePrice: Math.round(price * 0.7),
-                                sellingPrice: price,
-                                stock: { main: 25, branch1: 10, branch2: 10, branch3: 10 },
-                                imageUrl: item.imageUrl || tenantBrand?.logoUrl || ''
-                            } as Product;
-                        });
+                    list = mapCatalogToProducts((typeof window !== 'undefined' && (window as any).__TENANT_BRAND__) || null);
+                    if (list.length > 0) {
                         set(state => ({ isLoading: false, appData: { ...(state.appData as AppData), products: list } }));
                     }
                 }
@@ -964,6 +1179,10 @@ const useStore = create<AppState & AppActions>((set, get) => ({
     },
     fetchProductsByIds: async (ids: number[]) => {
         if (!ids || ids.length === 0) return [];
+        if (isTenantMode()) {
+            const existingProducts = get().appData?.products || [];
+            return ids.map(id => existingProducts.find(p => Number(p.id) === Number(id))).filter(Boolean) as Product[];
+        }
         try {
             const state = get();
             const existingProducts = state.appData?.products || [];
@@ -1084,14 +1303,40 @@ const useStore = create<AppState & AppActions>((set, get) => ({
     },
 
     addEmployee: async (employee) => {
-        const maxId = Math.max(0, ...(get().appData?.employees.map(e => Number(e.id) || 0) || []));
-        const newEmployee = { ...employee, id: maxId + 1 };
+        const newEmployee = { ...employee, id: nextNumericId(get().appData?.employees) } as Employee;
+        if (isTenantMode()) {
+            set(state => ({
+                appData: {
+                    ...(state.appData as AppData),
+                    employees: [...(state.appData?.employees || []), newEmployee],
+                }
+            }));
+            return;
+        }
         await setDoc(doc(db, "employees", String(newEmployee.id)), newEmployee);
     },
     updateEmployee: async (employeeId, updates) => {
+        if (isTenantMode()) {
+            set(state => ({
+                appData: {
+                    ...(state.appData as AppData),
+                    employees: (state.appData?.employees || []).map(e => String(e.id) === String(employeeId) ? { ...e, ...updates } : e),
+                }
+            }));
+            return;
+        }
         await updateDoc(doc(db, "employees", String(employeeId)), updates);
     },
     deleteEmployee: async (employeeId) => {
+        if (isTenantMode()) {
+            set(state => ({
+                appData: {
+                    ...(state.appData as AppData),
+                    employees: (state.appData?.employees || []).filter(e => String(e.id) !== String(employeeId)),
+                }
+            }));
+            return;
+        }
         try {
              await deleteDoc(doc(db, "employees", String(employeeId)));
         } catch(error) {
@@ -1100,9 +1345,17 @@ const useStore = create<AppState & AppActions>((set, get) => ({
         }
     },
     addAdvance: async (advance) => {
-        const maxId = Math.max(0, ...(get().appData?.advances.map(a => Number(a.id) || 0) || []));
-        const newAdvance = { ...advance, id: maxId + 1, timestamp: new Date().toISOString() };
-        await setDoc(doc(db, "advances", String(newAdvance.id)), newAdvance);
+        const newAdvance = { ...advance, id: nextNumericId(get().appData?.advances), timestamp: new Date().toISOString() } as Advance;
+        if (isTenantMode()) {
+            set(state => ({
+                appData: {
+                    ...(state.appData as AppData),
+                    advances: [...(state.appData?.advances || []), newAdvance],
+                }
+            }));
+        } else {
+            await setDoc(doc(db, "advances", String(newAdvance.id)), newAdvance);
+        }
         if (newAdvance.amount > 0 || newAdvance.payment > 0) {
             const employeeName = get().appData?.employees.find(e => e.id === newAdvance.employeeId)?.name || 'موظف';
             const isRepayment = newAdvance.amount === 0 && newAdvance.payment > 0;
@@ -1119,6 +1372,49 @@ const useStore = create<AppState & AppActions>((set, get) => ({
         }
     },
     updateAdvance: async (advanceId, updates) => {
+        if (isTenantMode()) {
+            const state = get();
+            const existing = state.appData?.advances.find(a => String(a.id) === String(advanceId));
+            let nextTreasury = [...(state.appData?.treasury || [])];
+            if (updates.amount !== undefined || updates.payment !== undefined || updates.date !== undefined) {
+                const relatedIdx = nextTreasury.findIndex(t => String(t.relatedId) === String(advanceId) && (t.type === 'سلفة' || t.type === 'سداد سلفة'));
+                if (relatedIdx >= 0) {
+                    const txUpdates: any = {};
+                    if (updates.amount !== undefined) txUpdates.amountOut = updates.amount;
+                    if (updates.payment !== undefined) txUpdates.amountIn = updates.payment;
+                    if (updates.date !== undefined) txUpdates.date = updates.date;
+                    nextTreasury[relatedIdx] = { ...nextTreasury[relatedIdx], ...txUpdates };
+                } else if (existing) {
+                    const finalAmount = updates.amount !== undefined ? updates.amount : existing.amount;
+                    const finalPayment = updates.payment !== undefined ? updates.payment : (existing.payment || 0);
+                    const finalDate = updates.date !== undefined ? updates.date : existing.date;
+                    if (finalAmount > 0 || finalPayment > 0) {
+                        const employeeName = state.appData?.employees.find(e => e.id === existing.employeeId)?.name || 'موظف';
+                        const isRepayment = finalAmount === 0 && finalPayment > 0;
+                        nextTreasury.push({
+                            id: nextNumericId(nextTreasury),
+                            date: finalDate,
+                            type: isRepayment ? 'سداد سلفة' : 'سلفة',
+                            description: isRepayment ? `سداد سلفة من ${employeeName}` : `سلفة لـ ${employeeName}`,
+                            amountIn: isRepayment ? finalPayment : 0,
+                            amountOut: isRepayment ? 0 : finalAmount,
+                            relatedId: existing.id,
+                            paymentMethod: 'cash',
+                            timestamp: new Date().toISOString(),
+                        });
+                    }
+                }
+            }
+            set(s => ({
+                appData: {
+                    ...(s.appData as AppData),
+                    advances: (s.appData?.advances || []).map(a => String(a.id) === String(advanceId) ? { ...a, ...updates } : a),
+                    treasury: nextTreasury,
+                }
+            }));
+            get().addToast('تم تحديث السلفة بنجاح', 'success');
+            return;
+        }
         const batch = writeBatch(db);
         batch.update(doc(db, "advances", String(advanceId)), updates);
         
@@ -1160,6 +1456,16 @@ const useStore = create<AppState & AppActions>((set, get) => ({
         get().addToast('تم تحديث السلفة بنجاح', 'success');
     },
     deleteAdvance: async (advanceId) => {
+        if (isTenantMode()) {
+            set(state => ({
+                appData: {
+                    ...(state.appData as AppData),
+                    advances: (state.appData?.advances || []).filter(a => String(a.id) !== String(advanceId)),
+                    treasury: (state.appData?.treasury || []).filter(t => !(String(t.relatedId) === String(advanceId) && (t.type === 'سلفة' || t.type === 'سداد سلفة'))),
+                }
+            }));
+            return;
+        }
         try {
             const batch = writeBatch(db);
             batch.delete(doc(db, "advances", String(advanceId)));
@@ -1175,14 +1481,28 @@ const useStore = create<AppState & AppActions>((set, get) => ({
         }
     },
     setAttendance: async (attendance) => {
+        if (isTenantMode()) {
+            set(state => ({
+                appData: { ...(state.appData as AppData), attendance }
+            }));
+            return;
+        }
         const batch = writeBatch(db);
         attendance.forEach(a => batch.set(doc(db, "attendance", String(a.id)), a));
         await batch.commit();
     },
     addPayroll: async (payroll) => {
-        const maxId = Math.max(0, ...(get().appData?.payroll.map(p => Number(p.id) || 0) || []));
-        const newPayroll = { ...payroll, id: maxId + 1, timestamp: new Date().toISOString() };
-        await setDoc(doc(db, "payroll", String(newPayroll.id)), newPayroll);
+        const newPayroll = { ...payroll, id: nextNumericId(get().appData?.payroll), timestamp: new Date().toISOString() } as Payroll;
+        if (isTenantMode()) {
+            set(state => ({
+                appData: {
+                    ...(state.appData as AppData),
+                    payroll: [...(state.appData?.payroll || []), newPayroll],
+                }
+            }));
+        } else {
+            await setDoc(doc(db, "payroll", String(newPayroll.id)), newPayroll);
+        }
         if (newPayroll.disbursed > 0) {
             const employeeName = get().appData?.employees.find(e => e.id === newPayroll.employeeId)?.name || 'موظف';
             await get().addTreasuryTransaction({
@@ -1193,6 +1513,26 @@ const useStore = create<AppState & AppActions>((set, get) => ({
         get().addToast('تم إضافة الراتب بنجاح', 'success');
     },
     updatePayroll: async (payrollId, updates) => {
+        if (isTenantMode()) {
+            set(state => ({
+                appData: {
+                    ...(state.appData as AppData),
+                    payroll: (state.appData?.payroll || []).map(p => String(p.id) === String(payrollId) ? { ...p, ...updates } : p),
+                    treasury: (state.appData?.treasury || []).map(t => {
+                        if (String(t.relatedId) === String(payrollId) && t.type === 'راتب') {
+                            return {
+                                ...t,
+                                ...(updates.disbursed !== undefined ? { amountOut: updates.disbursed } : {}),
+                                ...(updates.date !== undefined ? { date: updates.date } : {}),
+                            };
+                        }
+                        return t;
+                    }),
+                }
+            }));
+            get().addToast('تم تحديث الراتب بنجاح', 'success');
+            return;
+        }
         const batch = writeBatch(db);
         batch.update(doc(db, "payroll", String(payrollId)), updates);
         if (updates.disbursed !== undefined || updates.date !== undefined) {
@@ -1209,6 +1549,16 @@ const useStore = create<AppState & AppActions>((set, get) => ({
         get().addToast('تم تحديث الراتب بنجاح', 'success');
     },
     deletePayroll: async (payrollId) => {
+        if (isTenantMode()) {
+            set(state => ({
+                appData: {
+                    ...(state.appData as AppData),
+                    payroll: (state.appData?.payroll || []).filter(p => String(p.id) !== String(payrollId)),
+                    treasury: (state.appData?.treasury || []).filter(t => !(String(t.relatedId) === String(payrollId) && t.type === 'راتب')),
+                }
+            }));
+            return;
+        }
         try {
             const batch = writeBatch(db);
             batch.delete(doc(db, "payroll", String(payrollId)));
@@ -1225,16 +1575,45 @@ const useStore = create<AppState & AppActions>((set, get) => ({
     },
     
     addSupplier: async (supplier) => {
-        const maxId = Math.max(0, ...(get().appData?.suppliers.map(s => Number(s.id) || 0) || []));
-        const newSupplier = { ...supplier, id: maxId + 1 };
+        const newSupplier = { ...supplier, id: nextNumericId(get().appData?.suppliers) } as Supplier;
+        if (isTenantMode()) {
+            set(state => ({
+                appData: {
+                    ...(state.appData as AppData),
+                    suppliers: [...(state.appData?.suppliers || []), newSupplier],
+                }
+            }));
+            get().addToast('تم إضافة المورد بنجاح', 'success');
+            return;
+        }
         await setDoc(doc(db, "suppliers", String(newSupplier.id)), newSupplier);
         get().addToast('تم إضافة المورد بنجاح', 'success');
     },
     updateSupplier: async (supplierId, updates) => {
+        if (isTenantMode()) {
+            set(state => ({
+                appData: {
+                    ...(state.appData as AppData),
+                    suppliers: (state.appData?.suppliers || []).map(s => String(s.id) === String(supplierId) ? { ...s, ...updates } : s),
+                }
+            }));
+            get().addToast('تم تحديث المورد بنجاح', 'success');
+            return;
+        }
         await updateDoc(doc(db, "suppliers", String(supplierId)), updates);
         get().addToast('تم تحديث المورد بنجاح', 'success');
     },
     deleteSupplier: async (supplierId) => {
+        if (isTenantMode()) {
+            set(state => ({
+                appData: {
+                    ...(state.appData as AppData),
+                    suppliers: (state.appData?.suppliers || []).filter(s => String(s.id) !== String(supplierId)),
+                    payments: (state.appData?.payments || []).filter(p => String(p.supplierId) !== String(supplierId)),
+                }
+            }));
+            return;
+        }
         try {
             const paymentsToDelete = get().appData?.payments.filter(p => p.supplierId === supplierId) || [];
             const batch = writeBatch(db);
@@ -1249,8 +1628,25 @@ const useStore = create<AppState & AppActions>((set, get) => ({
     addPurchaseOrder: async (order) => {
         try {
             const state = get();
-            const maxId = Math.max(0, ...(state.appData?.purchaseOrders.map(o => Number(o.id) || 0) || []));
-            const newOrder = { ...order, id: maxId + 1, timestamp: new Date().toISOString() };
+            const newOrder = { ...order, id: nextNumericId(state.appData?.purchaseOrders), timestamp: new Date().toISOString() } as PurchaseOrder;
+            if (isTenantMode()) {
+                set(s => {
+                    const cur = s.appData as AppData;
+                    let nextProducts = cur.products || [];
+                    if (newOrder.status === 'مكتمل' && newOrder.branch) {
+                        nextProducts = adjustProductsStockMap(nextProducts, newOrder.items, newOrder.branch, newOrder.type === 'مرتجع' ? -1 : 1);
+                    }
+                    return {
+                        appData: {
+                            ...cur,
+                            purchaseOrders: [...(cur.purchaseOrders || []), newOrder],
+                            products: nextProducts,
+                        },
+                    };
+                });
+                get().addToast('تم إضافة طلب الشراء بنجاح', 'success');
+                return;
+            }
             
             const batch = writeBatch(db);
             batch.set(doc(db, "purchaseOrders", String(newOrder.id)), newOrder);
@@ -1277,6 +1673,29 @@ const useStore = create<AppState & AppActions>((set, get) => ({
             const state = get();
             const oldOrder = state.appData?.purchaseOrders.find(o => String(o.id) === String(orderId));
             if (!oldOrder) throw new Error("Order not found");
+
+            if (isTenantMode()) {
+                set(s => {
+                    const cur = s.appData as AppData;
+                    let nextProducts = cur.products || [];
+                    if (oldOrder.status === 'مكتمل' && oldOrder.branch) {
+                        nextProducts = adjustProductsStockMap(nextProducts, oldOrder.items, oldOrder.branch, oldOrder.type === 'مرتجع' ? 1 : -1);
+                    }
+                    const mergedOrder = { ...oldOrder, ...updates } as PurchaseOrder;
+                    if (mergedOrder.status === 'مكتمل' && mergedOrder.branch) {
+                        nextProducts = adjustProductsStockMap(nextProducts, mergedOrder.items, mergedOrder.branch, mergedOrder.type === 'مرتجع' ? -1 : 1);
+                    }
+                    return {
+                        appData: {
+                            ...cur,
+                            purchaseOrders: (cur.purchaseOrders || []).map(o => String(o.id) === String(orderId) ? mergedOrder : o),
+                            products: nextProducts,
+                        },
+                    };
+                });
+                get().addToast('تم تحديث طلب الشراء بنجاح', 'success');
+                return;
+            }
 
             const batch = writeBatch(db);
             batch.update(doc(db, "purchaseOrders", String(orderId)), updates);
@@ -1321,6 +1740,25 @@ const useStore = create<AppState & AppActions>((set, get) => ({
             const order = state.appData?.purchaseOrders.find(o => String(o.id) === String(orderId));
             if (!order) throw new Error("Order not found");
 
+            if (isTenantMode()) {
+                set(s => {
+                    const cur = s.appData as AppData;
+                    let nextProducts = cur.products || [];
+                    if (order.status === 'مكتمل' && order.branch) {
+                        nextProducts = adjustProductsStockMap(nextProducts, order.items, order.branch, order.type === 'مرتجع' ? 1 : -1);
+                    }
+                    return {
+                        appData: {
+                            ...cur,
+                            purchaseOrders: (cur.purchaseOrders || []).filter(o => String(o.id) !== String(orderId)),
+                            products: nextProducts,
+                        },
+                    };
+                });
+                get().addToast('تم حذف طلب الشراء بنجاح', 'success');
+                return;
+            }
+
             const batch = writeBatch(db);
             batch.delete(doc(db, "purchaseOrders", String(orderId)));
 
@@ -1342,9 +1780,17 @@ const useStore = create<AppState & AppActions>((set, get) => ({
     },
     addPayment: async (payment) => {
         try {
-            const maxId = Math.max(0, ...(get().appData?.payments.map(p => Number(p.id) || 0) || []));
-            const newPayment = { ...payment, id: maxId + 1, timestamp: new Date().toISOString() };
-            await setDoc(doc(db, "payments", String(newPayment.id)), newPayment);
+            const newPayment = { ...payment, id: nextNumericId(get().appData?.payments), timestamp: new Date().toISOString() } as Payment;
+            if (isTenantMode()) {
+                set(state => ({
+                    appData: {
+                        ...(state.appData as AppData),
+                        payments: [...(state.appData?.payments || []), newPayment],
+                    }
+                }));
+            } else {
+                await setDoc(doc(db, "payments", String(newPayment.id)), newPayment);
+            }
             if (newPayment.payment > 0) {
                 const supplierName = get().appData?.suppliers.find(s => s.id === newPayment.supplierId)?.name || 'مورد';
                 await get().addTreasuryTransaction({
@@ -1360,6 +1806,26 @@ const useStore = create<AppState & AppActions>((set, get) => ({
         }
     },
     updatePayment: async (paymentId, updates) => {
+        if (isTenantMode()) {
+            set(state => ({
+                appData: {
+                    ...(state.appData as AppData),
+                    payments: (state.appData?.payments || []).map(p => String(p.id) === String(paymentId) ? { ...p, ...updates } : p),
+                    treasury: (state.appData?.treasury || []).map(t => {
+                        if (String(t.relatedId) === String(paymentId) && t.type === 'دفعة لمورد') {
+                            return {
+                                ...t,
+                                ...(updates.payment !== undefined ? { amountOut: updates.payment } : {}),
+                                ...(updates.date !== undefined ? { date: updates.date } : {}),
+                            };
+                        }
+                        return t;
+                    }),
+                }
+            }));
+            get().addToast('تم تحديث الدفعة بنجاح', 'success');
+            return;
+        }
         try {
             const batch = writeBatch(db);
             batch.update(doc(db, "payments", String(paymentId)), updates);
@@ -1382,6 +1848,16 @@ const useStore = create<AppState & AppActions>((set, get) => ({
         }
     },
     deletePayment: async (paymentId) => {
+        if (isTenantMode()) {
+            set(state => ({
+                appData: {
+                    ...(state.appData as AppData),
+                    payments: (state.appData?.payments || []).filter(p => String(p.id) !== String(paymentId)),
+                    treasury: (state.appData?.treasury || []).filter(t => !(String(t.relatedId) === String(paymentId) && t.type === 'دفعة لمورد')),
+                }
+            }));
+            return;
+        }
         try {
             const batch = writeBatch(db);
             batch.delete(doc(db, "payments", String(paymentId)));
@@ -1397,9 +1873,17 @@ const useStore = create<AppState & AppActions>((set, get) => ({
         }
     },
     addExpense: async (expense, skipTreasury = false) => {
-        const maxId = Math.max(0, ...(get().appData?.expenses.map(e => Number(e.id) || 0) || []));
-        const newExpense = { ...expense, id: maxId + 1, timestamp: new Date().toISOString() };
-        await setDoc(doc(db, "expenses", String(newExpense.id)), newExpense);
+        const newExpense = { ...expense, id: nextNumericId(get().appData?.expenses), timestamp: new Date().toISOString() } as Expense;
+        if (isTenantMode()) {
+            set(state => ({
+                appData: {
+                    ...(state.appData as AppData),
+                    expenses: [...(state.appData?.expenses || []), newExpense],
+                }
+            }));
+        } else {
+            await setDoc(doc(db, "expenses", String(newExpense.id)), newExpense);
+        }
         if (newExpense.amount > 0 && !skipTreasury) {
             await get().addTreasuryTransaction({
                 date: newExpense.date, type: 'مصروف', description: newExpense.name,
@@ -1409,6 +1893,27 @@ const useStore = create<AppState & AppActions>((set, get) => ({
         get().addToast('تم إضافة المصروف بنجاح', 'success');
     },
     updateExpense: async (expenseId, updates) => {
+        if (isTenantMode()) {
+            set(state => ({
+                appData: {
+                    ...(state.appData as AppData),
+                    expenses: (state.appData?.expenses || []).map(e => String(e.id) === String(expenseId) ? { ...e, ...updates } : e),
+                    treasury: (state.appData?.treasury || []).map(t => {
+                        if (String(t.relatedId) === String(expenseId) && t.type === 'مصروف') {
+                            return {
+                                ...t,
+                                ...(updates.amount !== undefined ? { amountOut: updates.amount } : {}),
+                                ...(updates.date !== undefined ? { date: updates.date } : {}),
+                                ...(updates.name !== undefined ? { description: updates.name } : {}),
+                            };
+                        }
+                        return t;
+                    }),
+                }
+            }));
+            get().addToast('تم تحديث المصروف بنجاح', 'success');
+            return;
+        }
         const batch = writeBatch(db);
         batch.update(doc(db, "expenses", String(expenseId)), updates);
         if (updates.amount !== undefined || updates.date !== undefined || updates.name !== undefined) {
@@ -1426,6 +1931,16 @@ const useStore = create<AppState & AppActions>((set, get) => ({
         get().addToast('تم تحديث المصروف بنجاح', 'success');
     },
     deleteExpense: async (expenseId) => {
+        if (isTenantMode()) {
+            set(state => ({
+                appData: {
+                    ...(state.appData as AppData),
+                    expenses: (state.appData?.expenses || []).filter(e => String(e.id) !== String(expenseId)),
+                    treasury: (state.appData?.treasury || []).filter(t => !(String(t.relatedId) === String(expenseId) && t.type === 'مصروف')),
+                }
+            }));
+            return;
+        }
         try {
             const batch = writeBatch(db);
             batch.delete(doc(db, "expenses", String(expenseId)));
@@ -1441,11 +1956,26 @@ const useStore = create<AppState & AppActions>((set, get) => ({
         }
     },
     setDailyReviews: async (reviews) => {
+        if (isTenantMode()) {
+            set(state => ({
+                appData: { ...(state.appData as AppData), dailyReview: reviews }
+            }));
+            return;
+        }
         const batch = writeBatch(db);
         reviews.forEach(r => batch.set(doc(db, "dailyReview", String(r.id)), r));
         await batch.commit();
     },
     deleteDailyReview: async (reviewId: number) => {
+        if (isTenantMode()) {
+            set(state => ({
+                appData: {
+                    ...(state.appData as AppData),
+                    dailyReview: (state.appData?.dailyReview || []).filter(r => String(r.id) !== String(reviewId)),
+                }
+            }));
+            return;
+        }
         try {
             await deleteDoc(doc(db, "dailyReview", String(reviewId)));
         } catch (error) {
@@ -1472,9 +2002,17 @@ const useStore = create<AppState & AppActions>((set, get) => ({
         await setDoc(doc(db, "settings", "storefront"), merged, { merge: true });
     },
     addTreasuryTransaction: async (transaction) => {
+        const newTransaction = { ...transaction, id: nextNumericId(get().appData?.treasury), timestamp: new Date().toISOString() } as TreasuryTransaction;
+        if (isTenantMode()) {
+            set(state => ({
+                appData: {
+                    ...(state.appData as AppData),
+                    treasury: [...(state.appData?.treasury || []), newTransaction],
+                }
+            }));
+            return;
+        }
         try {
-            const maxId = Math.max(0, ...(get().appData?.treasury.map(t => Number(t.id) || 0) || []));
-            const newTransaction = { ...transaction, id: maxId + 1, timestamp: new Date().toISOString() };
             await setDoc(doc(db, "treasury", String(newTransaction.id)), newTransaction);
         } catch (error) {
             console.error("Error adding treasury transaction:", error);
@@ -1482,6 +2020,15 @@ const useStore = create<AppState & AppActions>((set, get) => ({
         }
     },
     deleteTreasuryTransaction: async (transactionId) => {
+        if (isTenantMode()) {
+            set(state => ({
+                appData: {
+                    ...(state.appData as AppData),
+                    treasury: (state.appData?.treasury || []).filter(t => String(t.id) !== String(transactionId)),
+                }
+            }));
+            return;
+        }
         await deleteDoc(doc(db, "treasury", String(transactionId)));
     },
 
@@ -1495,6 +2042,37 @@ const useStore = create<AppState & AppActions>((set, get) => ({
             throw new Error("الكمية غير كافية في الفرع المصدر.");
         }
 
+        const newTransfer: StockTransfer = { 
+            ...transfer, 
+            id: nextNumericId(appData?.stockTransfers),
+            timestamp: new Date().toISOString(),
+            productName: product.name,
+        };
+
+        if (isTenantMode()) {
+            set(s => {
+                const cur = s.appData as AppData;
+                return {
+                    appData: {
+                        ...cur,
+                        products: (cur.products || []).map(p => {
+                            if (p.id !== transfer.productId) return p;
+                            return {
+                                ...p,
+                                stock: {
+                                    ...p.stock,
+                                    [transfer.fromBranch]: (p.stock[transfer.fromBranch] || 0) - transfer.quantity,
+                                    [transfer.toBranch]: (p.stock[transfer.toBranch] || 0) + transfer.quantity,
+                                },
+                            };
+                        }),
+                        stockTransfers: [...(cur.stockTransfers || []), newTransfer],
+                    },
+                };
+            });
+            return;
+        }
+
         const batch = writeBatch(db);
         
         const productRef = doc(db, "products", String(transfer.productId));
@@ -1503,13 +2081,6 @@ const useStore = create<AppState & AppActions>((set, get) => ({
             [`stock.${transfer.toBranch}`]: increment(transfer.quantity)
         });
 
-        const maxId = Math.max(0, ...(appData?.stockTransfers.map(t => Number(t.id) || 0) || []));
-        const newTransfer: StockTransfer = { 
-            ...transfer, 
-            id: maxId + 1,
-            timestamp: new Date().toISOString(),
-            productName: product.name,
-        };
         const transferRef = doc(db, "stockTransfers", String(newTransfer.id));
         batch.set(transferRef, newTransfer);
 
@@ -1532,20 +2103,39 @@ const useStore = create<AppState & AppActions>((set, get) => ({
 
         try {
             const base64Image = await toBase64(file);
+
+            // Try same-origin Vercel upload endpoint first if configured
+            try {
+                const srvRes = await fetch('/api/upload', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ image: base64Image }),
+                });
+                if (srvRes.ok) {
+                    const srvData = await srvRes.json().catch(() => null);
+                    if (srvData?.success && srvData?.data?.url) {
+                        return srvData.data.url;
+                    }
+                }
+            } catch {}
             
             // List of API keys to try in order
             const apiKeys = [
                 import.meta.env.VITE_IMGBB_API_KEY, // Primary env key
-                "6d207e02198a847aa98d0a2a901485a5", // Fallback 1
-                "c87eb4683dc6553a29d54d9304027959", // Fallback 2
-                "f59b6629158302506353901404390509", // Old key (might work?)
+                "bde613bd4475de5e00274a795091ba04",
+                "6c8b6631cb1eb13c3f7690a6182c4b8b",
+                "0266e741a340a2007f90111c12c5b9f7",
+                "37cc221b666a0d426463941459a72138",
+                "742879542589e4726eb2a31742461946",
+                "6d207e02198a847aa98d0a2a901485a5",
+                "c87eb4683dc6553a29d54d9304027959",
+                "f59b6629158302506353901404390509",
             ].filter(key => key && key !== 'undefined');
 
             let lastError;
 
             for (const apiKey of apiKeys) {
                 try {
-                    console.log(`ImgBB Upload: Trying key ending in ...${apiKey?.slice(-4)}`);
                     const uploadData = new FormData();
                     uploadData.append('image', base64Image);
 
@@ -1557,14 +2147,11 @@ const useStore = create<AppState & AppActions>((set, get) => ({
                     const data = await response.json();
 
                     if (data.success) {
-                        console.log("Image uploaded successfully:", data.data.url);
                         return data.data.url;
                     } else {
-                        console.warn(`ImgBB upload failed with key ...${apiKey?.slice(-4)}:`, data);
                         lastError = new Error(data.error?.message || 'ImgBB upload failed');
                     }
                 } catch (err) {
-                    console.warn(`Network error with key ...${apiKey?.slice(-4)}:`, err);
                     lastError = err;
                 }
             }
@@ -1582,6 +2169,46 @@ const useStore = create<AppState & AppActions>((set, get) => ({
         let imageUrl: string | undefined = undefined;
         let finalTotal = subtotal + 50; // Add delivery fee initially
         let validDiscountInfo: Partial<Pick<Order, 'discountCode' | 'discountAmount'>> = {};
+
+        // Upload payment proof if exists
+        if (paymentMethod === 'electronic' && paymentProof) {
+            try {
+                imageUrl = await get().uploadImage(paymentProof, `payment_proofs/${Date.now()}_${paymentProof.name}`);
+            } catch (error) {
+                console.error("Failed to upload payment proof:", error);
+                throw new Error("فشل رفع إيصال الدفع. يرجى المحاولة مرة أخرى.");
+            }
+        }
+
+        const activeSlug = resolveTenantBrandId();
+        if (activeSlug) {
+            const res = await createTenantPublicOrder(activeSlug, {
+                customerDetails,
+                items,
+                subtotal,
+                paymentMethod,
+                paymentProofUrl: imageUrl,
+                discountCode,
+                locationLink,
+            });
+            if (!res.ok) {
+                throw new Error("فشل إنشاء الطلب: " + (res.error || 'خطأ في الخادم'));
+            }
+            isHydratingFromCloud = true;
+            set(s => {
+                const cur = s.appData as AppData;
+                return {
+                    appData: {
+                        ...cur,
+                        orders: res.order ? [res.order, ...(cur.orders || [])] : (cur.orders || []),
+                        notifications: res.notification ? [res.notification, ...(cur.notifications || [])] : (cur.notifications || []),
+                    },
+                };
+            });
+            isHydratingFromCloud = false;
+            saveLocalErpCache(activeSlug, get().appData as any);
+            return imageUrl;
+        }
         
         // 1. Validate discount code and calculate discount
         if (discountCode) {
@@ -1604,16 +2231,6 @@ const useStore = create<AppState & AppActions>((set, get) => ({
                         discountAmount: calculatedDiscount,
                     };
                 }
-            }
-        }
-        
-        // 2. Upload payment proof if exists
-        if (paymentMethod === 'electronic' && paymentProof) {
-            try {
-                imageUrl = await get().uploadImage(paymentProof, `payment_proofs/${Date.now()}_${paymentProof.name}`);
-            } catch (error) {
-                console.error("Failed to upload payment proof:", error);
-                throw new Error("فشل رفع إيصال الدفع. يرجى المحاولة مرة أخرى.");
             }
         }
 
@@ -1720,20 +2337,125 @@ const useStore = create<AppState & AppActions>((set, get) => ({
     
         const orderToUpdate = appData.orders.find(o => o.id === orderId);
         if (!orderToUpdate) throw new Error("Order not found!");
-        
-        const batch = writeBatch(db);
-        
+
         const updateData: any = { status };
         if (shippingDetails) {
             if (shippingDetails.shippingCompany !== undefined) updateData.shippingCompany = shippingDetails.shippingCompany;
             if (shippingDetails.trackingNumber !== undefined) updateData.trackingNumber = shippingDetails.trackingNumber;
             if (shippingDetails.shippingNotes !== undefined) updateData.shippingNotes = shippingDetails.shippingNotes;
         }
+        const statusText = status === 'confirmed' ? 'تم التأكيد' : status === 'shipped' ? 'تم الشحن' : status === 'cancelled' ? 'ملغي' : status === 'collected' ? 'تم التحصيل' : status === 'returned' ? 'مرتجع' : 'قيد الانتظار';
+
+        if (isTenantMode()) {
+            const invoiceNum = `ONLINE-${orderId}`;
+            const existingSale = appData.dailySales.find(s => s.invoiceNumber === invoiceNum) || null;
+            const wasAlreadyProcessed = Boolean(existingSale);
+            const isElectronic = orderToUpdate.paymentMethod === 'electronic';
+            const isNowBeingProcessed = ['shipped', 'collected'].includes(status);
+            const isBeingReverted = ['pending', 'confirmed', 'cancelled', 'returned'].includes(status);
+
+            let nextDailySales = [...(appData.dailySales || [])];
+            let nextTreasury = [...(appData.treasury || [])];
+            let nextProducts = [...(appData.products || [])];
+            const nowIso = new Date().toISOString();
+            const todayDate = nowIso.split('T')[0];
+
+            const statusNotif: Notification = {
+                id: `notif_${Date.now()}_${orderId}`,
+                date: todayDate,
+                createdAt: Date.now() as any,
+                message: `تم تغيير حالة الطلب #${orderId} إلى ${statusText}`,
+                read: false,
+                orderId: String(orderId),
+                type: 'status_change',
+                targetGroup: 'customer',
+            };
+
+            if (isNowBeingProcessed && !wasAlreadyProcessed) {
+                const seller = appData.users.find(u => u.role === Role.Admin) || appData.users[0] || state.currentUser || { id: 'admin', name: 'الإدارة' };
+                const saleItems: SaleItem[] = orderToUpdate.items.map(item => {
+                    const product = appData.products.find(p => p.id === item.productId);
+                    if (!product) return null;
+                    return { productId: item.productId, quantity: item.quantity, unitPrice: item.unitPrice, itemType: product?.mainCategory || 'أخرى' };
+                }).filter((item): item is SaleItem => item !== null);
+                const isCollected = status === 'collected';
+                const newSale: DailySale = {
+                    id: nextNumericId(nextDailySales),
+                    date: todayDate,
+                    timestamp: nowIso,
+                    invoiceNumber: invoiceNum,
+                    sellerId: seller.id,
+                    sellerName: seller.name,
+                    source: 'أونلاين',
+                    branchSoldFrom: 'main',
+                    direction: 'بيع',
+                    items: saleItems,
+                    totalAmount: orderToUpdate.totalAmount,
+                    paymentMethod: isElectronic ? 'إلكترونى' : (isCollected ? 'نقدى' : 'آجل'),
+                    cashAmount: (!isElectronic && isCollected) ? orderToUpdate.totalAmount : 0,
+                    electronicAmount: isElectronic ? orderToUpdate.totalAmount : 0,
+                    remainingDebt: (!isElectronic && !isCollected) ? orderToUpdate.totalAmount : 0,
+                };
+                nextDailySales.push(newSale);
+
+                if (isElectronic || isCollected) {
+                    nextTreasury.push({
+                        id: nextNumericId(nextTreasury),
+                        date: todayDate,
+                        timestamp: nowIso,
+                        type: 'إيراد مبيعات',
+                        description: `طلب أونلاين #${orderToUpdate.id}`,
+                        amountIn: orderToUpdate.totalAmount,
+                        amountOut: 0,
+                        relatedId: orderToUpdate.id,
+                        paymentMethod: isElectronic ? 'electronic' : 'cash',
+                    });
+                }
+
+                nextProducts = adjustProductsStockMap(nextProducts, orderToUpdate.items, 'main', -1);
+            } else if (isNowBeingProcessed && wasAlreadyProcessed && status === 'collected' && existingSale && existingSale.paymentMethod === 'آجل') {
+                nextDailySales = nextDailySales.map(s =>
+                    s.id === existingSale.id ? { ...s, paymentMethod: 'نقدى', cashAmount: orderToUpdate.totalAmount, remainingDebt: 0 } : s
+                );
+                nextTreasury.push({
+                    id: nextNumericId(nextTreasury),
+                    date: todayDate,
+                    timestamp: nowIso,
+                    type: 'إيراد مبيعات',
+                    description: `تحصيل طلب أونلاين #${orderToUpdate.id}`,
+                    amountIn: orderToUpdate.totalAmount,
+                    amountOut: 0,
+                    relatedId: orderToUpdate.id,
+                    paymentMethod: 'cash',
+                });
+            } else if (isBeingReverted && wasAlreadyProcessed) {
+                nextDailySales = nextDailySales.filter(s => s.invoiceNumber !== invoiceNum);
+                nextTreasury = nextTreasury.filter(t => !(String(t.relatedId) === String(orderId) && t.type === 'إيراد مبيعات'));
+                nextProducts = adjustProductsStockMap(nextProducts, orderToUpdate.items, 'main', 1);
+            }
+
+            set(s => ({
+                appData: {
+                    ...(s.appData as AppData),
+                    orders: (s.appData?.orders || []).map(o => o.id === orderId ? { ...o, ...updateData } : o),
+                    notifications: [statusNotif, ...(s.appData?.notifications || [])],
+                    dailySales: nextDailySales,
+                    treasury: nextTreasury,
+                    products: nextProducts,
+                }
+            }));
+
+            if (isBeingReverted && wasAlreadyProcessed) {
+                get().addToast('تم عكس المعاملات المرتبطة بالطلب بنجاح.', 'success');
+            }
+            return;
+        }
+        
+        const batch = writeBatch(db);
         
         batch.update(doc(db, "orders", String(orderId)), updateData);
 
         // Add notification for customer/system
-        const statusText = status === 'confirmed' ? 'تم التأكيد' : status === 'shipped' ? 'تم الشحن' : status === 'cancelled' ? 'ملغي' : status === 'collected' ? 'تم التحصيل' : status === 'returned' ? 'مرتجع' : 'قيد الانتظار';
         const notificationRef = doc(collection(db, "notifications"));
         batch.set(notificationRef, {
             id: notificationRef.id,
@@ -1848,6 +2570,30 @@ const useStore = create<AppState & AppActions>((set, get) => ({
             const state = get();
             const orderToDelete = state.appData?.orders.find(o => String(o.id) === String(orderId));
             if (!orderToDelete) throw new Error(`Order with ID ${orderId} not found!`);
+
+            if (isTenantMode()) {
+                set(s => {
+                    const cur = s.appData as AppData;
+                    const wasProcessed = ['shipped', 'collected'].includes(orderToDelete.status);
+                    return {
+                        appData: {
+                            ...cur,
+                            orders: (cur.orders || []).filter(o => String(o.id) !== String(orderId)),
+                            notifications: (cur.notifications || []).filter(n => String(n.orderId) !== String(orderId)),
+                            dailySales: wasProcessed
+                                ? (cur.dailySales || []).filter(sale => sale.invoiceNumber !== `ONLINE-${orderId}`)
+                                : (cur.dailySales || []),
+                            treasury: wasProcessed
+                                ? (cur.treasury || []).filter(t => !(String(t.relatedId) === String(orderId) && t.type === "إيراد مبيعات"))
+                                : (cur.treasury || []),
+                            products: wasProcessed
+                                ? adjustProductsStockMap(cur.products || [], orderToDelete.items, 'main', 1)
+                                : (cur.products || []),
+                        },
+                    };
+                });
+                return;
+            }
         
             const batch = writeBatch(db);
             const orderDocRef = doc(db, "orders", String(orderId));
@@ -1888,24 +2634,107 @@ const useStore = create<AppState & AppActions>((set, get) => ({
     },
     
     markNotificationAsRead: async (notificationId) => {
+        if (isTenantMode()) {
+            set(state => ({
+                appData: {
+                    ...(state.appData as AppData),
+                    notifications: (state.appData?.notifications || []).map(n => String(n.id) === String(notificationId) ? { ...n, read: true } : n),
+                }
+            }));
+            return;
+        }
         await updateDoc(doc(db, "notifications", String(notificationId)), { read: true });
     },
     addDiscountCode: async (code) => {
-        await setDoc(doc(db, "discountCodes", code.code), { ...code, id: code.code });
+        const newCode = { ...code, id: code.code } as DiscountCode;
+        if (isTenantMode()) {
+            set(state => ({
+                appData: {
+                    ...(state.appData as AppData),
+                    discountCodes: [...(state.appData?.discountCodes || []), newCode],
+                }
+            }));
+            return;
+        }
+        await setDoc(doc(db, "discountCodes", code.code), newCode);
     },
     updateDiscountCode: async (codeId, updates) => {
+        if (isTenantMode()) {
+            set(state => ({
+                appData: {
+                    ...(state.appData as AppData),
+                    discountCodes: (state.appData?.discountCodes || []).map(c => String(c.id) === String(codeId) ? { ...c, ...updates } : c),
+                }
+            }));
+            return;
+        }
         await updateDoc(doc(db, "discountCodes", String(codeId)), updates);
     },
     deleteDiscountCode: async (codeId) => {
+        if (isTenantMode()) {
+            set(state => ({
+                appData: {
+                    ...(state.appData as AppData),
+                    discountCodes: (state.appData?.discountCodes || []).filter(c => String(c.id) !== String(codeId)),
+                }
+            }));
+            return;
+        }
         await deleteDoc(doc(db, "discountCodes", String(codeId)));
     },
     addAttendanceRecord: async (record) => {
+        if (isTenantMode()) {
+            set(state => ({
+                appData: {
+                    ...(state.appData as AppData),
+                    attendance: [...(state.appData?.attendance || []), record],
+                }
+            }));
+            return;
+        }
         await setDoc(doc(db, "attendance", String(record.id)), record);
     },
     updateAttendanceRecord: async (id, updates) => {
+        if (isTenantMode()) {
+            set(state => ({
+                appData: {
+                    ...(state.appData as AppData),
+                    attendance: (state.appData?.attendance || []).map(a => String(a.id) === String(id) ? { ...a, ...updates } : a),
+                }
+            }));
+            return;
+        }
         await updateDoc(doc(db, "attendance", String(id)), updates);
     },
     createUser: async (email, pass, role, branch, name, permissions = [], allowedBranches = []) => {
+        if (isTenantMode()) {
+            const normalizedEmail = email.trim().toLowerCase();
+            const existing = (get().appData?.users || []).find(
+                u => String(u.username || '').trim().toLowerCase() === normalizedEmail
+            );
+            if (existing) {
+                get().addToast('هذا البريد الإلكتروني مسجل بالفعل', 'error');
+                throw new Error('هذا البريد الإلكتروني مسجل بالفعل');
+            }
+            const newUser: User = {
+                id: `staff_${Date.now()}`,
+                name,
+                username: normalizedEmail,
+                role,
+                branch,
+                allowedBranches: Array.from(new Set([...allowedBranches, branch])),
+                permissions,
+                password: pass,
+            };
+            set(state => ({
+                appData: {
+                    ...(state.appData as AppData),
+                    users: [...(state.appData?.users || []), newUser],
+                }
+            }));
+            get().addToast(`تم إنشاء حساب المستخدم ${name} بنجاح`, 'success');
+            return;
+        }
         // Use a secondary app to create user without logging out the current admin
         const secondaryApp = initializeApp(firebaseConfig, "Secondary");
         const secondaryAuth = getAuth(secondaryApp);
@@ -1938,6 +2767,16 @@ const useStore = create<AppState & AppActions>((set, get) => ({
         }
     },
     updateUser: async (userId, updates) => {
+        if (isTenantMode()) {
+            set(state => ({
+                appData: {
+                    ...(state.appData as AppData),
+                    users: (state.appData?.users || []).map(u => String(u.id) === String(userId) ? { ...u, ...updates } : u),
+                }
+            }));
+            get().addToast("تم تحديث بيانات المستخدم بنجاح", "success");
+            return;
+        }
         try {
             await updateDoc(doc(db, "users", userId), updates);
             get().addToast("تم تحديث بيانات المستخدم بنجاح", "success");
@@ -1947,6 +2786,16 @@ const useStore = create<AppState & AppActions>((set, get) => ({
         }
     },
     deleteUser: async (userId) => {
+        if (isTenantMode()) {
+            set(state => ({
+                appData: {
+                    ...(state.appData as AppData),
+                    users: (state.appData?.users || []).filter(u => String(u.id) !== String(userId)),
+                }
+            }));
+            get().addToast("تم حذف المستخدم بنجاح", "success");
+            return;
+        }
         try {
             await deleteDoc(doc(db, "users", userId));
             get().addToast("تم حذف المستخدم بنجاح", "success");
@@ -1964,6 +2813,7 @@ const useStore = create<AppState & AppActions>((set, get) => ({
         await setDoc(doc(db, "settings", "general"), merged, { merge: true });
     },
     saveDeviceToken: async (token: string) => {
+        if (isTenantMode()) return;
         try {
             const userId = get().currentUser?.id || 'anonymous';
             const tokenDocRef = doc(db, "device_tokens", token);
@@ -1983,6 +2833,30 @@ const useStore = create<AppState & AppActions>((set, get) => ({
             date: new Date().toISOString(),
             sentBy: get().currentUser?.name || 'Admin'
         };
+        if (isTenantMode()) {
+            const sysNotif: Notification = {
+                id: `notif_${Date.now()}_broadcast`,
+                date: newBroadcast.date,
+                createdAt: Date.now() as any,
+                message: `تم إرسال إشعار عام: ${message}`,
+                read: true,
+                type: 'system',
+                targetGroup: 'all',
+            };
+            set(state => ({
+                appData: {
+                    ...(state.appData as AppData),
+                    broadcasts: [newBroadcast, ...(state.appData?.broadcasts || [])],
+                    notifications: [sysNotif, ...(state.appData?.notifications || [])],
+                }
+            }));
+            fetch('/api/send-notification', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title: 'إشعار من الإدارة', body: message })
+            }).catch(() => {});
+            return;
+        }
         await setDoc(doc(db, "broadcasts", newBroadcast.id), newBroadcast);
         // Also add a system notification for admin history
         const notificationRef = doc(collection(db, "notifications"));
@@ -2038,6 +2912,13 @@ const useStore = create<AppState & AppActions>((set, get) => ({
         get().addToast('تم ضبط رصيد الخزينة بنجاح', 'success');
     },
     clearTreasury: async () => {
+        if (isTenantMode()) {
+            set(state => ({
+                appData: { ...(state.appData as AppData), treasury: [] }
+            }));
+            get().addToast('تم مسح جميع معاملات الخزينة بنجاح', 'success');
+            return;
+        }
         const batch = writeBatch(db);
         const state = get();
         const treasuryDocs = state.appData?.treasury || [];
@@ -2051,6 +2932,46 @@ const useStore = create<AppState & AppActions>((set, get) => ({
     resetDatabase: async () => {
         const state = get();
         if (!state.appData) return;
+
+        const activeSlug = resolveTenantBrandId();
+        if (activeSlug) {
+            const clearedState = {
+                products: [],
+                dailySales: [],
+                employees: [],
+                advances: [],
+                attendance: [],
+                payroll: [],
+                suppliers: [],
+                purchaseOrders: [],
+                payments: [],
+                expenses: [],
+                treasury: [],
+                dailyReview: [],
+                notifications: [],
+                stockTransfers: [],
+                orders: [],
+                broadcasts: [],
+                discountCodes: [],
+                storefrontSettings: {
+                    ...(state.appData.storefrontSettings || {}),
+                    featuredProductIds: [],
+                    newArrivalProductIds: [],
+                },
+            };
+            isHydratingFromCloud = true;
+            set(s => ({
+                appData: {
+                    ...(s.appData as AppData),
+                    ...clearedState,
+                },
+            }));
+            isHydratingFromCloud = false;
+            saveLocalErpCache(activeSlug, get().appData as any);
+            await pushTenantErpState(activeSlug, clearedState);
+            get().addToast('تم مسح جميع البيانات بنجاح', 'success');
+            return;
+        }
 
         const collectionsToClear: (keyof AppData)[] = [
             'products', 'dailySales', 'employees', 'advances', 'attendance', 'payroll', 'suppliers', 
@@ -2093,25 +3014,32 @@ let isHydratingFromCloud = false;
 useStore.subscribe((state, prevState) => {
     if (isHydratingFromCloud) return;
     const slug = resolveTenantBrandId();
-    if (!slug || !state.currentUser || !getTenantSessionToken(slug)) return;
-    if (state.appData !== prevState.appData && state.appData) {
-        queueTenantErpSync(slug, state.appData as any);
+    if (!slug || !state.appData) return;
+    if (state.appData !== prevState.appData) {
+        const dirtyKeys = Object.keys(state.appData).filter(
+            (k) => k !== 'toasts' && (state.appData as any)[k] !== (prevState.appData as any)?.[k]
+        );
+        if (dirtyKeys.length > 0 && state.currentUser && getTenantSessionToken(slug)) {
+            queueTenantErpSync(slug, state.appData as any, dirtyKeys);
+        }
     }
 });
 
 if (typeof window !== 'undefined') {
     setInterval(async () => {
-        if (document.visibilityState !== 'visible') return;
+        if (document.visibilityState !== 'visible' || hasPendingErpSync()) return;
         const slug = resolveTenantBrandId();
         if (!slug) return;
         const token = getTenantSessionToken(slug);
         const cloudState = await fetchTenantErpState(slug, token);
-        if (!cloudState || typeof cloudState !== 'object') return;
+        if (!cloudState || typeof cloudState !== 'object' || hasPendingErpSync()) return;
         const curData = (useStore.getState().appData || {}) as Record<string, any>;
         const nextMerged: Record<string, any> = {
             ...curData,
             ...(Array.isArray(cloudState.products) && cloudState.products.length > 0 ? { products: cloudState.products } : {}),
-            ...(Array.isArray(cloudState.broadcasts) && cloudState.broadcasts.length > 0 ? { broadcasts: cloudState.broadcasts } : {}),
+            ...(Array.isArray(cloudState.broadcasts) ? { broadcasts: cloudState.broadcasts } : {}),
+            ...(Array.isArray(cloudState.discountCodes) ? { discountCodes: cloudState.discountCodes } : {}),
+            ...(cloudState.storefrontSettings ? { storefrontSettings: cloudState.storefrontSettings } : {}),
             ...(cloudState.settings ? { settings: cloudState.settings } : {}),
             ...(token ? cloudState : {}),
         };
@@ -2119,6 +3047,7 @@ if (typeof window !== 'undefined') {
             isHydratingFromCloud = true;
             useStore.setState({ isLoading: false, appData: nextMerged as AppData });
             isHydratingFromCloud = false;
+            saveLocalErpCache(slug, nextMerged);
             if (nextMerged.storefrontSettings) {
                 (window as any).__TENANT_STOREFRONT_SETTINGS__ = nextMerged.storefrontSettings;
                 if ((nextMerged.storefrontSettings as any).primaryColor) {

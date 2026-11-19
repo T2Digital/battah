@@ -5,6 +5,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import useStore from '../../lib/store';
 import { DiscountCode } from '../../types';
+import { resolveTenantBrandId } from '../../lib/tenantBootstrap';
 import SectionHeader from '../shared/SectionHeader';
 import { formatCurrency, formatDate } from '../../lib/utils';
 import DiscountCodeModal from './DiscountCodeModal';
@@ -47,11 +48,21 @@ const Promotions: React.FC = () => {
                 await updateDiscountCode(id, data);
             } else {
                 // This is a new code, we must ensure it doesn't already exist.
-                const docRef = doc(db, 'discountCodes', data.code);
-                const docSnap = await getDoc(docRef);
-                if (docSnap.exists()) {
-                    alert('هذا الكود موجود بالفعل. يرجى اختيار كود آخر.');
-                    return;
+                if (resolveTenantBrandId()) {
+                    const exists = discountCodes.some(
+                        c => String(c.code || '').trim().toUpperCase() === data.code.trim().toUpperCase()
+                    );
+                    if (exists) {
+                        alert('هذا الكود موجود بالفعل. يرجى اختيار كود آخر.');
+                        return;
+                    }
+                } else {
+                    const docRef = doc(db, 'discountCodes', data.code);
+                    const docSnap = await getDoc(docRef);
+                    if (docSnap.exists()) {
+                        alert('هذا الكود موجود بالفعل. يرجى اختيار كود آخر.');
+                        return;
+                    }
                 }
                 await addDiscountCode(data);
             }
