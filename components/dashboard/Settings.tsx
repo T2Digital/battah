@@ -441,8 +441,8 @@ const Settings: React.FC = () => {
                 </button>
             </div>
 
-            {/* Mobile Horizontal Scrollable Tab Strip */}
-            <div className="lg:hidden flex overflow-x-auto gap-2 pb-1 hide-scrollbar">
+            {/* Tablet / Mobile Wrapped Tab Bar (all 7 tabs visible without clipping) */}
+            <div className="xl:hidden flex flex-wrap gap-2">
                 {SETTINGS_TABS.map(tab => {
                     const isCurrent = activeTab === tab.id;
                     return (
@@ -463,9 +463,9 @@ const Settings: React.FC = () => {
                 })}
             </div>
 
-            <div className="flex flex-col lg:flex-row gap-6 items-start">
+            <div className="flex flex-col xl:flex-row gap-6 items-start">
                 {/* Desktop Vertical Tab Rail */}
-                <aside className="hidden lg:flex flex-col gap-1.5 w-72 shrink-0 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200/80 dark:border-gray-700 p-3 shadow-sm sticky top-40">
+                <aside className="hidden xl:flex flex-col gap-1.5 w-64 shrink-0 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200/80 dark:border-gray-700 p-3 shadow-sm sticky top-40">
                     {SETTINGS_TABS.map(tab => {
                         const isCurrent = activeTab === tab.id;
                         return (

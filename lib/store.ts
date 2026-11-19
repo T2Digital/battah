@@ -409,6 +409,9 @@ const useStore = create<AppState & AppActions>((set, get) => ({
                         }
                     }));
                     isHydratingFromCloud = false;
+                    if (typeof window !== 'undefined' && get().appData?.storefrontSettings) {
+                        (window as any).__TENANT_STOREFRONT_SETTINGS__ = get().appData?.storefrontSettings;
+                    }
                     saveLocalErpCache(activeSlug, get().appData as any);
                 }
 
@@ -507,6 +510,9 @@ const useStore = create<AppState & AppActions>((set, get) => ({
             
             const settingsUnsub = onSnapshot(doc(db, "settings", "storefront"), (doc) => {
                  const storefrontSettings = doc.exists() ? doc.data() as StorefrontSettings : { featuredProductIds: [], newArrivalProductIds: [] };
+                 if (typeof window !== 'undefined') {
+                     (window as any).__TENANT_STOREFRONT_SETTINGS__ = storefrontSettings;
+                 }
                  set(state => ({
                     appData: { ...(state.appData as AppData), storefrontSettings }
                 }));
@@ -585,6 +591,9 @@ const useStore = create<AppState & AppActions>((set, get) => ({
                 } as AppData,
             });
             isHydratingFromCloud = false;
+            if (typeof window !== 'undefined' && get().appData?.storefrontSettings) {
+                (window as any).__TENANT_STOREFRONT_SETTINGS__ = get().appData?.storefrontSettings;
+            }
             saveLocalErpCache(activeSlug, get().appData as any);
             return;
         }
@@ -753,6 +762,9 @@ const useStore = create<AppState & AppActions>((set, get) => ({
                 return { isInitialized: true, isLoading: false, appData: merged };
             });
             isHydratingFromCloud = false;
+            if (typeof window !== 'undefined' && get().appData?.storefrontSettings) {
+                (window as any).__TENANT_STOREFRONT_SETTINGS__ = get().appData?.storefrontSettings;
+            }
             saveLocalErpCache(brandSlug, get().appData as any);
             return;
         }
@@ -2244,6 +2256,9 @@ const useStore = create<AppState & AppActions>((set, get) => ({
                 };
             });
             isHydratingFromCloud = false;
+            if (typeof window !== 'undefined' && get().appData?.storefrontSettings) {
+                (window as any).__TENANT_STOREFRONT_SETTINGS__ = get().appData?.storefrontSettings;
+            }
             saveLocalErpCache(activeSlug, get().appData as any);
             return {
                 orderId: res.order?.id,
@@ -3086,6 +3101,9 @@ const useStore = create<AppState & AppActions>((set, get) => ({
                 },
             }));
             isHydratingFromCloud = false;
+            if (typeof window !== 'undefined' && get().appData?.storefrontSettings) {
+                (window as any).__TENANT_STOREFRONT_SETTINGS__ = get().appData?.storefrontSettings;
+            }
             saveLocalErpCache(activeSlug, get().appData as any);
             await pushTenantErpState(activeSlug, clearedState);
             get().addToast('تم مسح جميع البيانات بنجاح', 'success');
