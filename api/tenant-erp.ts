@@ -515,26 +515,66 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(500).json({ ok: false, error: 'تعذر حفظ الطلب في قاعدة البيانات' });
     }
 
-    // Best-effort Jarvis webhook (non-fatal if Ez-Zel is offline/suspended)
+    // Best-effort Jarvis webhook + direct T2 Agent fallback (non-fatal if Render is offline/suspended)
     const ezZelBase = String(process.env.VITE_EZZEL_API_URL || cfg.ezZelApiBase || 'https://ez-zel.onrender.com').replace(/\/$/, '');
+    const agentBase = String(process.env.T2_AGENT_API_URL || cfg.t2AgentApiBase || '').replace(/\/$/, '');
+    const eventPayload = {
+      source: 'battah',
+      eventType: 'order_created',
+      brandId: slug,
+      orderId,
+      customerName: newOrder.customerName,
+      customerPhone: newOrder.customerPhone,
+      amountEgp: finalTotal,
+      summary: `طلب شراء جديد من ${newOrder.customerName} بقيمة ${finalTotal} ج.م`,
+    };
+    let webhookDispatched = false;
     try {
-      await fetch(`${ezZelBase}/api/webhooks/tenant-event`, {
+      const hookRes = await fetch(`${ezZelBase}/api/webhooks/tenant-event`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          source: 'battah',
-          eventType: 'order_created',
-          brandId: slug,
+        body: JSON.stringify(eventPayload),
+        signal: AbortSignal.timeout(1500),
+      });
+      if (hookRes.ok) webhookDispatched = true;
+    } catch {}
+
+    if (!webhookDispatched && agentBase) {
+      try {
+        const agentRes = await fetch(`${agentBase}/api/webhooks/order-created`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(eventPayload),
+          signal: AbortSignal.timeout(1500),
+        });
+        if (agentRes.ok) webhookDispatched = true;
+      } catch {}
+    }
+
+    try {
+      const prevQueue: any[] = Array.isArray(ordersShard.pendingOrderWebhooks)
+        ? ordersShard.pendingOrderWebhooks
+        : [];
+      const nextQueue = webhookDispatched
+        ? prevQueue
+        : [...prevQueue, { ...eventPayload, createdAt: nowIso }].slice(-50);
+      await writeShard(`t2_erp_${slug}__orders`, slug, 'orders', {
+        ...ordersShard,
+        orders: nextOrders,
+        notifications: nextNotifications,
+        lastOrderWebhook: {
+          orderId,
           customerName: newOrder.customerName,
           customerPhone: newOrder.customerPhone,
           amountEgp: finalTotal,
-          summary: `طلب شراء جديد من ${newOrder.customerName} بقيمة ${finalTotal} ج.م`,
-        }),
-        signal: AbortSignal.timeout(1500),
+          dispatched: webhookDispatched,
+          timestamp: nowIso,
+        },
+        pendingOrderWebhooks: nextQueue,
       });
     } catch {}
 
-    return res.status(200).json({ ok: true, order: newOrder, notification: newNotification });
+    return res.status(200).json({ ok: true, order: newOrder, notification: newNotification, webhookDispatched });
   }
 
   // Admin ERP state sync (Bearer required)

@@ -252,6 +252,12 @@ export async function bootstrapBattahTenant(): Promise<TenantBrandConfig | null>
   }
 
   // @ts-ignore
+  const enableLiveEzZelPoll = typeof import.meta !== 'undefined' && import.meta.env?.VITE_ENABLE_EZZEL_LIVE_POLL === 'true';
+  if (brand && !enableLiveEzZelPoll) {
+    return brand;
+  }
+
+  // @ts-ignore
   const baseUrl = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_EZZEL_API_URL) || 'https://ez-zel.onrender.com';
   const liveSyncPromise = (async (): Promise<TenantBrandConfig | null> => {
     try {
