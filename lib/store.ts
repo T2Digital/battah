@@ -2369,7 +2369,7 @@ const useStore = create<AppState & AppActions>((set, get) => ({
 
             try {
                 const activeBrandId = resolveTenantBrandId() || 'battah';
-                fetch('https://ez-zel.onrender.com/api/webhooks/tenant-event', {
+                fetch('https://t2os.app/api/webhooks/tenant-event', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({

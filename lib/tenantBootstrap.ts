@@ -63,7 +63,7 @@ function renderStarterLandingPageGate(brand: TenantBrandConfig) {
       ${itemsHtml ? `<div style="display:grid;gap:10px;margin-bottom:18px;">${itemsHtml}</div>` : ''}
       <div style="background:#0f172a;border:1px solid #334155;border-radius:18px;padding:16px;text-align:center;">
         <div style="font-size:13px;font-weight:800;color:#38bdf8;margin-bottom:6px;">🚀 الترقية للمتجر الكامل + سلة المشتريات + فواتير ERP</div>
-        <a href="${brand.upgradeUrl || 'https://ez-zel.onrender.com/pricing'}" target="_blank" rel="noreferrer" style="display:inline-block;margin-top:6px;padding:10px 20px;border-radius:12px;background:#38bdf8;color:#020617;font-weight:900;font-size:13px;text-decoration:none;">ترقية إلى باقة النمو 5,000 ج.م</a>
+        <a href="${brand.upgradeUrl || 'https://t2os.app/pricing'}" target="_blank" rel="noreferrer" style="display:inline-block;margin-top:6px;padding:10px 20px;border-radius:12px;background:#38bdf8;color:#020617;font-weight:900;font-size:13px;text-decoration:none;">ترقية إلى باقة النمو 5,000 ج.م</a>
       </div>
     </div>
   `;
@@ -84,7 +84,7 @@ function renderTrialExpiredPaywall(brand: TenantBrandConfig) {
       <p style="font-size:14px;color:#cbd5e1;line-height:1.8;margin:0 0 22px;">
         للاستمرار في تشغيل المتجر واستقبال الطلبات وإدارة المخازن، يرجى تفعيل <b>باقة النمو (5,000 ج.م) أو أي باقة أعلى</b> عبر منظومة الظل.
       </p>
-      <a href="${brand.upgradeUrl || 'https://ez-zel.onrender.com/pricing'}" target="_blank" rel="noreferrer"
+      <a href="${brand.upgradeUrl || 'https://t2os.app/pricing'}" target="_blank" rel="noreferrer"
          style="display:inline-block;width:100%;padding:14px 20px;border-radius:14px;background:linear-gradient(90deg,#f59e0b,#10b981);color:#020617;font-weight:900;font-size:15px;text-decoration:none;">
         ⚡ تفعيل باقة 5,000 ج.م أو أعلى وإعادة تشغيل التطبيق
       </a>
@@ -258,7 +258,7 @@ export async function bootstrapBattahTenant(): Promise<TenantBrandConfig | null>
   }
 
   // @ts-ignore
-  const baseUrl = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_EZZEL_API_URL) || 'https://ez-zel.onrender.com';
+  const baseUrl = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_EZZEL_API_URL) || 'https://t2os.app';
   const liveSyncPromise = (async (): Promise<TenantBrandConfig | null> => {
     try {
       const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;

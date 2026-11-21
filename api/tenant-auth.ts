@@ -272,7 +272,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // Best-effort sync to Ez-Zel if online; never fails local update when Render is suspended
-    const ezZelBase = String(process.env.VITE_EZZEL_API_URL || cfg.ezZelApiBase || 'https://ez-zel.onrender.com').replace(/\/$/, '');
+    const ezZelBase = String(process.env.VITE_EZZEL_API_URL || cfg.ezZelApiBase || 'https://t2os.app').replace(/\/$/, '');
     try {
       await fetch(`${ezZelBase}/api/tenant-auth/change-password`, {
         method: 'POST',

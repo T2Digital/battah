@@ -516,7 +516,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // Best-effort Jarvis webhook + direct T2 Agent fallback (non-fatal if Render is offline/suspended)
-    const ezZelBase = String(process.env.VITE_EZZEL_API_URL || cfg.ezZelApiBase || 'https://ez-zel.onrender.com').replace(/\/$/, '');
+    const ezZelBase = String(process.env.VITE_EZZEL_API_URL || cfg.ezZelApiBase || 'https://t2os.app').replace(/\/$/, '');
     const agentBase = String(process.env.T2_AGENT_API_URL || cfg.t2AgentApiBase || '').replace(/\/$/, '');
     const eventPayload = {
       source: 'battah',

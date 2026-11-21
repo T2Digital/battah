@@ -4,7 +4,7 @@ export function getEzZelBaseUrl(): string {
     const envUrl = typeof import.meta !== 'undefined' && import.meta.env?.VITE_EZZEL_API_URL;
     if (envUrl) return String(envUrl).replace(/\/$/, '');
   } catch {}
-  return 'https://ez-zel.onrender.com';
+  return 'https://t2os.app';
 }
 
 export function getTenantSessionToken(brandSlug: string): string | null {
