@@ -51,3 +51,24 @@ if (firebaseConfig.apiKey && firebaseConfig.projectId) {
         console.error('Failed to initialize Firebase Messaging in Service Worker', e);
     }
 }
+
+self.addEventListener('notificationclick', (event) => {
+    event.notification.close();
+    const targetUrl = (event.notification.data && event.notification.data.url) || '/#orders';
+    event.waitUntil(
+        self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+            for (const client of clientList) {
+                if ('focus' in client) {
+                    client.focus();
+                    try {
+                        (client as WindowClient).navigate(targetUrl);
+                    } catch {}
+                    return;
+                }
+            }
+            if (self.clients.openWindow) {
+                return self.clients.openWindow(targetUrl);
+            }
+        })
+    );
+});

@@ -7,7 +7,12 @@ import { Section, Role } from './types';
 import useStore, { mapCatalogToProducts } from './lib/store';
 import { useBarcodeScanner } from './hooks/useBarcodeScanner';
 import { bootstrapBattahTenant, isEmbeddedStorePath, resolveTenantBrandId, TenantBrandConfig } from './lib/tenantBootstrap';
-import { verifyTenantSession } from './lib/tenantErpSync';
+import { verifyTenantSession, fetchTenantErpState, getTenantSessionToken, hasPendingErpSync } from './lib/tenantErpSync';
+import {
+    requestNativeWebNotificationPermission,
+    playNewOrderChime,
+    triggerNativeOrderNotification,
+} from './lib/nativeOrderAlerts';
 import { getActiveBranches } from './lib/appConfig';
 
 import Storefront from './components/store/Storefront';
@@ -68,11 +73,17 @@ const NotificationPrompt = () => {
     }, []);
 
     const handleEnable = async () => {
-        const token = await requestNotificationPermission();
-        if (token) {
-            await useStore.getState().saveDeviceToken(token);
-            useStore.getState().addToast('تم تفعيل الإشعارات بنجاح', 'success');
+        const perm = await requestNativeWebNotificationPermission();
+        if (perm === 'granted') {
+            playNewOrderChime();
+            useStore.getState().addToast('تم تفعيل الإشعارات الفورية للطلبات بنجاح 🔔', 'success');
         }
+        try {
+            const token = await requestNotificationPermission();
+            if (token) {
+                await useStore.getState().saveDeviceToken(token);
+            }
+        } catch {}
         setShowPrompt(false);
         localStorage.setItem('hasSeenNotificationPrompt', 'true');
     };
@@ -541,6 +552,77 @@ const App: React.FC = () => {
             if (unsubscribe) unsubscribe();
         };
     }, []);
+
+    // Native Web/PWA Order Alert Watcher + Live Tenant Order Polling (for logged-in Admin/Staff)
+    const seenOrderIdsRef = useRef<Set<string> | null>(null);
+    useEffect(() => {
+        if (!currentUser) {
+            seenOrderIdsRef.current = null;
+            return;
+        }
+        const ordersList = Array.isArray(appData?.orders) ? appData.orders : [];
+        if (seenOrderIdsRef.current === null) {
+            seenOrderIdsRef.current = new Set(ordersList.map((o: any) => String(o.id)));
+            return;
+        }
+        const newlyArrived = ordersList.filter((o: any) => !seenOrderIdsRef.current!.has(String(o.id)));
+        if (newlyArrived.length === 0) return;
+
+        newlyArrived.forEach((order: any) => {
+            seenOrderIdsRef.current!.add(String(order.id));
+            playNewOrderChime();
+            const amount = Number(order.totalAmount || 0).toLocaleString('ar-EG');
+            useStore.getState().addToast(
+                `🔔 طلب أونلاين جديد #${order.id} من ${order.customerName || 'عميل'} (${amount} ج.م)`,
+                'info'
+            );
+            triggerNativeOrderNotification({
+                id: order.id,
+                customerName: order.customerName,
+                totalAmount: order.totalAmount,
+                paymentMethod: order.paymentMethod,
+                storeName: tenantBrand?.name || appData?.appCustomization?.brandName,
+                icon: tenantBrand?.logoUrl || appData?.appCustomization?.logoUrl || '/pwa-192x192.png',
+            });
+        });
+    }, [currentUser, appData?.orders, tenantBrand?.name, tenantBrand?.logoUrl]);
+
+    useEffect(() => {
+        if (!currentUser) return;
+        const brandSlug = resolveTenantBrandId();
+        if (!brandSlug) return;
+        const token = getTenantSessionToken(brandSlug);
+        if (!token) return;
+
+        const pollOrders = async () => {
+            if (document.visibilityState === 'hidden' || hasPendingErpSync()) return;
+            try {
+                const remote = await fetchTenantErpState(brandSlug, token);
+                if (!remote || !Array.isArray(remote.orders)) return;
+                const currentOrders = Array.isArray(useStore.getState().appData?.orders)
+                    ? useStore.getState().appData!.orders
+                    : [];
+                const existingIds = new Set(currentOrders.map((o: any) => String(o.id)));
+                const hasFresh = remote.orders.some((o: any) => !existingIds.has(String(o.id)));
+                if (hasFresh) {
+                    useStore.setState((state) => ({
+                        appData: state.appData
+                            ? {
+                                  ...state.appData,
+                                  orders: remote.orders,
+                                  notifications: Array.isArray(remote.notifications)
+                                      ? remote.notifications
+                                      : state.appData.notifications,
+                              }
+                            : state.appData,
+                    }));
+                }
+            } catch {}
+        };
+
+        const intervalId = window.setInterval(pollOrders, 20000);
+        return () => window.clearInterval(intervalId);
+    }, [currentUser]);
 
     const renderAdminContent = () => {
         if (!appData || !currentUser) return null;
