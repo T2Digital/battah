@@ -1,12 +1,12 @@
 
 
-import React, { useState, useEffect, Suspense } from 'react';
+import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { onAuthStateChanged } from "firebase/auth";
 import { auth, setupMessageListener, requestNotificationPermission } from './lib/firebase';
 import { Section, Role } from './types';
-import useStore from './lib/store';
+import useStore, { mapCatalogToProducts } from './lib/store';
 import { useBarcodeScanner } from './hooks/useBarcodeScanner';
-import { bootstrapBattahTenant, resolveTenantBrandId, TenantBrandConfig } from './lib/tenantBootstrap';
+import { bootstrapBattahTenant, isEmbeddedStorePath, resolveTenantBrandId, TenantBrandConfig } from './lib/tenantBootstrap';
 import { verifyTenantSession } from './lib/tenantErpSync';
 import { getActiveBranches } from './lib/appConfig';
 
@@ -44,6 +44,7 @@ const Suppliers = React.lazy(() => import('./components/suppliers/Suppliers'));
 const Expenses = React.lazy(() => import('./components/expenses/Expenses'));
 const DailyReview = React.lazy(() => import('./components/daily-review/DailyReview'));
 const Orders = React.lazy(() => import('./components/orders/Orders'));
+const DropshippingHub = React.lazy(() => import('./components/dropshipping/DropshippingHub'));
 const Customers = React.lazy(() => import('./components/customers/Customers'));
 const Promotions = React.lazy(() => import('./components/promotions/Promotions'));
 const Settings = React.lazy(() => import('./components/dashboard/Settings'));
@@ -81,7 +82,7 @@ const NotificationPrompt = () => {
         localStorage.setItem('hasSeenNotificationPrompt', 'true');
     };
 
-    if (!showPrompt) return null;
+    if (!showPrompt || isEmbeddedStorePath()) return null;
 
     return (
         <div className="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:w-96 bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-4 z-50 border border-gray-200 dark:border-gray-700 animate-fade-in flex flex-col gap-3">
@@ -133,8 +134,25 @@ const App: React.FC = () => {
       setDailyReviews,
     } = useStore();
 
-    const [viewMode, setViewMode] = useState<ViewMode>('store');
-    const [activeSection, setActiveSection] = useState<Section>(Section.Dashboard);
+    const [viewMode, setViewMode] = useState<ViewMode>(() => {
+        if (typeof window !== 'undefined') {
+            const adminParam = new URLSearchParams(window.location.search).get('admin');
+            if (adminParam === 'dropshipping' || adminParam === '1' || adminParam === 'true') {
+                return 'admin';
+            }
+        }
+        return 'store';
+    });
+    const [activeSection, setActiveSection] = useState<Section>(() => {
+        if (typeof window !== 'undefined') {
+            const adminParam = new URLSearchParams(window.location.search).get('admin');
+            if (adminParam === 'dropshipping') {
+                return Section.Dropshipping;
+            }
+        }
+        return Section.Dashboard;
+    });
+    const hadLoggedInRef = useRef(false);
     const [isSidebarOpen, setSidebarOpen] = useState(true);
     const [activeReport, setActiveReport] = useState<string | null>(null);
     const [accessDenied, setAccessDenied] = useState<{ reason: 'time' | 'ip', details?: string } | null>(null);
@@ -144,30 +162,29 @@ const App: React.FC = () => {
         bootstrapBattahTenant().then((b) => {
             if (b) {
                 setTenantBrand(b);
-                const catalog = Array.isArray(b.productsCatalog) ? b.productsCatalog : [];
-                const currentProducts = useStore.getState().appData?.products || [];
-                if (catalog.length > 0 && currentProducts.length === 0) {
-                    const hydrated = catalog.map((item: any, idx: number) => {
-                        const price = Number(item.numericPrice || String(item.price || '').replace(/[^\d.]/g, '')) || 500;
-                        return {
-                            id: idx + 1,
-                            name: item.name || `منتج ${idx + 1}`,
-                            sku: item.sku || `AH-${idx + 101}`,
-                            category: item.category || 'قطع غيار',
-                            description: item.description || '',
-                            purchasePrice: Math.round(price * 0.7),
-                            sellingPrice: price,
-                            stock: { main: 25, branch1: 10, branch2: 10, branch3: 10 },
-                            imageUrl: item.imageUrl || b.logoUrl || ''
-                        };
-                    });
-                    useStore.setState((state) => ({
+                const mappedProducts = mapCatalogToProducts(b, b.appCustomization || null);
+                useStore.setState((state) => {
+                    const prev = (state.appData || {}) as any;
+                    const existingProds = Array.isArray(prev.products) ? prev.products : [];
+                    const prevSettings = prev.storefrontSettings || { featuredProductIds: [], newArrivalProductIds: [] };
+                    return {
                         isLoading: false,
-                        appData: { ...(state.appData as any), products: hydrated }
-                    }));
-                } else if (currentProducts.length > 0) {
-                    useStore.setState({ isLoading: false });
-                }
+                        appData: {
+                            ...prev,
+                            products: mappedProducts.length > 0 ? mappedProducts : existingProds,
+                            ...(b.appCustomization ? { appCustomization: { ...(prev.appCustomization || {}), ...b.appCustomization } } : {}),
+                            storefrontSettings: {
+                                ...prevSettings,
+                                companyName: b.name || prevSettings.companyName,
+                                slogan: b.slogan || prevSettings.slogan,
+                                logoUrl: b.logoUrl || prevSettings.logoUrl,
+                                contactPhone: b.phone || prevSettings.contactPhone,
+                                whatsappPhone: b.whatsapp || b.phone || prevSettings.whatsappPhone,
+                                primaryColor: b.primaryColor || prevSettings.primaryColor,
+                            },
+                        },
+                    };
+                });
             }
         });
     }, []);
@@ -333,13 +350,51 @@ const App: React.FC = () => {
 
     // Reset activeSection when user changes to avoid showing previous user's last screen
     useEffect(() => {
-        setActiveSection(Section.Dashboard);
+        const adminParam = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('admin') : null;
+        if (adminParam === 'dropshipping' && currentUser) {
+            setActiveSection(Section.Dropshipping);
+        } else if (!adminParam) {
+            setActiveSection(Section.Dashboard);
+        }
         setActiveReport(null);
     }, [currentUser?.id]);
+
+    // Auto-attempt verified Master Admin SSO when opening ?admin=...
+    useEffect(() => {
+        if (viewMode !== 'admin' || currentUser) return;
+        const brandSlug = resolveTenantBrandId();
+        if (!brandSlug) return;
+        let cancelled = false;
+        const attemptMasterSso = async () => {
+            try {
+                const masterToken = localStorage.getItem('t2os_admin_token');
+                const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+                if (masterToken) headers.Authorization = `Bearer ${masterToken}`;
+                const res = await fetch('/api/tenant-auth?action=sso-master', {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers,
+                    body: JSON.stringify({ action: 'sso-master', brandSlug }),
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!cancelled && res.ok && data?.ok && data?.token && data?.user) {
+                    try {
+                        localStorage.setItem(`t2_tenant_session_${brandSlug}`, JSON.stringify({ token: data.token, user: data.user }));
+                    } catch {}
+                    useStore.getState().setCurrentUser(data.user);
+                }
+            } catch {}
+        };
+        void attemptMasterSso();
+        return () => {
+            cancelled = true;
+        };
+    }, [viewMode, currentUser]);
 
     // This effect syncs the admin data based on the currentUser state.
     useEffect(() => {
         if (currentUser) {
+            hadLoggedInRef.current = true;
             const checkRestrictions = async () => {
                 const settings = appData?.settings;
                 if (settings && currentUser.role !== Role.Admin) {
@@ -377,9 +432,11 @@ const App: React.FC = () => {
             };
             checkRestrictions();
         } else {
-            // User logged out, ensure admin listeners are cleared and return to store view.
             clearAdminListeners();
-            setViewMode('store');
+            if (hadLoggedInRef.current) {
+                hadLoggedInRef.current = false;
+                setViewMode('store');
+            }
             setAccessDenied(null);
         }
     }, [currentUser, initAdminListeners, clearAdminListeners, appData?.settings]);
@@ -412,7 +469,12 @@ const App: React.FC = () => {
             if (Object.values(Section).includes(hash as Section)) {
                 setActiveSection(hash as Section);
             } else {
-                setActiveSection(Section.Dashboard);
+                const adminParam = new URLSearchParams(window.location.search).get('admin');
+                if (adminParam === 'dropshipping') {
+                    setActiveSection(Section.Dropshipping);
+                } else {
+                    setActiveSection(Section.Dashboard);
+                }
             }
         };
 
@@ -550,6 +612,7 @@ const App: React.FC = () => {
             case Section.Expenses: return <Expenses expenses={expenses} addExpense={addExpense} updateExpense={updateExpense} deleteExpense={deleteExpense} />;
             case Section.DailyReview: return <DailyReview />;
             case Section.Orders: return <Orders />;
+            case Section.Dropshipping: return <DropshippingHub />;
             case Section.Customers: return <Customers />;
             case Section.Promotions: return <Promotions />;
             case Section.Settings: return <Settings />;

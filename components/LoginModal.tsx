@@ -1,8 +1,9 @@
 
 
 import React, { useState } from 'react';
-// Fix: Corrected import path
 import useStore from '../lib/store';
+import { getStoreBranding } from '../lib/appConfig';
+import { resolveTenantBrandId } from '../lib/tenantBootstrap';
 
 interface LoginModalProps {
     setViewMode?: (mode: 'store' | 'admin') => void;
@@ -13,9 +14,44 @@ const LoginModal: React.FC<LoginModalProps> = ({ setViewMode }) => {
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
-    const login = useStore(state => state.login);
+    const { login, storefrontSettings } = useStore(state => ({
+        login: state.login,
+        storefrontSettings: state.appData?.storefrontSettings,
+    }));
+    const branding = getStoreBranding(storefrontSettings, 'نظام إدارة المتجر');
+    const brandSlug = resolveTenantBrandId();
 
     const [showPassword, setShowPassword] = useState(false);
+
+    const handleMasterSsoLogin = async () => {
+        if (!brandSlug) return;
+        setError('');
+        setIsLoading(true);
+        try {
+            const masterToken = localStorage.getItem('t2os_admin_token');
+            const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+            if (masterToken) headers.Authorization = `Bearer ${masterToken}`;
+            const res = await fetch('/api/tenant-auth?action=sso-master', {
+                method: 'POST',
+                credentials: 'include',
+                headers,
+                body: JSON.stringify({ action: 'sso-master', brandSlug }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || !data?.ok || !data?.token || !data?.user) {
+                setError(data?.error || 'يجب تسجيل الدخول كـ Master Admin في المنظومة أولاً.');
+                return;
+            }
+            try {
+                localStorage.setItem(`t2_tenant_session_${brandSlug}`, JSON.stringify({ token: data.token, user: data.user }));
+            } catch {}
+            useStore.getState().setCurrentUser(data.user);
+        } catch {
+            setError('تعذر الاتصال بخدمة التوثيق التلقائي.');
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -76,8 +112,8 @@ const LoginModal: React.FC<LoginModalProps> = ({ setViewMode }) => {
         <div className="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-50 backdrop-blur-sm">
             <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-sm p-8 m-4 animate-fade-in-down">
                 <div className="text-center mb-6">
-                    <img src="https://i.ibb.co/LDdGwd87/5-1.png" alt="Logo" className="h-20 w-auto mx-auto mb-4" />
-                    <h3 className="text-2xl font-bold text-gray-800 dark:text-white">🔐 تسجيل الدخول للنظام</h3>
+                    <img src={branding.logoUrl || "https://i.ibb.co/LDdGwd87/5-1.png"} alt={branding.companyName} className="h-20 w-20 object-cover rounded-2xl mx-auto mb-3 shadow-md" />
+                    <h3 className="text-xl font-black text-gray-800 dark:text-white">🔐 إدارة {branding.companyName}</h3>
                 </div>
                 <form onSubmit={handleSubmit} className="space-y-6">
                     <div>
@@ -117,6 +153,18 @@ const LoginModal: React.FC<LoginModalProps> = ({ setViewMode }) => {
                             {isLoading ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-sign-in-alt"></i>}
                             <span>{isLoading ? 'جاري الدخول...' : 'تسجيل الدخول'}</span>
                         </button>
+
+                        {brandSlug && (
+                            <button
+                                type="button"
+                                onClick={handleMasterSsoLogin}
+                                disabled={isLoading}
+                                className="w-full flex justify-center items-center gap-2 px-4 py-3 text-slate-950 bg-emerald-400 hover:bg-emerald-300 font-black rounded-lg shadow-md transition disabled:opacity-50 text-sm"
+                            >
+                                <i className="fas fa-bolt"></i>
+                                <span>دخول سريع (مالك المتجر / الماستر T2OS)</span>
+                            </button>
+                        )}
                         
                         {window.PublicKeyCredential && (
                             <button 

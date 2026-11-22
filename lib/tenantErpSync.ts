@@ -1,5 +1,8 @@
 export function getEzZelBaseUrl(): string {
   try {
+    if (typeof window !== 'undefined' && /^\/(?:shop|drop)(?:\/|$)/i.test(window.location.pathname || '')) {
+      return window.location.origin;
+    }
     // @ts-ignore
     const envUrl = typeof import.meta !== 'undefined' && import.meta.env?.VITE_EZZEL_API_URL;
     if (envUrl) return String(envUrl).replace(/\/$/, '');

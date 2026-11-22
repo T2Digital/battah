@@ -372,6 +372,16 @@ export const SHIPPING_CARRIERS: Array<{
     label: 'تربو (Turbo)',
     trackingTemplate: 'https://turbo-eg.com/track/{tracking}',
   },
+  {
+    provider: 'oto',
+    label: 'OTO / Aramex MENA Gateway',
+    trackingTemplate: 'https://track.tryoto.com/{tracking}',
+  },
+  {
+    provider: 'cj_auto',
+    label: 'CJ Dropshipping Auto-Fulfillment',
+    trackingTemplate: 'https://cjpacket.com/?trackingNumber={tracking}',
+  },
 ];
 
 export function getCarrierLabel(provider?: ShippingCarrierProvider): string {
@@ -396,7 +406,9 @@ export function buildCarrierTrackingUrl(providerOrCompany?: string, trackingNumb
       (needle.includes('mylerz') && c.provider === 'mylerz') ||
       (needle.includes('r2s') && c.provider === 'r2s') ||
       (needle.includes('تربو') && c.provider === 'turbo') ||
-      (needle.includes('turbo') && c.provider === 'turbo')
+      (needle.includes('turbo') && c.provider === 'turbo') ||
+      (needle.includes('oto') && c.provider === 'oto') ||
+      (needle.includes('cj') && c.provider === 'cj_auto')
   );
   if (!matched || !matched.trackingTemplate) return '';
   return matched.trackingTemplate.replace('{tracking}', encodeURIComponent(tracking));

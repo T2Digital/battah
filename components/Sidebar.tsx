@@ -21,6 +21,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, activeSection, setActiveSecti
         { id: Section.Treasury, icon: 'fa-cash-register', label: 'الخزينة', permission: Section.Treasury },
         { id: Section.DailySales, icon: 'fa-hand-holding-usd', label: 'مبيعات اليوم', permission: Section.DailySales },
         { id: Section.Orders, icon: 'fa-receipt', label: 'طلبات الأونلاين', permission: Section.Orders, badge: pendingOrdersCount },
+        { id: Section.Dropshipping, icon: 'fa-globe-africa', label: 'الدروبشيبنج والموردين', permission: Section.Dropshipping },
         { id: Section.Customers, icon: 'fa-users-cog', label: 'العملاء', permission: Section.Customers },
         { id: Section.StoreManagement, icon: 'fa-warehouse', label: 'إدارة المخزون', permission: Section.StoreManagement },
         { id: Section.Purchasing, icon: 'fa-shopping-cart', label: 'المشتريات', permission: Section.Purchasing },

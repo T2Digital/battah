@@ -1,14 +1,16 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Product } from '../../types';
+import { ExpressCodTier, Product } from '../../types';
 import { formatCurrency } from '../../lib/utils';
 import Modal from '../shared/Modal';
 import useStore from '../../lib/store';
+import { resolveTenantBrandId } from '../../lib/tenantBootstrap';
 import {
     getActiveBranches,
     getProductTotalStock,
     getShippingConfig,
     getStoreBranding,
     getPaymentGatewaysConfig,
+    calculateShippingFee,
 } from '../../lib/appConfig';
 
 interface StoreProductModalProps {
@@ -46,11 +48,53 @@ const StoreProductModal: React.FC<StoreProductModalProps> = ({
     const [activeImage, setActiveImage] = useState(0);
     const [copiedLink, setCopiedLink] = useState(false);
     const [selectedVariants, setSelectedVariants] = useState<Record<string, string>>({});
+    const [selectedTierQty, setSelectedTierQty] = useState<number>(2);
+    const [showExpressForm, setShowExpressForm] = useState(false);
+    const [expressForm, setExpressForm] = useState({
+        name: '',
+        phone: '',
+        governorate: shippingConfig.zones[0]?.name || 'القاهرة والجيزة',
+        address: '',
+    });
+    const [expressSubmitting, setExpressSubmitting] = useState(false);
+    const [expressResult, setExpressResult] = useState<{ refCode: string; totalCodEgp: number; waUrl: string } | null>(null);
+
+    const expressTiers: ExpressCodTier[] = useMemo(() => {
+        if (Array.isArray(product?.expressCodTiers) && product.expressCodTiers.length > 0) {
+            return product.expressCodTiers;
+        }
+        const unit = Math.max(100, Number(product?.sellingPrice || 500));
+        return [
+            { qty: 1, label: 'قطعة واحدة', sellingPriceEgp: unit, freeShipping: false },
+            {
+                qty: 2,
+                label: 'عرض القطعتين + شحن مجاني',
+                badge: 'الأكثر مبيعاً',
+                sellingPriceEgp: Math.round(unit * 1.78),
+                freeShipping: true,
+            },
+            {
+                qty: 3,
+                label: 'باقة التوفير (3 قطع + شحن مجاني)',
+                badge: 'أعلى توفير',
+                sellingPriceEgp: Math.round(unit * 2.45),
+                freeShipping: true,
+            },
+        ];
+    }, [product?.id, product?.sellingPrice, product?.expressCodTiers]);
+
+    const activeTier = useMemo(
+        () => expressTiers.find(t => t.qty === selectedTierQty) || expressTiers[0],
+        [expressTiers, selectedTierQty]
+    );
 
     useEffect(() => {
         setQuantity(1);
         setActiveImage(0);
         setCopiedLink(false);
+        setSelectedTierQty(expressTiers[1]?.qty || 1);
+        setShowExpressForm(false);
+        setExpressResult(null);
         const initVars: Record<string, string> = {};
         if (Array.isArray(product?.variants)) {
             product.variants.forEach(v => {
@@ -89,8 +133,65 @@ const StoreProductModal: React.FC<StoreProductModalProps> = ({
 
     const productUrl =
         typeof window !== 'undefined'
-            ? `${window.location.origin}/?product=${encodeURIComponent(String(product.id || product.sku))}`
+            ? `${window.location.origin}${window.location.pathname}?product=${encodeURIComponent(String(product.id || product.sku))}`
             : '';
+
+    const handleExpressCodSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!expressForm.name.trim() || !expressForm.phone.trim() || !expressForm.address.trim()) return;
+        setExpressSubmitting(true);
+        try {
+            const slug = resolveTenantBrandId() || 'captaincar-eg';
+            const tierShipping = activeTier?.freeShipping
+                ? 0
+                : calculateShippingFee(activeTier?.sellingPriceEgp || product.sellingPrice, shippingConfig, expressForm.governorate);
+
+            const isDropStore = Boolean((window as any).__DROPSHIPPING_STORE__) || product.fulfillmentType === 'dropshipping';
+            if (isDropStore) {
+                const res = await fetch(`/api/dropshipping/public/${encodeURIComponent(slug)}/orders`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        productId: product.id,
+                        qty: activeTier?.qty || selectedTierQty,
+                        customerName: expressForm.name.trim(),
+                        customerPhone: expressForm.phone.trim(),
+                        governorate: expressForm.governorate,
+                        address: expressForm.address.trim(),
+                        shippingFeeOverride: tierShipping,
+                    }),
+                });
+                const data = await res.json().catch(() => ({}));
+                if (res.ok && data?.ok && data?.order) {
+                    setExpressResult({
+                        refCode: data.order.refCode,
+                        totalCodEgp: data.order.totalCodEgp,
+                        waUrl: data.whatsappConfirmUrl || '',
+                    });
+                    return;
+                }
+            }
+
+            const unitTierPrice = Math.round((activeTier?.sellingPriceEgp || product.sellingPrice) / (activeTier?.qty || 1));
+            const fallback = await useStore.getState().createOrder(
+                { name: expressForm.name.trim(), phone: expressForm.phone.trim(), address: expressForm.address.trim() },
+                [{ productId: product.id, productName: buildConfiguredProduct().name, quantity: activeTier?.qty || 1, unitPrice: unitTierPrice }],
+                activeTier?.sellingPriceEgp || product.sellingPrice,
+                'cod',
+                undefined,
+                undefined,
+                undefined,
+                { shippingZone: expressForm.governorate, deliveryFee: tierShipping }
+            );
+            setExpressResult({
+                refCode: String(fallback?.orderId || `ORD-${Date.now().toString().slice(-5)}`),
+                totalCodEgp: fallback?.totalAmount ?? ((activeTier?.sellingPriceEgp || product.sellingPrice) + tierShipping),
+                waUrl: whatsappHref,
+            });
+        } finally {
+            setExpressSubmitting(false);
+        }
+    };
 
     const variantSummary = Object.entries(selectedVariants)
         .filter(([, val]) => val)
@@ -400,8 +501,131 @@ const StoreProductModal: React.FC<StoreProductModalProps> = ({
                                     onClick={handleQuickBuy}
                                     className="w-full h-11 bg-slate-900 dark:bg-white text-white dark:text-slate-950 font-black rounded-xl hover:opacity-90 transition-all flex items-center justify-center gap-2 text-sm shadow-sm"
                                 >
-                                    <span>شراء سريع الآن ⚡</span>
+                                    <span>شراء سريع عبر السلة ⚡</span>
                                 </button>
+
+                                {/* Express COD Tiers Quick Buy-Box (1 / 2 / 3) */}
+                                <div className="mt-3 p-3.5 rounded-2xl bg-gradient-to-br from-emerald-50/90 to-sky-50/70 dark:from-emerald-950/30 dark:to-sky-950/20 border border-emerald-200 dark:border-emerald-700/40 space-y-2.5">
+                                    <div className="flex items-center justify-between gap-2">
+                                        <span className="text-xs font-black text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
+                                            <i className="fas fa-bolt text-amber-500" />
+                                            عروض التوفير والشراء الفوري (Express COD)
+                                        </span>
+                                        {product.warehouseRegion && (
+                                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/80 dark:bg-white/10 text-slate-700 dark:text-slate-200">
+                                                {product.warehouseRegion}
+                                            </span>
+                                        )}
+                                    </div>
+
+                                    <div className="grid grid-cols-1 gap-1.5">
+                                        {expressTiers.map((tier) => {
+                                            const active = activeTier?.qty === tier.qty;
+                                            return (
+                                                <button
+                                                    key={tier.qty}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setSelectedTierQty(tier.qty);
+                                                        setQuantity(tier.qty);
+                                                        setShowExpressForm(true);
+                                                    }}
+                                                    className={`w-full p-2.5 rounded-xl border text-right flex items-center justify-between gap-2 transition ${
+                                                        active
+                                                            ? 'bg-emerald-600 text-white border-emerald-500 shadow-md'
+                                                            : 'bg-white/90 dark:bg-slate-900/70 border-slate-200 dark:border-white/10 text-slate-800 dark:text-slate-200 hover:border-emerald-400'
+                                                    }`}
+                                                >
+                                                    <div className="flex items-center gap-2">
+                                                        <span className={`w-6 h-6 rounded-full text-xs font-black flex items-center justify-center ${active ? 'bg-white text-emerald-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                                                            {tier.qty}×
+                                                        </span>
+                                                        <div>
+                                                            <div className="text-xs font-black">{tier.label}</div>
+                                                            <div className={`text-[10px] ${active ? 'text-emerald-100' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                                                                {tier.freeShipping ? '✅ شحن مجاني لباب البيت' : '+ مصاريف الشحن حسب المحافظة'}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div className="text-left shrink-0">
+                                                        {tier.badge && (
+                                                            <span className={`block text-[9px] font-black px-1.5 py-0.5 rounded-full mb-0.5 ${active ? 'bg-amber-300 text-slate-950' : 'bg-amber-100 text-amber-800'}`}>
+                                                                {tier.badge}
+                                                            </span>
+                                                        )}
+                                                        <span className="text-xs font-black tabular-nums">
+                                                            {formatCurrency(tier.sellingPriceEgp)}
+                                                        </span>
+                                                    </div>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+
+                                    {expressResult ? (
+                                        <div className="p-3 rounded-xl bg-emerald-600 text-white text-center space-y-2">
+                                            <div className="text-sm font-black">🎉 تم تسجيل طلبك بنجاح! ({expressResult.refCode})</div>
+                                            <div className="text-xs">الإجمالي عند الاستلام: {formatCurrency(expressResult.totalCodEgp)}</div>
+                                            {expressResult.waUrl && (
+                                                <a
+                                                    href={expressResult.waUrl}
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white text-emerald-700 text-xs font-black"
+                                                >
+                                                    <i className="fab fa-whatsapp" />
+                                                    <span>تأكيد سريع على واتساب</span>
+                                                </a>
+                                            )}
+                                        </div>
+                                    ) : showExpressForm && (
+                                        <form onSubmit={handleExpressCodSubmit} className="space-y-2 pt-2 border-t border-emerald-200 dark:border-white/10">
+                                            <input
+                                                type="text"
+                                                required
+                                                placeholder="الاسم بالكامل *"
+                                                value={expressForm.name}
+                                                onChange={(e) => setExpressForm({ ...expressForm, name: e.target.value })}
+                                                className="w-full px-3 py-2 rounded-xl border text-xs bg-white dark:bg-slate-900 dark:border-white/15"
+                                            />
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <input
+                                                    type="tel"
+                                                    required
+                                                    dir="ltr"
+                                                    placeholder="010..."
+                                                    value={expressForm.phone}
+                                                    onChange={(e) => setExpressForm({ ...expressForm, phone: e.target.value })}
+                                                    className="w-full px-3 py-2 rounded-xl border text-xs bg-white dark:bg-slate-900 dark:border-white/15 text-left"
+                                                />
+                                                <select
+                                                    value={expressForm.governorate}
+                                                    onChange={(e) => setExpressForm({ ...expressForm, governorate: e.target.value })}
+                                                    className="w-full px-2 py-2 rounded-xl border text-xs bg-white dark:bg-slate-900 dark:border-white/15"
+                                                >
+                                                    {shippingConfig.zones.map(z => (
+                                                        <option key={z.name} value={z.name}>{z.name}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                            <input
+                                                type="text"
+                                                required
+                                                placeholder="العنوان بالتفصيل *"
+                                                value={expressForm.address}
+                                                onChange={(e) => setExpressForm({ ...expressForm, address: e.target.value })}
+                                                className="w-full px-3 py-2 rounded-xl border text-xs bg-white dark:bg-slate-900 dark:border-white/15"
+                                            />
+                                            <button
+                                                type="submit"
+                                                disabled={expressSubmitting}
+                                                className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black shadow disabled:opacity-50"
+                                            >
+                                                {expressSubmitting ? 'جاري تسجيل الطلب...' : `✅ تأكيد الطلب الفوري (${activeTier?.qty || 1}× — ${formatCurrency(activeTier?.sellingPriceEgp || product.sellingPrice)})`}
+                                            </button>
+                                        </form>
+                                    )}
+                                </div>
                             </>
                         ) : (
                             <div className="h-12 bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-500/20 rounded-xl flex items-center justify-center gap-2 font-bold text-sm">

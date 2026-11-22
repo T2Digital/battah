@@ -102,6 +102,7 @@ const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose, onSave, existing
         [Section.DailyReview]: 'التقفيل اليومي',
         [Section.Reports]: 'التقارير',
         [Section.Orders]: 'طلبات اونلاين',
+        [Section.Dropshipping]: 'الدروبشيبنج والموردين',
         [Section.Customers]: 'العملاء',
         [Section.Promotions]: 'العروض',
         [Section.Settings]: 'الإعدادات',

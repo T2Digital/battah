@@ -186,13 +186,13 @@ function buildSaleTreasuryTxs(mergedSale: DailySale, startId: number): TreasuryT
     return out;
 }
 
-function mapCatalogToProducts(tenantBrand: any, appCustomization?: AppCustomization | null): Product[] {
+export function mapCatalogToProducts(tenantBrand: any, appCustomization?: AppCustomization | null): Product[] {
     const catalog = Array.isArray(tenantBrand?.productsCatalog) ? tenantBrand.productsCatalog : [];
     const fallbackLogo = String(tenantBrand?.logoUrl || '');
     const activeBranches = getActiveBranches(appCustomization || tenantBrand?.appCustomization || null);
     const defaultStock = createEmptyStockForBranches(activeBranches, 25);
     return catalog.map((item: any, idx: number) => {
-        const price = Number(item.numericPrice || String(item.price || '').replace(/[^\d.]/g, '')) || 500;
+        const price = Number(item.sellingPrice ?? item.numericPrice ?? String(item.price || '').replace(/[^\d.]/g, '')) || 500;
         const images = Array.isArray(item.images) && item.images.length > 0
             ? item.images
             : item.imageUrl
@@ -200,9 +200,9 @@ function mapCatalogToProducts(tenantBrand: any, appCustomization?: AppCustomizat
                 : fallbackLogo
                     ? [fallbackLogo]
                     : [];
-        const cat = item.category || tenantBrand?.businessType || 'قطع غيار';
+        const cat = item.category || tenantBrand?.businessType || 'منتجات مميزة';
         return {
-            id: idx + 1,
+            id: Number(item.id) || (idx + 1),
             name: item.name || `منتج ${idx + 1}`,
             brand: String(item.brand || tenantBrand?.name || ''),
             sku: item.sku || `SKU-${idx + 101}`,
@@ -210,11 +210,23 @@ function mapCatalogToProducts(tenantBrand: any, appCustomization?: AppCustomizat
             subCategory: item.subCategory || cat,
             mainCategory: (item.mainCategory || cat) as MainCategory,
             description: item.description || '',
-            purchasePrice: Math.round(price * 0.7),
+            purchasePrice: Number(item.supplierCostEgp || item.purchasePrice) || Math.round(price * 0.5),
             sellingPrice: price,
             stock: item.stock || { ...defaultStock },
             imageUrl: item.imageUrl || images[0] || fallbackLogo,
             images,
+            discount: item.discount,
+            isNew: item.isNew,
+            rating: item.rating,
+            variants: item.variants,
+            fulfillmentType: item.fulfillmentType,
+            supplierProvider: item.supplierProvider,
+            supplierId: item.supplierId,
+            supplierName: item.supplierName,
+            supplierSku: item.supplierSku,
+            warehouseRegion: item.warehouseRegion,
+            estimatedDeliveryDays: item.estimatedDeliveryDays,
+            expressCodTiers: item.expressCodTiers,
         } as Product;
     });
 }
@@ -2244,13 +2256,68 @@ const useStore = create<AppState & AppActions>((set, get) => ({
             if (!res.ok) {
                 throw new Error("فشل إنشاء الطلب: " + (res.error || 'خطأ في الخادم'));
             }
+
+            let splitSubOrders: any[] | undefined;
+            let dropshippingRefCode: string | undefined;
+            const currentProducts = get().appData?.products || [];
+            const isDropshippingStore = Boolean(
+                (typeof window !== 'undefined' && (window as any).__DROPSHIPPING_STORE__) ||
+                items.some((it) => currentProducts.find((p) => p.id === it.productId)?.fulfillmentType === 'dropshipping')
+            );
+            if (isDropshippingStore) {
+                try {
+                    const enrichedItems = items.map((it) => {
+                        const prod = currentProducts.find((p) => p.id === it.productId);
+                        return {
+                            productId: it.productId,
+                            sku: prod?.sku,
+                            productName: it.productName,
+                            qty: it.quantity,
+                            unitPriceEgp: it.unitPrice,
+                            supplierProvider: prod?.supplierProvider,
+                            supplierId: prod?.supplierId,
+                            supplierName: prod?.supplierName,
+                            warehouseRegion: prod?.warehouseRegion,
+                        };
+                    });
+                    const drpRes = await fetch(
+                        `/api/dropshipping/public/${encodeURIComponent(activeSlug)}/orders`,
+                        {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                customerName: customerDetails.name,
+                                customerPhone: customerDetails.phone,
+                                governorate: shippingInfo?.shippingZone || 'القاهرة',
+                                address: customerDetails.address,
+                                shippingFeeOverride: deliveryFee,
+                                items: enrichedItems,
+                            }),
+                        }
+                    );
+                    const drpData = await drpRes.json().catch(() => ({}));
+                    if (drpRes.ok && drpData?.ok) {
+                        splitSubOrders = drpData.subOrders || drpData.order?.subOrders;
+                        dropshippingRefCode = drpData.order?.refCode;
+                    }
+                } catch {}
+            }
+
+            const finalOrder = res.order
+                ? {
+                      ...res.order,
+                      ...(splitSubOrders ? { subOrders: splitSubOrders } : {}),
+                      ...(dropshippingRefCode ? { dropshippingRefCode } : {}),
+                  }
+                : undefined;
+
             isHydratingFromCloud = true;
             set(s => {
                 const cur = s.appData as AppData;
                 return {
                     appData: {
                         ...cur,
-                        orders: res.order ? [res.order, ...(cur.orders || [])] : (cur.orders || []),
+                        orders: finalOrder ? [finalOrder, ...(cur.orders || [])] : (cur.orders || []),
                         notifications: res.notification ? [res.notification, ...(cur.notifications || [])] : (cur.notifications || []),
                     },
                 };
@@ -2261,9 +2328,9 @@ const useStore = create<AppState & AppActions>((set, get) => ({
             }
             saveLocalErpCache(activeSlug, get().appData as any);
             return {
-                orderId: res.order?.id,
-                totalAmount: res.order?.totalAmount ?? (Math.max(0, subtotal) + deliveryFee),
-                deliveryFee: res.order?.deliveryFee ?? deliveryFee,
+                orderId: dropshippingRefCode || finalOrder?.id,
+                totalAmount: finalOrder?.totalAmount ?? (Math.max(0, subtotal) + deliveryFee),
+                deliveryFee: finalOrder?.deliveryFee ?? deliveryFee,
                 proofUrl: imageUrl,
             };
         }

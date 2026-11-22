@@ -40,7 +40,48 @@ export interface ShippingZoneConfig {
     fee: number;
 }
 
-export type ShippingCarrierProvider = 'manual' | 'bosta' | 'aramex' | 'mylerz' | 'r2s' | 'turbo';
+export type ShippingCarrierProvider = 'manual' | 'bosta' | 'aramex' | 'mylerz' | 'r2s' | 'turbo' | 'oto' | 'cj_auto';
+
+export type DropshippingSupplierProvider =
+    | 'cj'
+    | 'knawat'
+    | 'makhazen'
+    | 'taager'
+    | 'local_wholesale'
+    | 'workshop';
+
+export interface ExpressCodTier {
+    qty: number;
+    label: string;
+    badge?: string;
+    sellingPriceEgp: number;
+    freeShipping: boolean;
+}
+
+export interface SplitSubOrder {
+    subOrderId: string;
+    supplierProvider: DropshippingSupplierProvider;
+    supplierId: string;
+    supplierName: string;
+    supplierWhatsapp: string;
+    warehouseRegion: string;
+    items: Array<{
+        productId: number | string;
+        sku: string;
+        productName: string;
+        qty: number;
+        unitPriceEgp: number;
+        supplierCostEgp: number;
+    }>;
+    supplierCostTotalEgp: number;
+    codCollectionEgp: number;
+    carrierProvider: ShippingCarrierProvider | 'manual_whatsapp';
+    trackingNumber: string | null;
+    trackingUrl?: string | null;
+    dispatchMode?: string;
+    status: string;
+    dispatchedAt?: string;
+}
 
 export interface ShippingCarrierConfig {
     provider: ShippingCarrierProvider;
@@ -111,6 +152,7 @@ export enum Section {
     Orders = 'orders',
     Customers = 'customers',
     Promotions = 'promotions',
+    Dropshipping = 'dropshipping',
     Settings = 'settings',
     Notifications = 'notifications',
     Users = 'users',
@@ -152,6 +194,16 @@ export interface Product {
     isNew?: boolean;
     rating?: number;
     variants?: { name: string; options: string[] }[];
+    fulfillmentType?: 'own_stock' | 'dropshipping';
+    supplierProvider?: DropshippingSupplierProvider;
+    supplierId?: string;
+    supplierName?: string;
+    supplierWhatsapp?: string;
+    supplierSku?: string;
+    supplierCostEgp?: number;
+    warehouseRegion?: string;
+    estimatedDeliveryDays?: string;
+    expressCodTiers?: ExpressCodTier[];
 }
 
 export interface SaleItem {
@@ -369,6 +421,8 @@ export interface Order {
     shippingNotes?: string; // Added for shipping tracking
     deliveryFee?: number;
     shippingZone?: string;
+    subOrders?: SplitSubOrder[];
+    dropshippingRefCode?: string;
 }
 
 export interface Notification {

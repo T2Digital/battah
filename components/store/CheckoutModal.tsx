@@ -126,6 +126,45 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, cartItem
 
     const subtotal = cartItems.reduce((sum, item) => sum + item.product.sellingPrice * item.quantity, 0);
     const deliveryFee = calculateShippingFee(subtotal, shippingConfig, shippingZone);
+
+    const supplierShipments = useMemo(() => {
+        const groups = new Map<string, {
+            key: string;
+            supplierName: string;
+            provider: string;
+            warehouseRegion: string;
+            estimatedDeliveryDays: string;
+            carrierLabel: string;
+            itemsCount: number;
+        }>();
+        for (const item of cartItems) {
+            const p = item.product;
+            const prov = p.supplierProvider || 'own_stock';
+            const supId = p.supplierId || p.supplierName || branding.companyName;
+            const key = `${prov}::${supId}`;
+            const carrierLabel =
+                prov === 'cj'
+                    ? 'CJ Auto Express'
+                    : prov === 'knawat' || prov === 'makhazen'
+                        ? 'OTO / Aramex'
+                        : 'بوسطة (Bosta)';
+            const existing = groups.get(key);
+            if (existing) {
+                existing.itemsCount += item.quantity;
+            } else {
+                groups.set(key, {
+                    key,
+                    supplierName: p.supplierName || branding.companyName,
+                    provider: prov,
+                    warehouseRegion: p.warehouseRegion || 'المخزن الرئيسي',
+                    estimatedDeliveryDays: p.estimatedDeliveryDays || '1-3 أيام عمل',
+                    carrierLabel,
+                    itemsCount: item.quantity,
+                });
+            }
+        }
+        return Array.from(groups.values());
+    }, [cartItems, branding.companyName]);
     
     const discountAmount = useMemo(() => {
         if (!appliedDiscount) return 0;
@@ -428,6 +467,40 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, cartItem
                         </div>
                     </div>
                 </div>
+
+                {/* Split-Order Multi-Supplier Routing Summary */}
+                {supplierShipments.length > 0 && (supplierShipments.length > 1 || cartItems.some(c => c.product.fulfillmentType === 'dropshipping')) && (
+                    <div className="bg-sky-50/80 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800/50 rounded-2xl p-4 space-y-2.5">
+                        <div className="flex items-center justify-between gap-2">
+                            <div className="text-xs sm:text-sm font-black text-sky-900 dark:text-sky-200 flex items-center gap-2">
+                                <i className="fas fa-route text-sky-500"></i>
+                                <span>
+                                    {supplierShipments.length > 1
+                                        ? `توجيه وتقسيم الشحن التلقائي (Split-Order × ${supplierShipments.length} شحنات)`
+                                        : 'الشحن الذكي المباشر من المستودع المعتمد'}
+                                </span>
+                            </div>
+                            <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
+                                تتبع تلقائي لكل شحنة
+                            </span>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {supplierShipments.map((sh, idx) => (
+                                <div key={sh.key} className="bg-white dark:bg-gray-800/90 rounded-xl p-2.5 border border-sky-100 dark:border-white/10 text-xs space-y-0.5">
+                                    <div className="font-black text-gray-800 dark:text-white flex items-center justify-between">
+                                        <span>شحنة #{idx + 1} · {sh.warehouseRegion}</span>
+                                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-300 font-mono">
+                                            {sh.carrierLabel}
+                                        </span>
+                                    </div>
+                                    <div className="text-[11px] text-gray-500 dark:text-gray-400">
+                                        {sh.itemsCount} قطعة · التوصيل المتوقع: {sh.estimatedDeliveryDays}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
 
                 {/* Customer Details */}
                 <div>

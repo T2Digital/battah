@@ -866,14 +866,14 @@ const Orders: React.FC = () => {
                         >
                             إلغاء
                         </button>
-                        {shippingDetails.provider === 'bosta' && shippingConfig.carrierIntegration?.enabled && !shippingDetails.tracking.trim() && (
+                        {['bosta', 'oto', 'aramex', 'cj_auto'].includes(shippingDetails.provider) && !shippingDetails.tracking.trim() && (
                             <button
                                 onClick={() => handleShippingSubmit(true)}
                                 disabled={isDispatchingCarrier}
                                 className="px-4 py-2 text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 font-bold disabled:opacity-50 flex items-center gap-2"
                             >
                                 {isDispatchingCarrier ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-paper-plane"></i>}
-                                <span>إنشاء بوليصة بوسطة آلياً</span>
+                                <span>إصدار بوليصة آلياً ({getCarrierLabel(shippingDetails.provider)})</span>
                             </button>
                         )}
                         <button 

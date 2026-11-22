@@ -5,8 +5,10 @@ import './index.css';
 import App from './App';
 import ErrorBoundary from './components/ErrorBoundary';
 
-// Ensure returning visitors automatically pick up newly deployed Service Worker builds once
-if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+// Ensure standalone deployments pick up newly deployed Service Worker builds cleanly; skip reload hook when embedded inside t2os.app
+const isEmbeddedShell =
+  typeof window !== 'undefined' && /^\/(?:shop|drop)(?:\/|$)/i.test(window.location.pathname || '');
+if (!isEmbeddedShell && typeof window !== 'undefined' && 'serviceWorker' in navigator) {
   const hadController = Boolean(navigator.serviceWorker.controller);
   let reloadedForNewSw = false;
   navigator.serviceWorker.addEventListener('controllerchange', () => {

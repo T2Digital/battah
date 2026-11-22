@@ -177,11 +177,24 @@ export function applyDynamicPwaAndTheme(brand: Partial<TenantBrandConfig>) {
   } catch {}
 }
 
+export function isEmbeddedStorePath(): boolean {
+  if (typeof window === 'undefined') return false;
+  return /^\/(?:shop|drop)(?:\/|$)/i.test(window.location.pathname || '');
+}
+
 export function resolveTenantBrandId(): string | null {
   if (typeof window === 'undefined') return null;
   const params = new URLSearchParams(window.location.search);
   const fromQuery = params.get('brandId') || params.get('tenant');
   if (fromQuery) return fromQuery.trim();
+
+  const pathMatch = (window.location.pathname || '').match(/^\/(?:shop|drop)\/([^/?#]+)/i);
+  if (pathMatch && pathMatch[1]) {
+    return decodeURIComponent(pathMatch[1]).trim();
+  }
+  if (/^\/(?:shop|drop)\/?$/i.test(window.location.pathname || '')) {
+    return 'captaincar-eg';
+  }
 
   // @ts-ignore
   const fromEnv = typeof import.meta !== 'undefined' && import.meta.env?.VITE_TENANT_BRAND_ID;
@@ -223,29 +236,32 @@ export async function bootstrapBattahTenant(): Promise<TenantBrandConfig | null>
   const brandId = resolveTenantBrandId();
   if (!brandId) return null;
 
+  const isEmbedded = isEmbeddedStorePath();
   let brand: TenantBrandConfig | null = null;
-  try {
-    const cfgRes = await fetch('/tenant-config.json');
-    if (cfgRes.ok) {
-      const cfg = await cfgRes.json();
-      if (cfg?.name) {
-        brand = {
-          id: cfg.brandId || cfg.id || brandId,
-          slug: cfg.slug || brandId,
-          name: cfg.name,
-          slogan: cfg.slogan || '',
-          logoUrl: cfg.logoUrl || '',
-          phone: cfg.phone || '',
-          whatsapp: cfg.whatsapp || cfg.phone || '',
-          adminEmail: cfg.adminEmail || '',
-          productsCatalog: Array.isArray(cfg.productsCatalog) ? cfg.productsCatalog : [],
-          primaryColor: cfg.primaryColor || '#0284c7',
-          accentColor: cfg.accentColor || '#0f172a',
-          appCustomization: cfg.appCustomization || undefined,
-        };
+  if (!isEmbedded) {
+    try {
+      const cfgRes = await fetch('/tenant-config.json');
+      if (cfgRes.ok) {
+        const cfg = await cfgRes.json();
+        if (cfg?.name) {
+          brand = {
+            id: cfg.brandId || cfg.id || brandId,
+            slug: cfg.slug || brandId,
+            name: cfg.name,
+            slogan: cfg.slogan || '',
+            logoUrl: cfg.logoUrl || '',
+            phone: cfg.phone || '',
+            whatsapp: cfg.whatsapp || cfg.phone || '',
+            adminEmail: cfg.adminEmail || '',
+            productsCatalog: Array.isArray(cfg.productsCatalog) ? cfg.productsCatalog : [],
+            primaryColor: cfg.primaryColor || '#0284c7',
+            accentColor: cfg.accentColor || '#0f172a',
+            appCustomization: cfg.appCustomization || undefined,
+          };
+        }
       }
-    }
-  } catch {}
+    } catch {}
+  }
 
   if (brand) {
     applyBrandToEnvironment(brand);
@@ -253,17 +269,48 @@ export async function bootstrapBattahTenant(): Promise<TenantBrandConfig | null>
 
   // @ts-ignore
   const enableLiveEzZelPoll = typeof import.meta !== 'undefined' && import.meta.env?.VITE_ENABLE_EZZEL_LIVE_POLL === 'true';
-  if (brand && !enableLiveEzZelPoll) {
+  if (brand && !enableLiveEzZelPoll && !isEmbedded) {
     return brand;
   }
 
   // @ts-ignore
-  const baseUrl = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_EZZEL_API_URL) || 'https://t2os.app';
+  const configuredBase = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_EZZEL_API_URL) || '';
+  const baseUrl = isEmbedded ? window.location.origin : (configuredBase || 'https://t2os.app');
+  const apiBase = String(baseUrl).replace(/\/$/, '');
+
   const liveSyncPromise = (async (): Promise<TenantBrandConfig | null> => {
     try {
       const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-      const timer = controller ? setTimeout(() => controller.abort(), 2000) : null;
-      const res = await fetch(`${String(baseUrl).replace(/\/$/, '')}/api/public/brand/${encodeURIComponent(brandId)}`, {
+      const timer = controller ? setTimeout(() => controller.abort(), 3500) : null;
+
+      // 1) Try official Dropshipping Storefront API first when running embedded / dropshipping store
+      try {
+        const dropRes = await fetch(`${apiBase}/api/dropshipping/public/${encodeURIComponent(brandId)}/storefront`, {
+          signal: controller?.signal,
+        });
+        if (dropRes.ok) {
+          const dropData = await dropRes.json();
+          if (dropData?.ok && dropData?.brand) {
+            if (timer) clearTimeout(timer);
+            (window as any).__DROPSHIPPING_STORE__ = dropData.store || null;
+            const dropBrand: TenantBrandConfig = {
+              ...dropData.brand,
+              adminEmail: dropData.brand.adminEmail || brand?.adminEmail || `owner@${brandId}.t2.app`,
+              appCustomization: dropData.brand.appCustomization || brand?.appCustomization,
+              productsCatalog: Array.isArray(dropData.products)
+                ? dropData.products
+                : Array.isArray(dropData.brand.productsCatalog)
+                  ? dropData.brand.productsCatalog
+                  : [],
+            };
+            brand = dropBrand;
+            applyBrandToEnvironment(dropBrand);
+            return dropBrand;
+          }
+        }
+      } catch {}
+
+      const res = await fetch(`${apiBase}/api/public/brand/${encodeURIComponent(brandId)}`, {
         signal: controller?.signal,
       });
       if (timer) clearTimeout(timer);

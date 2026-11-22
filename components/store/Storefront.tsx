@@ -25,6 +25,7 @@ import FloatingCheckoutButton from './FloatingCheckoutButton';
 import StoreFooter from './StoreFooter';
 import { initStorePixels, trackStoreEvent } from '../../utils/pixels';
 import { StoreFilters, DEFAULT_STORE_FILTERS, getStoreBranding } from '../../lib/appConfig';
+import { resolveTenantBrandId } from '../../lib/tenantBootstrap';
 
 interface StorefrontProps {
     setViewMode: (mode: 'admin' | 'store') => void;
@@ -69,9 +70,13 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
     const [onlyDiscounted, setOnlyDiscounted] = useState(false);
     const [showWishlistOnly, setShowWishlistOnly] = useState(false);
 
+    const activeSlug = resolveTenantBrandId() || 'default';
+    const cartStorageKey = `battahCart_${activeSlug}`;
+    const wishlistStorageKey = `storeWishlist_${activeSlug}`;
+
     const [wishlistIds, setWishlistIds] = useState<number[]>(() => {
         try {
-            const raw = localStorage.getItem('storeWishlist');
+            const raw = localStorage.getItem(wishlistStorageKey);
             const parsed = raw ? JSON.parse(raw) : [];
             return Array.isArray(parsed) ? parsed.filter((x): x is number => typeof x === 'number') : [];
         } catch {
@@ -286,10 +291,10 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
         };
     }, [branding]);
 
-    // Load cart from localStorage
+    // Load cart from localStorage scoped to store slug
     useEffect(() => {
         try {
-            const savedCart = localStorage.getItem('battahCart');
+            const savedCart = localStorage.getItem(cartStorageKey);
             if (savedCart) {
                 const parsedCart: { productId: number; quantity: number; variantName?: string }[] =
                     JSON.parse(savedCart);
@@ -309,7 +314,7 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
         } catch (error) {
             console.error('Failed to parse cart from localStorage', error);
         }
-    }, [allCatalogProducts]);
+    }, [allCatalogProducts, cartStorageKey]);
 
     useEffect(() => {
         const lightCart = cartItems.map(item => ({
@@ -317,8 +322,8 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
             quantity: item.quantity,
             variantName: item.product.name,
         }));
-        localStorage.setItem('battahCart', JSON.stringify(lightCart));
-    }, [cartItems]);
+        localStorage.setItem(cartStorageKey, JSON.stringify(lightCart));
+    }, [cartItems, cartStorageKey]);
 
     useEffect(() => {
         if (notification) {
@@ -390,7 +395,7 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
             const exists = prev.includes(product.id);
             const updated = exists ? prev.filter(id => id !== product.id) : [...prev, product.id];
             try {
-                localStorage.setItem('storeWishlist', JSON.stringify(updated));
+                localStorage.setItem(wishlistStorageKey, JSON.stringify(updated));
             } catch {}
             setNotification(
                 exists ? `تم إزالة "${product.name}" من المفضلة` : `تم حفظ "${product.name}" في المفضلة ❤️`
@@ -400,7 +405,7 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
     };
 
     const handleQuickShare = async (product: Product) => {
-        const shareUrl = `${window.location.origin}/?product=${encodeURIComponent(String(product.id || product.sku))}`;
+        const shareUrl = `${window.location.origin}${window.location.pathname}?product=${encodeURIComponent(String(product.id || product.sku))}`;
         try {
             if (navigator.share) {
                 await navigator.share({ title: product.name, url: shareUrl });
@@ -414,7 +419,7 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
     };
 
     const handleShareStore = async () => {
-        const shareUrl = window.location.origin;
+        const shareUrl = `${window.location.origin}${window.location.pathname}`;
         try {
             if (navigator.share) {
                 await navigator.share({

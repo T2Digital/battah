@@ -55,12 +55,13 @@ export function normalizeSlug(raw: string, fallback = 'default'): string {
   return cleaned || fallback;
 }
 
+const EPHEMERAL_FALLBACK = crypto.randomBytes(32).toString('hex');
 function getSecret(): string {
   return (
     process.env.TENANT_AUTH_SECRET ||
     process.env.ADMIN_API_SECRET ||
     process.env.T2_REMOTE_API_KEY ||
-    't2os-sovereign-tenant-secret-2026'
+    EPHEMERAL_FALLBACK
   );
 }
 
