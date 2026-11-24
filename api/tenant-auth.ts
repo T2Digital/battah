@@ -19,6 +19,13 @@ const FULL_ADMIN_PERMISSIONS = [
   'purchasing',
   'daily-review',
   'orders',
+  'customers',
+  'promotions',
+  'dropshipping',
+  'reports',
+  'notifications',
+  'users',
+  'settings',
 ];
 
 let cachedTenantConfig: Record<string, any> | null = null;
@@ -208,6 +215,47 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const body = parseBody(req);
   const action = String(req.query?.action || body.action || (req.method === 'GET' ? 'verify' : 'login')).trim();
+  const cfg = await loadTenantConfig(req);
+  const ezZelBase = String(process.env.VITE_EZZEL_API_URL || cfg.ezZelApiBase || 'https://t2os.app').replace(/\/+$/, '');
+
+  // Proxy auth actions to sovereign Ez-Zel control plane so multi-user staff/owners,
+  // Hetzner SSD storage, and shared TENANT_AUTH_SECRET stay consistent across every deployment.
+  try {
+    const qs = new URLSearchParams();
+    if (req.query) {
+      for (const [k, v] of Object.entries(req.query)) {
+        const val = getParam(v);
+        if (val) qs.set(k, val);
+      }
+    }
+    const targetUrl = `${ezZelBase}/api/tenant-auth${qs.toString() ? `?${qs.toString()}` : ''}`;
+    const fwdHeaders: Record<string, string> = {};
+    const authHdr = getParam(req.headers.authorization);
+    if (authHdr) fwdHeaders.Authorization = authHdr;
+    if (req.method === 'POST') fwdHeaders['Content-Type'] = 'application/json';
+
+    const slugFallback = normalizeSlug(cfg.slug || cfg.id || 'default');
+    const fwdBody =
+      req.method === 'POST'
+        ? JSON.stringify({
+            ...body,
+            brandSlug: body.brandSlug || getParam(req.query?.brandSlug) || slugFallback,
+          })
+        : undefined;
+
+    const upRes = await fetch(targetUrl, {
+      method: req.method,
+      headers: fwdHeaders,
+      ...(fwdBody ? { body: fwdBody } : {}),
+      signal: AbortSignal.timeout(7000),
+    });
+    if (upRes.status < 500 && upRes.status !== 404) {
+      const upJson: any = await upRes.json().catch(() => null);
+      if (upJson && typeof upJson === 'object') {
+        return res.status(upRes.status).json(upJson);
+      }
+    }
+  } catch {}
 
   if (req.method === 'GET' || action === 'verify') {
     const token = getBearerToken(req);
@@ -217,7 +265,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     const requestedSlug = getParam(req.query?.brandSlug || body.brandSlug);
     if (requestedSlug) {
-      const cfg = await loadTenantConfig(req);
       const normReq = normalizeSlug(requestedSlug, normalizeSlug(cfg.slug || 'default'));
       const normTok = normalizeSlug(String(decoded.brandSlug || ''));
       if (normReq !== normTok) {
@@ -230,8 +277,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ ok: false, error: 'Method Not Allowed' });
   }
-
-  const cfg = await loadTenantConfig(req);
 
   if (action === 'change-password') {
     const token = getBearerToken(req);

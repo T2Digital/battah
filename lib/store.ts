@@ -2858,7 +2858,16 @@ const useStore = create<AppState & AppActions>((set, get) => ({
     },
     createUser: async (email, pass, role, branch, name, permissions = [], allowedBranches = []) => {
         if (isTenantMode()) {
-            const normalizedEmail = email.trim().toLowerCase();
+            const activeSlug = resolveTenantBrandId();
+            const normalizedEmail = String(email || '').trim().toLowerCase();
+            const trimmedName = String(name || '').trim();
+            const rawPass = String(pass || '');
+            if (!normalizedEmail) {
+                throw new Error('يرجى إدخال البريد الإلكتروني بشكل صحيح');
+            }
+            if (rawPass.length < 6) {
+                throw new Error('كلمة المرور يجب أن تكون 6 أحرف أو أرقام على الأقل');
+            }
             const existing = (get().appData?.users || []).find(
                 u => String(u.username || '').trim().toLowerCase() === normalizedEmail
             );
@@ -2866,23 +2875,43 @@ const useStore = create<AppState & AppActions>((set, get) => ({
                 get().addToast('هذا البريد الإلكتروني مسجل بالفعل', 'error');
                 throw new Error('هذا البريد الإلكتروني مسجل بالفعل');
             }
-            const newUser: User = {
+            const resolvedPermissions =
+                role === Role.Admin && (!Array.isArray(permissions) || permissions.length === 0)
+                    ? (Object.values(Section) as Section[])
+                    : permissions;
+            const resolvedBranches = Array.from(new Set([...(allowedBranches || []), branch])) as Branch[];
+            const newUserPayload: User = {
                 id: `staff_${Date.now()}`,
-                name,
+                name: trimmedName || normalizedEmail,
                 username: normalizedEmail,
                 role,
                 branch,
-                allowedBranches: Array.from(new Set([...allowedBranches, branch])),
-                permissions,
-                password: pass,
+                allowedBranches: resolvedBranches,
+                permissions: resolvedPermissions,
+                password: rawPass,
             };
+            const prevUsers = get().appData?.users || [];
+            const payloadUsers = [...prevUsers, newUserPayload];
+            if (activeSlug) {
+                const synced = await pushTenantErpState(activeSlug, { users: payloadUsers });
+                if (!synced) {
+                    const errMsg = 'تعذر حفظ حساب المستخدم على السيرفر — تأكد من صلاحية الجلسة وحاول مجدداً';
+                    get().addToast(errMsg, 'error');
+                    throw new Error(errMsg);
+                }
+            }
+            const { password: _dropPassword, ...safeLocalUser } = newUserPayload;
+            const safeNextUsers = [...prevUsers, safeLocalUser as User];
+            isHydratingFromCloud = true;
             set(state => ({
                 appData: {
                     ...(state.appData as AppData),
-                    users: [...(state.appData?.users || []), newUser],
+                    users: safeNextUsers,
                 }
             }));
-            get().addToast(`تم إنشاء حساب المستخدم ${name} بنجاح`, 'success');
+            isHydratingFromCloud = false;
+            if (activeSlug) saveLocalErpCache(activeSlug, get().appData as any);
+            get().addToast(`تم إنشاء حساب المستخدم ${newUserPayload.name} بنجاح`, 'success');
             return;
         }
         // Use a secondary app to create user without logging out the current admin
@@ -2918,12 +2947,27 @@ const useStore = create<AppState & AppActions>((set, get) => ({
     },
     updateUser: async (userId, updates) => {
         if (isTenantMode()) {
+            const activeSlug = resolveTenantBrandId();
+            const prevUsers = get().appData?.users || [];
+            const payloadUsers = prevUsers.map(u => String(u.id) === String(userId) ? { ...u, ...updates } : u);
+            if (activeSlug) {
+                const synced = await pushTenantErpState(activeSlug, { users: payloadUsers });
+                if (!synced) {
+                    const errMsg = 'تعذر تحديث بيانات المستخدم على السيرفر';
+                    get().addToast(errMsg, 'error');
+                    throw new Error(errMsg);
+                }
+            }
+            const safeNextUsers = payloadUsers.map(({ password: _p, ...rest }: any) => rest as User);
+            isHydratingFromCloud = true;
             set(state => ({
                 appData: {
                     ...(state.appData as AppData),
-                    users: (state.appData?.users || []).map(u => String(u.id) === String(userId) ? { ...u, ...updates } : u),
+                    users: safeNextUsers,
                 }
             }));
+            isHydratingFromCloud = false;
+            if (activeSlug) saveLocalErpCache(activeSlug, get().appData as any);
             get().addToast("تم تحديث بيانات المستخدم بنجاح", "success");
             return;
         }
@@ -2937,12 +2981,26 @@ const useStore = create<AppState & AppActions>((set, get) => ({
     },
     deleteUser: async (userId) => {
         if (isTenantMode()) {
+            const activeSlug = resolveTenantBrandId();
+            const prevUsers = get().appData?.users || [];
+            const nextUsers = prevUsers.filter(u => String(u.id) !== String(userId));
+            if (activeSlug) {
+                const synced = await pushTenantErpState(activeSlug, { users: nextUsers });
+                if (!synced) {
+                    const errMsg = 'تعذر حذف المستخدم من السيرفر';
+                    get().addToast(errMsg, 'error');
+                    throw new Error(errMsg);
+                }
+            }
+            isHydratingFromCloud = true;
             set(state => ({
                 appData: {
                     ...(state.appData as AppData),
-                    users: (state.appData?.users || []).filter(u => String(u.id) !== String(userId)),
+                    users: nextUsers,
                 }
             }));
+            isHydratingFromCloud = false;
+            if (activeSlug) saveLocalErpCache(activeSlug, get().appData as any);
             get().addToast("تم حذف المستخدم بنجاح", "success");
             return;
         }

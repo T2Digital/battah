@@ -290,6 +290,52 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const slugFallback = normalizeSlug(cfg.slug || cfg.id || 'default');
   const slug = normalizeSlug(getParam(req.query?.slug || body.slug), slugFallback);
   const action = String(req.query?.action || body.action || '').trim();
+  const ezZelBase = String(process.env.VITE_EZZEL_API_URL || cfg.ezZelApiBase || 'https://t2os.app').replace(/\/+$/, '');
+
+  // Proxy ERP state read/sync/orders to sovereign Ez-Zel backend first (eliminates Firestore quota limits
+  // and ensures immediate consistency with Jarvis, T2 Agent WhatsApp alerts, and multi-user accounts).
+  try {
+    const qs = new URLSearchParams();
+    qs.set('slug', slug);
+    if (action) qs.set('action', action);
+    const phone = getParam(req.query?.phone);
+    if (phone) qs.set('phone', phone);
+
+    const targetUrl = `${ezZelBase}/api/tenant-erp?${qs.toString()}`;
+    const fwdHeaders: Record<string, string> = {};
+    const authHdr = getParam(req.headers.authorization);
+    if (authHdr) fwdHeaders.Authorization = authHdr;
+    if (req.method === 'POST') fwdHeaders['Content-Type'] = 'application/json';
+
+    const upRes = await fetch(targetUrl, {
+      method: req.method,
+      headers: fwdHeaders,
+      ...(req.method === 'POST' ? { body: JSON.stringify(body) } : {}),
+      signal: AbortSignal.timeout(9000),
+    });
+
+    if (upRes.status < 500 && upRes.status !== 404) {
+      const upJson: any = await upRes.json().catch(() => null);
+      if (upJson && typeof upJson === 'object') {
+        if (req.method === 'GET' && !action && upJson.state && typeof upJson.state === 'object') {
+          const st = upJson.state;
+          if (!Array.isArray(st.products) || st.products.length === 0) {
+            st.products = seedProductsFromConfig(cfg);
+          }
+          if (cfg.appCustomization && typeof cfg.appCustomization === 'object') {
+            const mergedCustom = {
+              ...cfg.appCustomization,
+              ...(st.appCustomization || {}),
+            };
+            st.appCustomization = authHdr.startsWith('Bearer ')
+              ? mergedCustom
+              : sanitizePublicAppCustomization(mergedCustom);
+          }
+        }
+        return res.status(upRes.status).json(upJson);
+      }
+    }
+  } catch {}
 
   if (req.method === 'GET') {
     if (action === 'my-orders') {

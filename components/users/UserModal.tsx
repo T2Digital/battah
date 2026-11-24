@@ -25,8 +25,10 @@ const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose, onSave, existing
     const [permissions, setPermissions] = useState<Section[]>([]);
     const [loading, setLoading] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
+    const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
     useEffect(() => {
+        setErrorMessage(null);
         if (existingUser) {
             setName(existingUser.name);
             setEmail(existingUser.username);
@@ -43,10 +45,25 @@ const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose, onSave, existing
             setAllowedBranches([defaultBranchKey]);
             setPermissions([]);
         }
-    }, [existingUser, defaultBranchKey]);
+    }, [existingUser, defaultBranchKey, isOpen]);
+
+    const handleRoleChange = (nextRole: Role) => {
+        setRole(nextRole);
+        setErrorMessage(null);
+        if (!existingUser && nextRole === Role.Admin) {
+            setPermissions(Object.values(Section) as Section[]);
+            setAllowedBranches(activeBranches.map(b => b.key));
+        }
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        setErrorMessage(null);
+
+        if (!existingUser && password.length < 6) {
+            setErrorMessage('كلمة المرور يجب أن تكون 6 أحرف أو أرقام على الأقل');
+            return;
+        }
         
         // Ensure default branch is in allowed branches
         const uniqueAllowedBranches = Array.from(new Set([...allowedBranches, branch]));
@@ -55,8 +72,8 @@ const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose, onSave, existing
         try {
             await onSave({
                 id: existingUser?.id,
-                name,
-                email,
+                name: name.trim(),
+                email: email.trim().toLowerCase(),
                 password,
                 role,
                 branch,
@@ -64,8 +81,9 @@ const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose, onSave, existing
                 permissions
             });
             onClose();
-        } catch (error) {
+        } catch (error: any) {
             console.error(error);
+            setErrorMessage(error?.message || 'تعذر حفظ بيانات المستخدم، يرجى التحقق والمحاولة مرة أخرى');
         } finally {
             setLoading(false);
         }
@@ -131,6 +149,12 @@ const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose, onSave, existing
                     </div>
 
                     <form onSubmit={handleSubmit} className="p-6 space-y-6">
+                        {errorMessage && (
+                            <div role="alert" className="p-3.5 rounded-xl bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 text-red-700 dark:text-red-300 text-sm font-semibold flex items-start gap-2.5">
+                                <i className="fas fa-exclamation-triangle mt-0.5 text-red-500"></i>
+                                <span>{errorMessage}</span>
+                            </div>
+                        )}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">الاسم</label>
@@ -161,8 +185,9 @@ const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose, onSave, existing
                                     <input 
                                         type={showPassword ? "text" : "password"}
                                         required={!existingUser} 
+                                        minLength={existingUser ? undefined : 6}
                                         value={password} 
-                                        onChange={e => setPassword(e.target.value)}
+                                        onChange={e => { setPassword(e.target.value); setErrorMessage(null); }}
                                         className="w-full p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                                     />
                                     <button
@@ -173,12 +198,15 @@ const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose, onSave, existing
                                         <i className={`fas ${showPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
                                     </button>
                                 </div>
+                                {!existingUser && (
+                                    <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">6 أحرف أو أرقام على الأقل</p>
+                                )}
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">الدور</label>
                                 <select 
                                     value={role} 
-                                    onChange={e => setRole(e.target.value as Role)}
+                                    onChange={e => handleRoleChange(e.target.value as Role)}
                                     className="w-full p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                                 >
                                     <option value={Role.Admin}>مدير عام</option>
