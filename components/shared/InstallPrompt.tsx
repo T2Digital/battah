@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import useStore from '../../lib/store';
-import { getStoreBranding } from '../../lib/appConfig';
+import { getStoreBranding, DEFAULT_STORE_LOGO_SVG } from '../../lib/appConfig';
+import { resolveTenantBrandId } from '../../lib/tenantBootstrap';
 
 const InstallPrompt: React.FC = () => {
     const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
     const [showPrompt, setShowPrompt] = useState(false);
     const storefrontSettings = useStore(state => state.appData?.storefrontSettings);
     const branding = getStoreBranding(storefrontSettings, 'المتجر الإلكتروني');
-    const logoSrc = branding.logoUrl || 'https://i.ibb.co/3yL3ZXm5/aa2f6315c6fc.jpg';
+    const logoSrc = branding.logoUrl || (!resolveTenantBrandId() ? 'https://i.ibb.co/3yL3ZXm5/aa2f6315c6fc.jpg' : DEFAULT_STORE_LOGO_SVG);
 
     useEffect(() => {
         const handler = (e: any) => {

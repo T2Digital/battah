@@ -13,7 +13,7 @@ import ActionableAlerts from './ActionableAlerts';
 import { AppData, User, DailySale, Product, Role, Section } from '../../types';
 import useStore from '../../lib/store';
 import { normalizeSaleItems, calculateSaleProfit, getActualSaleRevenue } from '../../lib/utils';
-import { getActiveBranches, getProductTotalStock } from '../../lib/appConfig';
+import { getActiveBranches, getProductTotalStock, getStoreBranding } from '../../lib/appConfig';
 import CustomizeDashboardModal from './CustomizeDashboardModal';
 
 interface DashboardProps {
@@ -39,8 +39,9 @@ const AIInsights: React.FC<{ profit: number; balance: number }> = ({ profit, bal
                 .filter(e => e.date === todayStr)
                 .reduce((sum, e) => sum + e.amount, 0);
 
+            const storeBrand = getStoreBranding(appData?.storefrontSettings, appData?.settings?.companyName || 'المتجر الإلكتروني').companyName;
             const prompt = `
-                أنت محلل أعمال خبير في شركة "أوتو هاوس لقطع غيار السيارات" لقطع غيار السيارات. بناءً على ملخص البيانات التالي لليوم، قدم 3 رؤى أو توصيات قابلة للتنفيذ باللغة العربية. اجعلها موجزة وفي نقاط.
+                أنت محلل أعمال خبير في "${storeBrand}". بناءً على ملخص البيانات التالي لليوم، قدم 3 رؤى أو توصيات قابلة للتنفيذ باللغة العربية. اجعلها موجزة وفي نقاط.
 
                 - صافي الربح اليومي: ${profit.toFixed(2)} جنيه مصري
                 - رصيد الخزينة الحالي: ${balance.toFixed(2)} جنيه مصري

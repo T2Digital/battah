@@ -7,6 +7,7 @@ import {
     getActiveBranches,
     getMainCategories,
     getProductTotalStock,
+    extractCategoryLabel,
 } from '../../lib/appConfig';
 import StoreProductCard from './StoreProductCard';
 import StoreSidebar from './StoreSidebar';
@@ -80,25 +81,29 @@ const StoreProducts: React.FC<StoreProductsProps> = ({
         const cats = getMainCategories(appCustomization, catalogPool);
         return cats.map(cat => ({
             name: cat,
-            count: catalogPool.filter(p => p.mainCategory === cat).length,
+            count: catalogPool.filter(p => extractCategoryLabel(p.mainCategory || p.category) === cat).length,
         }));
     }, [appCustomization, catalogPool]);
 
     const filteredProducts = useMemo(() => {
         const list = products.filter(p => {
-            const matchesCategory = filters.category === 'all' || p.mainCategory === filters.category;
+            const pMain = extractCategoryLabel(p.mainCategory || p.category);
+            const pSub = extractCategoryLabel(p.subCategory);
+            const pCat = extractCategoryLabel(p.category);
+            const pBrand = extractCategoryLabel(p.brand);
+            const matchesCategory = filters.category === 'all' || filters.category === 'كل المنتجات' || pMain === filters.category;
             const matchesSubCategory =
                 !filters.subCategory ||
                 filters.subCategory === 'all' ||
-                p.subCategory === filters.subCategory ||
-                p.category === filters.subCategory;
+                pSub === filters.subCategory ||
+                pCat === filters.subCategory;
             const matchesBrand =
                 filters.brand === 'all' ||
                 Boolean(
                     p.compatibility &&
                         p.compatibility.some(c => c.toLowerCase().includes(filters.brand.toLowerCase()))
                 ) ||
-                String(p.brand || '').toLowerCase() === filters.brand.toLowerCase();
+                pBrand.toLowerCase() === filters.brand.toLowerCase();
             const searchLower = filters.search.toLowerCase();
             const matchesSearch =
                 !searchLower ||

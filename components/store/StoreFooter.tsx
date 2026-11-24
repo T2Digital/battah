@@ -1,6 +1,7 @@
 import React from 'react';
 import useStore from '../../lib/store';
-import { getMainCategories, getStoreBranding, getPaymentGatewaysConfig } from '../../lib/appConfig';
+import { getMainCategories, getStoreBranding, getPaymentGatewaysConfig, DEFAULT_STORE_LOGO_SVG } from '../../lib/appConfig';
+import { resolveTenantBrandId } from '../../lib/tenantBootstrap';
 
 interface StoreFooterProps {
     setViewMode: (mode: 'admin' | 'store') => void;
@@ -20,7 +21,7 @@ const StoreFooter: React.FC<StoreFooterProps> = ({ setViewMode }) => {
     const displayPhone = branding.contactPhone;
     const displayEmail = branding.contactEmail;
     const displayName = branding.companyName;
-    const displayLogo = branding.logoUrl || 'https://i.ibb.co/3yL3ZXm5/aa2f6315c6fc.jpg';
+    const displayLogo = branding.logoUrl || (!resolveTenantBrandId() ? 'https://i.ibb.co/3yL3ZXm5/aa2f6315c6fc.jpg' : DEFAULT_STORE_LOGO_SVG);
     const whatsappHref = branding.whatsappFormatted
         ? `https://wa.me/${branding.whatsappFormatted}?text=${encodeURIComponent(
               `مرحباً ${displayName}، أريد الاستفسار عن المنتجات`

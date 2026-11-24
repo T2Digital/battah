@@ -14,6 +14,7 @@ import {
     getStoreBranding,
     formatWhatsAppNumber,
     getPaymentGatewaysConfig,
+    DEFAULT_PRODUCT_PLACEHOLDER_SVG,
 } from '../../lib/appConfig';
 
 export interface PlacedOrderResult {
@@ -433,7 +434,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, cartItem
                             <div key={item.product.id} className="flex justify-between items-center text-sm bg-white dark:bg-gray-800 p-2 rounded-xl border border-gray-50 dark:border-gray-700/50">
                                 <div className="flex items-center gap-3">
                                     <div className="w-12 h-12 bg-gray-50 dark:bg-gray-700 rounded-lg p-1 border border-gray-100 dark:border-gray-600 flex-shrink-0">
-                                        <img src={item.product.images?.[0] || (item.product as any).imageUrl || 'https://via.placeholder.com/150'} alt={item.product.name} className="w-full h-full object-contain mix-blend-multiply dark:mix-blend-normal" />
+                                        <img src={item.product.images?.[0] || (item.product as any).imageUrl || DEFAULT_PRODUCT_PLACEHOLDER_SVG} alt={item.product.name} className="w-full h-full object-contain mix-blend-multiply dark:mix-blend-normal" />
                                     </div>
                                     <div className="flex flex-col">
                                         <span className="font-medium text-gray-700 dark:text-gray-300 line-clamp-1">{item.product.name}</span>

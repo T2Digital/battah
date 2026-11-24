@@ -18,6 +18,7 @@ import {
     getMainCategories,
     getProductTotalStock,
     getSubCategoriesMap,
+    DEFAULT_PRODUCT_PLACEHOLDER_SVG,
 } from '../../lib/appConfig';
 
 const StockTransfersList: React.FC<{ transfers: StockTransfer[] }> = ({ transfers }) => {
@@ -125,7 +126,7 @@ const Inventory: React.FC = () => {
         activeBranches.forEach((b, idx) => {
             dynamicStockColumns[`رصيد ${b.label}`] = idx === 0 ? 10 : 0;
         });
-        const defaultMainCat = configuredCategories[0] || 'قطع غيار';
+        const defaultMainCat = configuredCategories[0] || 'منتجات مميزة';
         const defaultSubCat = subCategoriesMap[defaultMainCat]?.[0] || '';
         const templateData = [
             {
@@ -432,7 +433,7 @@ const Inventory: React.FC = () => {
                                     return (
                                         <tr key={p.id} className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
                                             <td className="px-6 py-4 font-medium text-gray-900 dark:text-white flex items-center gap-3">
-                                                <img src={p.images?.[0] || (p as any).imageUrl || 'https://via.placeholder.com/40'} alt={p.name} className="w-10 h-10 rounded-md object-cover"/>
+                                                <img src={p.images?.[0] || (p as any).imageUrl || DEFAULT_PRODUCT_PLACEHOLDER_SVG} alt={p.name} className="w-10 h-10 rounded-md object-cover"/>
                                                 {p.name}
                                             </td>
                                             <td className="px-6 py-4">{p.sku}</td>

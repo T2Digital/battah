@@ -6,6 +6,7 @@ import {
     getShippingConfig,
     getActiveBranches,
     getProductTotalStock,
+    DEFAULT_PRODUCT_PLACEHOLDER_SVG,
 } from '../../lib/appConfig';
 
 interface StoreCartProps {
@@ -167,7 +168,7 @@ const StoreCart: React.FC<StoreCartProps> = ({
                                             src={
                                                 item.product.images?.[0] ||
                                                 (item.product as any).imageUrl ||
-                                                'https://via.placeholder.com/150'
+                                                DEFAULT_PRODUCT_PLACEHOLDER_SVG
                                             }
                                             alt={item.product.name}
                                             className="w-full h-full object-contain"
@@ -258,7 +259,7 @@ const StoreCart: React.FC<StoreCartProps> = ({
                                                         src={
                                                             p.images?.[0] ||
                                                             (p as any).imageUrl ||
-                                                            'https://via.placeholder.com/80'
+                                                            DEFAULT_PRODUCT_PLACEHOLDER_SVG
                                                         }
                                                         alt={p.name}
                                                         className="w-10 h-10 rounded-lg object-contain bg-slate-50 dark:bg-slate-800 p-1 shrink-0"

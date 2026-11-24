@@ -404,8 +404,11 @@ const App: React.FC = () => {
         const attemptMasterSso = async () => {
             try {
                 const masterToken = localStorage.getItem('t2os_admin_token');
-                const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-                if (masterToken) headers.Authorization = `Bearer ${masterToken}`;
+                if (!masterToken) return;
+                const headers: Record<string, string> = {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${masterToken}`,
+                };
                 const res = await fetch('/api/tenant-auth?action=sso-master', {
                     method: 'POST',
                     credentials: 'include',

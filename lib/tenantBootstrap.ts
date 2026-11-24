@@ -324,32 +324,34 @@ export async function bootstrapBattahTenant(): Promise<TenantBrandConfig | null>
       const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
       const timer = controller ? setTimeout(() => controller.abort(), 3500) : null;
 
-      // 1) Try official Dropshipping Storefront API first when running embedded / dropshipping store
-      try {
-        const dropRes = await fetch(`${apiBase}/api/dropshipping/public/${encodeURIComponent(brandId)}/storefront`, {
-          signal: controller?.signal,
-        });
-        if (dropRes.ok) {
-          const dropData = await dropRes.json();
-          if (dropData?.ok && dropData?.brand) {
-            if (timer) clearTimeout(timer);
-            (window as any).__DROPSHIPPING_STORE__ = dropData.store || null;
-            const dropBrand: TenantBrandConfig = {
-              ...dropData.brand,
-              adminEmail: dropData.brand.adminEmail || brand?.adminEmail || `owner@${brandId}.t2.app`,
-              appCustomization: dropData.brand.appCustomization || brand?.appCustomization,
-              productsCatalog: Array.isArray(dropData.products)
-                ? dropData.products
-                : Array.isArray(dropData.brand.productsCatalog)
-                  ? dropData.brand.productsCatalog
-                  : [],
-            };
-            brand = dropBrand;
-            applyBrandToEnvironment(dropBrand);
-            return dropBrand;
+      // 1) Try official Dropshipping Storefront API ONLY when running embedded / dropshipping store (/shop or /drop)
+      if (isEmbedded) {
+        try {
+          const dropRes = await fetch(`${apiBase}/api/dropshipping/public/${encodeURIComponent(brandId)}/storefront`, {
+            signal: controller?.signal,
+          });
+          if (dropRes.ok) {
+            const dropData = await dropRes.json();
+            if (dropData?.ok && dropData?.brand) {
+              if (timer) clearTimeout(timer);
+              (window as any).__DROPSHIPPING_STORE__ = dropData.store || null;
+              const dropBrand: TenantBrandConfig = {
+                ...dropData.brand,
+                adminEmail: dropData.brand.adminEmail || brand?.adminEmail || `owner@${brandId}.t2.app`,
+                appCustomization: dropData.brand.appCustomization || brand?.appCustomization,
+                productsCatalog: Array.isArray(dropData.products)
+                  ? dropData.products
+                  : Array.isArray(dropData.brand.productsCatalog)
+                    ? dropData.brand.productsCatalog
+                    : [],
+              };
+              brand = dropBrand;
+              applyBrandToEnvironment(dropBrand);
+              return dropBrand;
+            }
           }
-        }
-      } catch {}
+        } catch {}
+      }
 
       const res = await fetch(`${apiBase}/api/public/brand/${encodeURIComponent(brandId)}`, {
         signal: controller?.signal,

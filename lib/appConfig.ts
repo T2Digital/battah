@@ -124,46 +124,83 @@ export function getActiveCashiers(appCustomization?: AppCustomization | null): C
   return LEGACY_CASHIERS;
 }
 
+export const DEFAULT_PRODUCT_PLACEHOLDER_SVG =
+  "data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 320 320'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%230f172a'/%3E%3Cstop offset='100%25' stop-color='%231e293b'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='320' height='320' rx='24' fill='url(%23g)'/%3E%3Crect x='95' y='88' width='130' height='110' rx='18' fill='none' stroke='%2338bdf8' stroke-width='6' opacity='0.75'/%3E%3Ccircle cx='135' cy='125' r='12' fill='%2338bdf8' opacity='0.8'/%3E%3Cpath d='M108 184l38-36 28 24 22-20 18 32z' fill='%2338bdf8' opacity='0.55'/%3E%3Ctext x='160' y='246' text-anchor='middle' fill='%2394a3b8' font-family='sans-serif' font-size='18' font-weight='bold'%3ET2OS Store%3C/text%3E%3C/svg%3E";
+
+export const DEFAULT_STORE_LOGO_SVG =
+  "data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'%3E%3Cdefs%3E%3ClinearGradient id='lg' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%230284c7'/%3E%3Cstop offset='100%25' stop-color='%230f172a'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='96' height='96' rx='24' fill='url(%23lg)'/%3E%3Cpath d='M28 36h40l-4 32H32z' fill='none' stroke='%23fff' stroke-width='5' stroke-linejoin='round'/%3E%3Cpath d='M38 36v-6a10 10 0 0 1 20 0v6' fill='none' stroke='%2338bdf8' stroke-width='5' stroke-linecap='round'/%3E%3C/svg%3E";
+
+export function extractCategoryLabel(cat: any): string {
+  if (typeof cat === 'string') return cat.trim();
+  if (cat && typeof cat === 'object') {
+    return String(cat.name || cat.title || cat.label || cat.ar || cat.value || '').trim();
+  }
+  return '';
+}
+
+export function isAutomotiveTenant(brandOverride?: any): boolean {
+  const slug = String(resolveTenantBrandId() || '').trim().toLowerCase();
+  if (!slug || ['battah', 'captaincar-eg', 'al-genedy', 'auto-house'].includes(slug)) {
+    return true;
+  }
+  const b = brandOverride || (typeof window !== 'undefined' && (window as any).__TENANT_BRAND__) || {};
+  const haystack = `${b.name || ''} ${b.businessType || ''} ${b.slogan || ''}`;
+  return /سيارات|قطع غيار|اطارات|إطارات|بطاريات|زيوت|auto|car|spare/i.test(haystack);
+}
+
 export function getMainCategories(
   appCustomization?: AppCustomization | null,
   products?: Product[]
 ): string[] {
   const tenantDefault = getTenantDefaultCustomization();
+  const isAuto = isAutomotiveTenant();
   const base =
     (Array.isArray(appCustomization?.mainCategories) && appCustomization.mainCategories.length > 0
       ? appCustomization.mainCategories
       : Array.isArray(tenantDefault?.mainCategories) && tenantDefault.mainCategories.length > 0
         ? tenantDefault.mainCategories
-        : MAIN_CATEGORIES) || [];
+        : isAuto
+          ? MAIN_CATEGORIES
+          : []) || [];
 
   const result = new Set<string>(
-    base.map((c) => String(c || '').trim()).filter(Boolean)
+    base.map(extractCategoryLabel).filter(Boolean)
   );
   if (Array.isArray(products)) {
     for (const p of products) {
-      if (p?.mainCategory && String(p.mainCategory).trim()) {
-        result.add(String(p.mainCategory).trim());
+      const cat = extractCategoryLabel(p?.mainCategory || p?.category);
+      if (cat && (isAuto || !['قطع غيار', 'بطاريات', 'زيوت وشحومات', 'إطارات'].includes(cat))) {
+        result.add(cat);
       }
     }
   }
-  return Array.from(result);
+  if (result.size === 0 && Array.isArray(products)) {
+    for (const p of products) {
+      const cat = extractCategoryLabel(p?.mainCategory || p?.category);
+      if (cat) result.add(cat);
+    }
+  }
+  return result.size > 0 ? Array.from(result) : ['كل المنتجات'];
 }
 
 export function getSubCategoriesMap(
   appCustomization?: AppCustomization | null
 ): Record<string, string[]> {
   const tenantDefault = getTenantDefaultCustomization();
+  const isAuto = isAutomotiveTenant();
   const raw =
     (appCustomization?.subCategories && Object.keys(appCustomization.subCategories).length > 0
       ? appCustomization.subCategories
       : tenantDefault?.subCategories && Object.keys(tenantDefault.subCategories).length > 0
         ? tenantDefault.subCategories
-        : SUB_CATEGORIES) || {};
+        : isAuto
+          ? SUB_CATEGORIES
+          : {}) || {};
 
   const out: Record<string, string[]> = {};
   for (const [k, list] of Object.entries(raw)) {
     if (Array.isArray(list)) {
-      out[k] = list.map((s) => String(s || '').trim()).filter(Boolean);
+      out[k] = list.map(extractCategoryLabel).filter(Boolean);
     }
   }
   return out;
@@ -173,6 +210,7 @@ export function getStorefrontFiltersConfig(
   appCustomization?: AppCustomization | null
 ): Required<StorefrontFiltersConfig> {
   const tenantDefault = getTenantDefaultCustomization();
+  const isAuto = isAutomotiveTenant();
   const saved = appCustomization?.storefrontFilters || {};
   const fromBrand = tenantDefault?.storefrontFilters || {};
   const merged = { ...fromBrand, ...saved };
@@ -181,11 +219,15 @@ export function getStorefrontFiltersConfig(
     showSearch: merged.showSearch !== false,
     showCategoryFilter: merged.showCategoryFilter !== false,
     showSubCategoryFilter: merged.showSubCategoryFilter !== false,
-    showBrandFilter: merged.showBrandFilter !== false,
-    brandFilterLabel: String(merged.brandFilterLabel || 'ماركة السيارة').trim() || 'ماركة السيارة',
+    showBrandFilter: isAuto ? merged.showBrandFilter !== false : merged.showBrandFilter === true,
+    brandFilterLabel:
+      String(merged.brandFilterLabel || (isAuto ? 'ماركة السيارة' : 'الماركة / التصنيف')).trim() ||
+      (isAuto ? 'ماركة السيارة' : 'الماركة / التصنيف'),
     brandFilterOptions: Array.isArray(merged.brandFilterOptions)
-      ? merged.brandFilterOptions.map((o) => String(o || '').trim()).filter(Boolean)
-      : DEFAULT_CAR_BRANDS,
+      ? merged.brandFilterOptions.map(extractCategoryLabel).filter(Boolean)
+      : isAuto
+        ? DEFAULT_CAR_BRANDS
+        : [],
     showPriceFilter: Boolean(merged.showPriceFilter),
     showInStockOnlyFilter: Boolean(merged.showInStockOnlyFilter),
   };

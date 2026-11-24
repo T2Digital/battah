@@ -10,6 +10,7 @@ import {
     getHeroSlides,
     getActiveBranches,
     getProductTotalStock,
+    DEFAULT_PRODUCT_PLACEHOLDER_SVG,
 } from '../../lib/appConfig';
 
 interface StoreHeroProps {
@@ -253,7 +254,7 @@ const StoreHero: React.FC<StoreHeroProps> = ({
                                         src={
                                             spotlightProduct.images?.[0] ||
                                             (spotlightProduct as any).imageUrl ||
-                                            'https://via.placeholder.com/300'
+                                            DEFAULT_PRODUCT_PLACEHOLDER_SVG
                                         }
                                         alt={spotlightProduct.name}
                                         className="w-full h-full object-contain transform group-hover:scale-105 transition-transform duration-500"

@@ -24,7 +24,7 @@ import InstallPrompt from '../shared/InstallPrompt';
 import FloatingCheckoutButton from './FloatingCheckoutButton';
 import StoreFooter from './StoreFooter';
 import { initStorePixels, trackStoreEvent } from '../../utils/pixels';
-import { StoreFilters, DEFAULT_STORE_FILTERS, getStoreBranding } from '../../lib/appConfig';
+import { StoreFilters, DEFAULT_STORE_FILTERS, getStoreBranding, DEFAULT_STORE_LOGO_SVG } from '../../lib/appConfig';
 import { resolveTenantBrandId } from '../../lib/tenantBootstrap';
 
 interface StorefrontProps {
@@ -276,7 +276,7 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
             '@context': 'https://schema.org',
             '@type': 'Store',
             name: branding.companyName,
-            image: branding.logoUrl || 'https://i.ibb.co/3yL3ZXm5/aa2f6315c6fc.jpg',
+            image: branding.logoUrl || (!resolveTenantBrandId() ? 'https://i.ibb.co/3yL3ZXm5/aa2f6315c6fc.jpg' : DEFAULT_STORE_LOGO_SVG),
             description:
                 branding.slogan || `${branding.companyName} - تسوق أونلاين بمنتجات أصلية وأفضل الأسعار.`,
             address: {
@@ -550,7 +550,7 @@ const Storefront: React.FC<StorefrontProps> = ({ setViewMode }) => {
                 <meta property="og:description" content={branding.slogan || `تسوق من ${branding.companyName}`} />
                 <meta
                     property="og:image"
-                    content={branding.logoUrl || 'https://i.ibb.co/3yL3ZXm5/aa2f6315c6fc.jpg'}
+                    content={branding.logoUrl || (!resolveTenantBrandId() ? 'https://i.ibb.co/3yL3ZXm5/aa2f6315c6fc.jpg' : DEFAULT_STORE_LOGO_SVG)}
                 />
                 <meta property="og:type" content="website" />
                 <meta name="twitter:card" content="summary_large_image" />

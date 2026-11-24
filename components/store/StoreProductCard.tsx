@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Product } from '../../types';
 import { formatCurrency } from '../../lib/utils';
 import useStore from '../../lib/store';
-import { getActiveBranches, getProductTotalStock } from '../../lib/appConfig';
+import { getActiveBranches, getProductTotalStock, DEFAULT_PRODUCT_PLACEHOLDER_SVG, extractCategoryLabel } from '../../lib/appConfig';
 
 interface StoreProductCardProps {
     product: Product;
@@ -36,11 +36,15 @@ const StoreProductCard: React.FC<StoreProductCardProps> = ({
     const savingsAmount = hasDiscount ? Math.max(0, Math.round(originalPrice - product.sellingPrice)) : 0;
 
     const primaryImage =
-        product.images?.[0] || (product as any).imageUrl || 'https://via.placeholder.com/300';
+        product.images?.[0] || (product as any).imageUrl || DEFAULT_PRODUCT_PLACEHOLDER_SVG;
     const secondaryImage =
         Array.isArray(product.images) && product.images.length > 1 ? product.images[1] : null;
     const brandBadge =
-        product.brand || product.subCategory || product.category || product.mainCategory || 'منتج مميز';
+        extractCategoryLabel(product.brand) ||
+        extractCategoryLabel(product.subCategory) ||
+        extractCategoryLabel(product.category) ||
+        extractCategoryLabel(product.mainCategory) ||
+        'منتج مميز';
 
     useEffect(() => {
         return () => {

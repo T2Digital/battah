@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import useStore from '../../lib/store';
 import { Product } from '../../types';
 import { formatCurrency } from '../../lib/utils';
-import { getStoreBranding } from '../../lib/appConfig';
+import { getStoreBranding, DEFAULT_STORE_LOGO_SVG, DEFAULT_PRODUCT_PLACEHOLDER_SVG } from '../../lib/appConfig';
+import { resolveTenantBrandId } from '../../lib/tenantBootstrap';
 
 interface StoreHeaderProps {
     onCartClick: () => void;
@@ -38,7 +39,7 @@ const StoreHeader: React.FC<StoreHeaderProps> = ({
     const branding = getStoreBranding(storefrontSettings, settings?.companyName || 'المتجر الإلكتروني');
     const brandName = branding.companyName;
     const brandTagline = settings?.tickerMessages?.[0] || branding.slogan || 'متجر إلكتروني معتمد';
-    const logoSrc = branding.logoUrl || 'https://i.ibb.co/3yL3ZXm5/aa2f6315c6fc.jpg';
+    const logoSrc = branding.logoUrl || (!resolveTenantBrandId() ? 'https://i.ibb.co/3yL3ZXm5/aa2f6315c6fc.jpg' : DEFAULT_STORE_LOGO_SVG);
 
     const [isDarkMode, setIsDarkMode] = useState(false);
     const [isScrolled, setIsScrolled] = useState(false);
@@ -151,7 +152,7 @@ const StoreHeader: React.FC<StoreHeaderProps> = ({
                                 >
                                     <div className="w-12 h-12 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200/60 dark:border-white/10 p-1 shrink-0 flex items-center justify-center overflow-hidden">
                                         <img
-                                            src={item.images?.[0] || (item as any).imageUrl || 'https://via.placeholder.com/80'}
+                                            src={item.images?.[0] || (item as any).imageUrl || DEFAULT_PRODUCT_PLACEHOLDER_SVG}
                                             alt={item.name}
                                             className="w-full h-full object-contain"
                                         />

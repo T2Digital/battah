@@ -1,6 +1,7 @@
 /// <reference types="vite/client" />
 import { create } from 'zustand';
 import { tenantCollection as collection, tenantDoc as doc, resolveTenantBrandId, applyDynamicPwaAndTheme } from './tenantBootstrap';
+import { extractCategoryLabel, DEFAULT_PRODUCT_PLACEHOLDER_SVG } from './appConfig';
 import {
     fetchTenantErpState,
     queueTenantErpSync,
@@ -199,21 +200,23 @@ export function mapCatalogToProducts(tenantBrand: any, appCustomization?: AppCus
                 ? [item.imageUrl]
                 : fallbackLogo
                     ? [fallbackLogo]
-                    : [];
-        const cat = item.category || tenantBrand?.businessType || 'منتجات مميزة';
+                    : [DEFAULT_PRODUCT_PLACEHOLDER_SVG];
+        const cat = extractCategoryLabel(item.category) || extractCategoryLabel(tenantBrand?.businessType) || 'منتجات مميزة';
+        const subCat = extractCategoryLabel(item.subCategory) || cat;
+        const mainCat = extractCategoryLabel(item.mainCategory) || cat;
         return {
             id: Number(item.id) || (idx + 1),
             name: item.name || `منتج ${idx + 1}`,
-            brand: String(item.brand || tenantBrand?.name || ''),
+            brand: extractCategoryLabel(item.brand) || String(tenantBrand?.name || ''),
             sku: item.sku || `SKU-${idx + 101}`,
             category: cat,
-            subCategory: item.subCategory || cat,
-            mainCategory: (item.mainCategory || cat) as MainCategory,
+            subCategory: subCat,
+            mainCategory: mainCat as MainCategory,
             description: item.description || '',
             purchasePrice: Number(item.supplierCostEgp || item.purchasePrice) || Math.round(price * 0.5),
             sellingPrice: price,
             stock: item.stock || { ...defaultStock },
-            imageUrl: item.imageUrl || images[0] || fallbackLogo,
+            imageUrl: item.imageUrl || images[0] || fallbackLogo || DEFAULT_PRODUCT_PLACEHOLDER_SVG,
             images,
             discount: item.discount,
             isNew: item.isNew,
@@ -498,12 +501,13 @@ const useStore = create<AppState & AppActions>((set, get) => ({
                                 id: idx + 1,
                                 name: item.name || `منتج ${idx + 1}`,
                                 sku: item.sku || `SKU-${idx + 101}`,
-                                category: item.category || 'قطع غيار',
+                                category: extractCategoryLabel(item.category) || extractCategoryLabel(tenantBrand?.businessType) || 'منتجات مميزة',
+                                mainCategory: extractCategoryLabel(item.mainCategory || item.category) || extractCategoryLabel(tenantBrand?.businessType) || 'منتجات مميزة',
                                 description: item.description || '',
                                 purchasePrice: Math.round(price * 0.7),
                                 sellingPrice: price,
                                 stock: { main: 25, branch1: 10, branch2: 10, branch3: 10 },
-                                imageUrl: item.imageUrl || tenantBrand?.logoUrl || ''
+                                imageUrl: item.imageUrl || tenantBrand?.logoUrl || DEFAULT_PRODUCT_PLACEHOLDER_SVG
                             };
                         });
                         set(state => ({

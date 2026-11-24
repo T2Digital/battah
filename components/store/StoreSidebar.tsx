@@ -6,6 +6,8 @@ import {
     getMainCategories,
     getSubCategoriesMap,
     getStorefrontFiltersConfig,
+    extractCategoryLabel,
+    isAutomotiveTenant,
 } from '../../lib/appConfig';
 
 interface StoreSidebarProps {
@@ -29,28 +31,30 @@ const StoreSidebar: React.FC<StoreSidebarProps> = ({ products, filters, setFilte
     const { categories, subCategories, brandOptions } = useMemo(() => {
         const cats = getMainCategories(appCustomization, sourceProducts);
         const subMap = getSubCategoriesMap(appCustomization);
+        const isAuto = isAutomotiveTenant();
 
         const subSet = new Set<string>();
         if (filters.category === 'all') {
             Object.values(subMap).forEach(list => list.forEach(s => s && subSet.add(s)));
             sourceProducts.forEach(p => {
-                const sub = (p.subCategory || p.category || '').trim();
+                const sub = extractCategoryLabel(p.subCategory || p.category);
                 if (sub) subSet.add(sub);
             });
         } else {
             (subMap[filters.category] || []).forEach(s => s && subSet.add(s));
             sourceProducts
-                .filter(p => p.mainCategory === filters.category)
+                .filter(p => extractCategoryLabel(p.mainCategory || p.category) === filters.category)
                 .forEach(p => {
-                    const sub = (p.subCategory || p.category || '').trim();
+                    const sub = extractCategoryLabel(p.subCategory || p.category);
                     if (sub) subSet.add(sub);
                 });
         }
 
         const brandSet = new Set<string>(filterConfig.brandFilterOptions);
         sourceProducts.forEach(p => {
-            if (p.brand) brandSet.add(String(p.brand).trim());
-            if (p.compatibility) {
+            const b = extractCategoryLabel(p.brand);
+            if (b) brandSet.add(b);
+            if (isAuto && p.compatibility) {
                 p.compatibility.forEach(comp => {
                     const brand = String(comp || '').split(' ')[0]?.trim();
                     if (brand) brandSet.add(brand);

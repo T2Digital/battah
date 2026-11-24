@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import useStore from '../lib/store';
-import { getStoreBranding } from '../lib/appConfig';
+import { getStoreBranding, DEFAULT_STORE_LOGO_SVG } from '../lib/appConfig';
 import { resolveTenantBrandId } from '../lib/tenantBootstrap';
 
 interface LoginModalProps {
@@ -112,7 +112,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ setViewMode }) => {
         <div className="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-50 backdrop-blur-sm">
             <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-sm p-8 m-4 animate-fade-in-down">
                 <div className="text-center mb-6">
-                    <img src={branding.logoUrl || "https://i.ibb.co/LDdGwd87/5-1.png"} alt={branding.companyName} className="h-20 w-20 object-cover rounded-2xl mx-auto mb-3 shadow-md" />
+                    <img src={branding.logoUrl || DEFAULT_STORE_LOGO_SVG} alt={branding.companyName} className="h-20 w-20 object-cover rounded-2xl mx-auto mb-3 shadow-md" />
                     <h3 className="text-xl font-black text-gray-800 dark:text-white">🔐 إدارة {branding.companyName}</h3>
                 </div>
                 <form onSubmit={handleSubmit} className="space-y-6">

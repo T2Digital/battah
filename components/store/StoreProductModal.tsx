@@ -11,6 +11,7 @@ import {
     getStoreBranding,
     getPaymentGatewaysConfig,
     calculateShippingFee,
+    DEFAULT_PRODUCT_PLACEHOLDER_SVG,
 } from '../../lib/appConfig';
 
 interface StoreProductModalProps {
@@ -129,7 +130,7 @@ const StoreProductModal: React.FC<StoreProductModalProps> = ({
             ? product.images
             : (product as any).imageUrl
                 ? [(product as any).imageUrl]
-                : ['https://via.placeholder.com/400'];
+                : [DEFAULT_PRODUCT_PLACEHOLDER_SVG];
 
     const productUrl =
         typeof window !== 'undefined'
@@ -681,7 +682,7 @@ const StoreProductModal: React.FC<StoreProductModalProps> = ({
                                 className="text-right bg-slate-50 dark:bg-white/[0.04] hover:bg-slate-100 dark:hover:bg-white/[0.08] border border-slate-200/70 dark:border-white/[0.08] rounded-xl p-2.5 transition-all flex items-center gap-2.5"
                             >
                                 <img
-                                    src={rel.images?.[0] || (rel as any).imageUrl || 'https://via.placeholder.com/80'}
+                                    src={rel.images?.[0] || (rel as any).imageUrl || DEFAULT_PRODUCT_PLACEHOLDER_SVG}
                                     alt={rel.name}
                                     className="w-11 h-11 rounded-lg object-contain bg-white dark:bg-slate-800 p-1 shrink-0"
                                 />

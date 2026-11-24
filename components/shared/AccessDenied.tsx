@@ -1,4 +1,5 @@
 import React from 'react';
+import { getStoreBranding } from '../../lib/appConfig';
 
 interface AccessDeniedProps {
     reason: 'time' | 'ip';
@@ -8,6 +9,7 @@ interface AccessDeniedProps {
 }
 
 const AccessDenied: React.FC<AccessDeniedProps> = ({ reason, details, onRetry, onLogout }) => {
+    const brandName = getStoreBranding(null, 'المتجر الإلكتروني').companyName;
     return (
         <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900 p-4 font-cairo">
             <div className="max-w-md w-full bg-white dark:bg-gray-800 rounded-2xl shadow-2xl overflow-hidden transform transition-all hover:scale-105 duration-300">
@@ -60,7 +62,7 @@ const AccessDenied: React.FC<AccessDeniedProps> = ({ reason, details, onRetry, o
                 </div>
                 
                 <div className="bg-gray-50 dark:bg-gray-700/50 p-4 text-center text-xs text-gray-400 dark:text-gray-500">
-                    &copy; {new Date().getFullYear()} بطاح الأصلي. جميع الحقوق محفوظة.
+                    &copy; {new Date().getFullYear()} {brandName}. جميع الحقوق محفوظة.
                 </div>
             </div>
         </div>
