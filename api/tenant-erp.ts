@@ -289,6 +289,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const body = parseBody(req);
   const slugFallback = normalizeSlug(cfg.slug || cfg.id || 'default');
   const slug = normalizeSlug(getParam(req.query?.slug || body.slug), slugFallback);
+  const cfgMatchesSlug = Boolean(
+    (cfg?.slug || cfg?.id) && normalizeSlug(cfg.slug || cfg.id || '') === slug
+  );
   const action = String(req.query?.action || body.action || '').trim();
   const ezZelBase = String(process.env.VITE_EZZEL_API_URL || cfg.ezZelApiBase || 'https://t2os.app').replace(/\/+$/, '');
 
@@ -319,10 +322,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (upJson && typeof upJson === 'object') {
         if (req.method === 'GET' && !action && upJson.state && typeof upJson.state === 'object') {
           const st = upJson.state;
-          if (!Array.isArray(st.products) || st.products.length === 0) {
+          if ((!Array.isArray(st.products) || st.products.length === 0) && cfgMatchesSlug) {
             st.products = seedProductsFromConfig(cfg);
           }
-          if (cfg.appCustomization && typeof cfg.appCustomization === 'object') {
+          if (cfgMatchesSlug && cfg.appCustomization && typeof cfg.appCustomization === 'object') {
             const mergedCustom = {
               ...cfg.appCustomization,
               ...(st.appCustomization || {}),
@@ -361,9 +364,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const products =
         Array.isArray(catalog.products) && catalog.products.length > 0
           ? catalog.products
-          : seedProductsFromConfig(cfg);
+          : cfgMatchesSlug
+            ? seedProductsFromConfig(cfg)
+            : [];
       const mergedCustomization = {
-        ...(cfg.appCustomization || {}),
+        ...(cfgMatchesSlug ? (cfg.appCustomization || {}) : {}),
         ...(catalog.appCustomization || {}),
       };
       return res.status(200).json({
@@ -399,9 +404,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const products =
       Array.isArray(catalog.products) && catalog.products.length > 0
         ? catalog.products
-        : seedProductsFromConfig(cfg);
+        : cfgMatchesSlug
+          ? seedProductsFromConfig(cfg)
+          : [];
     const mergedAdminCustomization = {
-      ...(cfg.appCustomization || {}),
+      ...(cfgMatchesSlug ? (cfg.appCustomization || {}) : {}),
       ...(catalog.appCustomization || {}),
     };
 
@@ -543,7 +550,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const nextNotifications = [newNotification, ...existingNotifications];
     const nextCatalog = {
       ...catalog,
-      ...(Array.isArray(catalog.products) && catalog.products.length > 0
+      ...((Array.isArray(catalog.products) && catalog.products.length > 0) || !cfgMatchesSlug
         ? {}
         : { products: seedProductsFromConfig(cfg) }),
       counters: { ...(catalog.counters || {}), orderCount },

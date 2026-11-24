@@ -147,8 +147,17 @@ const App: React.FC = () => {
 
     const [viewMode, setViewMode] = useState<ViewMode>(() => {
         if (typeof window !== 'undefined') {
-            const adminParam = new URLSearchParams(window.location.search).get('admin');
-            if (adminParam === 'dropshipping' || adminParam === '1' || adminParam === 'true') {
+            const sp = new URLSearchParams(window.location.search);
+            const adminParam = sp.get('admin');
+            const h = window.location.hash || '';
+            if (
+                adminParam === 'dropshipping' ||
+                adminParam === '1' ||
+                adminParam === 'true' ||
+                sp.has('ssoToken') ||
+                h === '#dashboard' ||
+                h === '#admin'
+            ) {
                 return 'admin';
             }
         }
@@ -334,6 +343,22 @@ const App: React.FC = () => {
                 const brandSlug = resolveTenantBrandId();
                 if (brandSlug) {
                     try {
+                        const sp = new URLSearchParams(window.location.search);
+                        const ssoToken = sp.get('ssoToken');
+                        if (ssoToken) {
+                            const ssoCheck = await verifyTenantSession(brandSlug, ssoToken);
+                            if (ssoCheck.valid && ssoCheck.user) {
+                                try {
+                                    localStorage.setItem(`t2_tenant_session_${brandSlug}`, JSON.stringify({ token: ssoToken, user: ssoCheck.user }));
+                                } catch {}
+                                useStore.getState().setCurrentUser(ssoCheck.user);
+                                setViewMode('admin');
+                                sp.delete('ssoToken');
+                                const nextSearch = sp.toString();
+                                window.history.replaceState(null, '', `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ''}${window.location.hash || ''}`);
+                                return;
+                            }
+                        }
                         const rawSession = localStorage.getItem(`t2_tenant_session_${brandSlug}`);
                         if (rawSession) {
                             const parsed = JSON.parse(rawSession);

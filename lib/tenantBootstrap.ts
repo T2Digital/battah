@@ -54,7 +54,7 @@ function renderStarterLandingPageGate(brand: TenantBrandConfig) {
   overlay.innerHTML = `
     <div style="max-width:620px;margin:0 auto;">
       <div style="background:linear-gradient(180deg,rgba(16,185,129,0.14),rgba(15,23,42,0.9));border:1px solid rgba(16,185,129,0.4);border-radius:24px;padding:26px;text-align:center;margin-bottom:18px;">
-        <div style="display:inline-block;padding:4px 12px;border-radius:999px;background:rgba(16,185,129,0.15);color:#34d399;font-size:11px;font-weight:800;margin-bottom:10px;">Landing Page • ${brand.planNameAr || 'باقة الانطلاق 2,500 ج.م'}</div>
+        <div style="display:inline-block;padding:4px 12px;border-radius:999px;background:rgba(16,185,129,0.15);color:#34d399;font-size:11px;font-weight:800;margin-bottom:10px;">Landing Page • ${brand.planNameAr || 'باقة النمو الاحترافية 5,000 ج.م'}</div>
         ${brand.logoUrl ? `<img src="${brand.logoUrl}" alt="${brand.name}" style="width:72px;height:72px;border-radius:18px;object-fit:cover;margin:0 auto 12px;display:block;border:2px solid #10b981;" />` : ''}
         <h1 style="margin:0 0 6px;font-size:24px;font-weight:900;">${brand.name}</h1>
         <p style="margin:0 0 18px;font-size:13.5px;color:#cbd5e1;line-height:1.7;">${brand.slogan || brand.businessType || 'تواصل مباشرة للطلب والاستفسار السريع عبر واتساب'}</p>
@@ -177,6 +177,43 @@ export function applyDynamicPwaAndTheme(brand: Partial<TenantBrandConfig>) {
   } catch {}
 }
 
+function normalizeSlugKey(raw: string): string {
+  return String(raw || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+export async function consumeBattahSsoToken(brandId: string): Promise<{ ok: boolean; user?: any }> {
+  if (typeof window === 'undefined' || !brandId) return { ok: false };
+  const params = new URLSearchParams(window.location.search);
+  const ssoToken = params.get('ssoToken');
+  if (!ssoToken) return { ok: false };
+
+  try {
+    const res = await fetch(
+      `/api/tenant-auth?action=verify&brandSlug=${encodeURIComponent(brandId)}`,
+      { headers: { Authorization: `Bearer ${ssoToken}` } }
+    );
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data?.ok && data?.user) {
+      try {
+        localStorage.setItem(
+          `t2_tenant_session_${brandId}`,
+          JSON.stringify({ token: ssoToken, user: data.user })
+        );
+      } catch {}
+      params.delete('ssoToken');
+      const nextSearch = params.toString();
+      const nextUrl = `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ''}${window.location.hash || ''}`;
+      window.history.replaceState(null, '', nextUrl);
+      return { ok: true, user: data.user };
+    }
+  } catch {}
+  return { ok: false };
+}
+
 export function isEmbeddedStorePath(): boolean {
   if (typeof window === 'undefined') return false;
   return /^\/(?:shop|drop)(?:\/|$)/i.test(window.location.pathname || '');
@@ -188,7 +225,7 @@ export function resolveTenantBrandId(): string | null {
   const fromQuery = params.get('brandId') || params.get('tenant');
   if (fromQuery) return fromQuery.trim();
 
-  const pathMatch = (window.location.pathname || '').match(/^\/(?:shop|drop)\/([^/?#]+)/i);
+  const pathMatch = (window.location.pathname || '').match(/^\/(?:s|shop|drop)\/([^/?#]+)/i);
   if (pathMatch && pathMatch[1]) {
     return decodeURIComponent(pathMatch[1]).trim();
   }
@@ -207,7 +244,7 @@ export function resolveTenantBrandId(): string | null {
   const parts = host.split('.');
   if (parts.length >= 3) {
     const sub = parts[0].toLowerCase().replace(/^t2-tenant-/, '');
-    if (sub && !['www', 'battah', 'shop', 'store', 'app', 'apps', 'book', 't2digital', 'localhost', '127'].includes(sub)) {
+    if (sub && !['www', 's', 'b', 'battah', 'shop', 'store', 'app', 'apps', 'book', 't2digital', 'localhost', '127'].includes(sub)) {
       return sub;
     }
   }
@@ -236,14 +273,18 @@ export async function bootstrapBattahTenant(): Promise<TenantBrandConfig | null>
   const brandId = resolveTenantBrandId();
   if (!brandId) return null;
 
+  await consumeBattahSsoToken(brandId);
+
   const isEmbedded = isEmbeddedStorePath();
   let brand: TenantBrandConfig | null = null;
   if (!isEmbedded) {
     try {
-      const cfgRes = await fetch('/tenant-config.json');
+      const cfgRes = await fetch('/tenant-config.json', { cache: 'no-store' });
       if (cfgRes.ok) {
         const cfg = await cfgRes.json();
-        if (cfg?.name) {
+        const cfgSlug = String(cfg?.slug || cfg?.brandId || cfg?.id || '').trim();
+        const cfgMatches = Boolean(cfg?.name && cfgSlug && normalizeSlugKey(cfgSlug) === normalizeSlugKey(brandId));
+        if (cfgMatches) {
           brand = {
             id: cfg.brandId || cfg.id || brandId,
             slug: cfg.slug || brandId,
