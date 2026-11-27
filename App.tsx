@@ -16,6 +16,7 @@ import {
 import { getActiveBranches } from './lib/appConfig';
 
 import Storefront from './components/store/Storefront';
+import { PlatformShowcaseDirectory } from './components/store/PlatformShowcaseDirectory';
 import ToastContainer from './components/shared/ToastContainer';
 
 // Lazy load admin shell, auth modal, and heavy report views so the public storefront stays fast
@@ -733,6 +734,10 @@ const App: React.FC = () => {
     };
     
     if (viewMode === 'store') {
+        const activeSlug = resolveTenantBrandId();
+        if (!activeSlug && !tenantBrand) {
+            return <PlatformShowcaseDirectory />;
+        }
         return (
             <>
                 <Storefront setViewMode={setViewMode} />
