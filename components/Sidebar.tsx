@@ -15,8 +15,14 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, activeSection, setActiveSecti
     const { appData, currentUser } = useStore();
     const pendingOrdersCount = appData?.orders.filter(o => o.status === 'pending').length || 0;
     const unreadNotificationsCount = appData?.notifications.filter(n => !n.read).length || 0;
+    const isDropshippingStore = Boolean(
+        (typeof window !== 'undefined' && (window as any).__DROPSHIPPING_STORE__) ||
+        appData?.appCustomization?.enableDropshipping ||
+        (typeof window !== 'undefined' && (window as any).__TENANT_BRAND__?.storeType === 'dropshipping') ||
+        appData?.products?.some((p: any) => p?.fulfillmentType === 'dropshipping')
+    );
 
-    const navItems = [
+    const allNavItems = [
         { id: Section.Dashboard, icon: 'fa-tachometer-alt', label: 'لوحة التحكم', permission: Section.Dashboard },
         { id: Section.Treasury, icon: 'fa-cash-register', label: 'الخزينة', permission: Section.Treasury },
         { id: Section.DailySales, icon: 'fa-hand-holding-usd', label: 'مبيعات اليوم', permission: Section.DailySales },
@@ -38,6 +44,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, activeSection, setActiveSecti
         { id: Section.Users, icon: 'fa-user-shield', label: 'المستخدمين', permission: Section.Users },
         { id: Section.Settings, icon: 'fa-cogs', label: 'الإعدادات', permission: Section.Settings },
     ];
+    const navItems = allNavItems.filter(item => item.id !== Section.Dropshipping || isDropshippingStore);
 
     const NavLink: React.FC<{ item: typeof navItems[0] }> = ({ item }) => {
         if (!hasPermission(item.permission)) return null;

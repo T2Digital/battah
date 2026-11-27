@@ -125,6 +125,7 @@ export interface AppCustomization {
     heroSlides?: HeroSlideConfig[];
     shipping?: ShippingConfig;
     paymentGateways?: PaymentGatewaysConfig;
+    enableDropshipping?: boolean;
 }
 
 export enum Role {

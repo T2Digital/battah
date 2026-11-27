@@ -156,7 +156,7 @@ const StoreHero: React.FC<StoreHeroProps> = ({
                         )}
 
                         <h1 className="text-3xl sm:text-5xl lg:text-[3.4rem] font-black mb-3 sm:mb-4 leading-[1.18] tracking-tight animate-fade-in-up">
-                            <span className="text-transparent bg-clip-text bg-gradient-to-l from-white via-white to-sky-200">
+                            <span className="text-white drop-shadow-[0_2px_10px_rgba(0,0,0,0.65)]">
                                 {slide.title}
                             </span>
                         </h1>
