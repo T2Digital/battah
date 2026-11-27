@@ -522,14 +522,24 @@ export function getHeroSlides(
   }
 
   const cats = Array.isArray(mainCategories) && mainCategories.length > 0 ? mainCategories : ['all'];
+  const tenantBrand = typeof window !== 'undefined' ? (window as any).__TENANT_BRAND__ : null;
+  const fallbackHeroImg =
+    String(tenantBrand?.heroImage || '').trim() ||
+    String(tenantBrand?.productsCatalog?.[0]?.imageUrl || tenantBrand?.productsCatalog?.[0]?.image || '').trim() ||
+    'https://images.unsplash.com/photo-1472851294608-062f824d29cc?q=80&w=1600&auto=format&fit=crop';
+  const secondaryHeroImg =
+    String(tenantBrand?.productsCatalog?.[1]?.imageUrl || tenantBrand?.productsCatalog?.[1]?.image || '').trim() ||
+    fallbackHeroImg;
+  const cleanBadge = cats[0] && cats[0] !== 'all' ? cats[0] : 'المتجر الإلكتروني المعتمد';
+  const cleanSubtitle = slogan && slogan !== brandName ? slogan : 'جودة أصلية وتجربة تسوق موثوقة';
   return [
     {
       id: 1,
-      badge: slogan || 'المتجر الإلكتروني المعتمد',
+      badge: cleanBadge,
       title: brandName || 'تشكيلة مميزة بانتظارك',
-      subtitle: 'جودة عالية وأفضل قيمة مقابل سعر',
-      description: slogan || 'تصفح أحدث المنتجات والعروض المتاحة الآن مع شحن سريع لجميع المحافظات.',
-      image: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?q=80&w=1600&auto=format&fit=crop',
+      subtitle: cleanSubtitle,
+      description: 'تصفح أحدث المنتجات والعروض المتاحة الآن مع شحن سريع لجميع المحافظات.',
+      image: fallbackHeroImg,
       category: cats[0] || 'all',
     },
     {
@@ -538,7 +548,7 @@ export function getHeroSlides(
       title: cats[1] || cats[0] || 'تسوق بسهولة وأمان',
       subtitle: 'اطلب أونلاين والدفع عند الاستلام أو إلكترونياً',
       description: 'اختر ما يناسبك وتابع حالة طلبك خطوة بخطوة بضمان معتمد وخدمة عملاء متميزة.',
-      image: 'https://images.unsplash.com/photo-1472851294608-062f824d29cc?q=80&w=1600&auto=format&fit=crop',
+      image: secondaryHeroImg,
       category: cats[1] || cats[0] || 'all',
     },
   ];
