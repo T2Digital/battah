@@ -338,25 +338,6 @@ const StoreHeader: React.FC<StoreHeaderProps> = ({
                             </span>
                         )}
                     </button>
-
-                    {/* Admin Login Button */}
-                    <button
-                        type="button"
-                        onClick={() => setViewMode('admin')}
-                        className="sm:hidden w-8 h-8 rounded-full bg-slate-900 dark:bg-white text-white dark:text-slate-950 flex items-center justify-center shadow-sm"
-                        aria-label="دخول الإدارة"
-                        title="دخول الإدارة"
-                    >
-                        <i className="fas fa-user-shield text-[11px]" />
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setViewMode('admin')}
-                        className="hidden sm:flex items-center gap-2 px-4 py-2 bg-slate-900 dark:bg-white text-white dark:text-slate-950 rounded-full hover:bg-slate-800 dark:hover:bg-slate-100 transition-all font-extrabold text-xs sm:text-sm shadow-sm active:scale-95"
-                    >
-                        <i className="fas fa-user-shield text-xs" />
-                        <span>دخول الإدارة</span>
-                    </button>
                 </div>
             </div>
 
